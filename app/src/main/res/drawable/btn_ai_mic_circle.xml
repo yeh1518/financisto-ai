@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  錄音鈕專用底圖。不能沿用 Financisto 原生的 btn_circle：那個 selector 沒有
+  state_selected 這一項，所以 setSelected(true) 在畫面上完全看不出來＝按了不知道有沒有在錄。
+  這裡錄音中直接轉成紅色，配合 onRmsChanged 的縮放，一眼就知道它聽得到你。
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <shape android:shape="oval">
+            <solid android:color="#D32F2F" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#4F3D8C" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#6750A4" />
+        </shape>
+    </item>
+</selector>

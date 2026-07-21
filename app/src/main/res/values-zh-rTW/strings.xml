@@ -396,6 +396,8 @@
   <string name="backup_folder_summary">為儲存備份檔，請在 Google Drive 建立新目錄</string>
   <string name="google_drive_backup_account">備份帳戶</string>
   <string name="google_drive_backup_account_summary">選擇備份使用的 Google 帳戶</string>
+  <string name="google_drive_disabled_summary">已停用 — 改用本機備份資料夾 + Syncthing</string>
+  <string name="google_drive_disabled_message">此版本已停用 Google Drive 備份。Drive 登入是靠「app 套件名稱 + 簽章金鑰」對認上游的 Google Cloud 專案，這個 fork 換了套件名與簽章後對不上，登入不會成功。請改用「本機備份資料夾」並用 Syncthing 同步。</string>
   <string name="google_drive_sign_out">登出帳戶</string>
   <string name="google_drive_sign_out_summary">登出以選擇其他帳戶</string>
   <string name="report_preferences">報告選項</string>
@@ -1087,4 +1089,79 @@
     <item>只顯示彙總交易</item>
     <item>只顯示子交易</item>
   </string-array>
+
+  <!-- AI 一句話記帳（Step 1） -->
+  <string name="ai_bookkeeping">AI 記帳</string>
+  <string name="ai_input_hint">說一句話，AI 幫你填交易表單</string>
+  <string name="ai_input_placeholder">例：買咖啡 120 刷中信</string>
+  <string name="ai_parse">解析</string>
+  <string name="ai_settings">設定</string>
+  <string name="ai_save">儲存</string>
+  <string name="ai_parsing">AI 辨識中…</string>
+  <string name="ai_recognized">已辨識，請確認</string>
+  <string name="ai_failed">失敗：%1$s</string>
+  <string name="ai_empty_input">請先輸入內容</string>
+  <string name="ai_not_configured">尚未設定 API key，請先進設定頁</string>
+  <string name="ai_saved">已存入</string>
+  <string name="ai_settings_saved">設定已儲存</string>
+  <string name="ai_settings_base_url">Base URL（服務端點）</string>
+  <string name="ai_settings_base_url_hint">https://api.openai.com/v1</string>
+  <string name="ai_settings_model">模型</string>
+  <string name="ai_settings_model_hint">gpt-4o-mini</string>
+  <string name="ai_settings_api_key">API key</string>
+  <string name="ai_settings_api_key_hint">輸入以更新（留白＝不變）</string>
+  <string name="ai_api_key_set">API key 已設定</string>
+  <string name="ai_api_key_unset">尚未設定 API key</string>
+  <string name="ai_voice_prompt">說一句話記帳</string>
+  <string name="ai_voice_button_desc">語音輸入</string>
+  <string name="ai_voice_unavailable">此裝置沒有語音辨識服務，請用鍵盤輸入</string>
+  <string name="ai_voice_tap_to_talk">點一下開始說話</string>
+  <string name="ai_voice_tap_to_stop">● 錄音中…說完點一下結束</string>
+  <string name="ai_voice_need_mic">需要麥克風權限才能語音記帳</string>
+  <string name="ai_balance_need_account">調整餘額需要指定帳戶，請說出帳戶名稱</string>
+  <string name="ai_voice_supplement_prompt">說出要補充或修正的部分</string>
+  <string name="ai_voice_shortcut_short">說一句</string>
+  <string name="ai_voice_shortcut_long">語音記帳</string>
+  <string name="ai_log_title">解析紀錄</string>
+  <string name="ai_log_share">分享</string>
+  <string name="ai_log_clear">清除</string>
+  <string name="ai_log_empty">還沒有紀錄</string>
+  <string name="ai_voice_nothing">沒聽到內容，點麥克風再試一次</string>
+  <string name="ai_transfer_need_to_account">轉帳需要指定轉入帳戶，請說出要轉入哪個帳戶</string>
+  <string name="ai_type_switch_cancelled">已取消切換型別</string>
+  <string name="ai_input_clear_desc">清空文字</string>
+  <string name="ai_auto_send">辨識完直接送出解析</string>
+  <string name="ai_pin_shortcut">加語音捷徑到桌面</string>
+  <string name="ai_pin_shortcut_unsupported">此桌面不支援釘選捷徑</string>
+  <string name="ai_shortcut_enters_app">捷徑完成後進入 App（而非回桌面）</string>
+  <string name="ai_fetch_models">取得清單</string>
+  <string name="ai_models_loading">取得模型清單中…</string>
+  <string name="ai_models_pick">選擇模型</string>
+  <string name="ai_models_empty">沒有回傳任何模型</string>
+  <string name="ai_models_failed">取得失敗：%1$s</string>
+  <string name="ai_fab_size">語音浮動鈕大小：%1$d dp</string>
+  <!-- 雲端 STT + per-provider 設定 -->
+  <string name="ai_keys_section">API Keys（擇一即可）</string>
+  <string name="ai_stt_gemini_direct">Google AI（辨識＋解析一次）</string>
+  <string name="ai_stt_openai_direct">OpenAI（辨識＋解析一次）</string>
+  <string name="ai_key_edit">編輯</string>
+  <string name="ai_key_set">已設定</string>
+  <string name="ai_key_unset">未設定</string>
+  <string name="ai_key_dialog_title">%1$s API key</string>
+  <string name="ai_key_dialog_hint">貼上 API key</string>
+  <string name="ai_key_empty">請輸入 key</string>
+  <string name="ai_key_testing">測試中…</string>
+  <string name="ai_key_test_failed">測試失敗：%1$s</string>
+  <string name="ai_key_saved">key 已儲存</string>
+  <string name="ai_stt_section">語音辨識</string>
+  <string name="ai_stt_engine">辨識方式</string>
+  <string name="ai_stt_builtin">內建（Google 語音彈窗）</string>
+  <string name="ai_llm_section">AI 解析</string>
+  <string name="ai_llm_provider">服務</string>
+  <string name="ai_no_provider_key">請先設定 API key</string>
+  <string name="ai_stt_not_configured">雲端語音辨識尚未設定，請到設定確認 API key</string>
+  <string name="ai_stt_need_mic">雲端語音輸入需要麥克風權限</string>
+  <string name="ai_rec_transcribing">辨識中…</string>
+  <string name="ai_rec_retry">重試</string>
+  <string name="ai_voice_recording_label">● %1$s　點麥克風完成</string>
 </resources>

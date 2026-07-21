@@ -13,7 +13,7 @@
 	xmlns:tools="http://schemas.android.com/tools"
 	package="tw.tib.financisto"
 	android:installLocation="internalOnly">
-    <!-- versionName/versionCode 由 build.gradle 自動產生，不在 manifest 寫死 -->
+    <!-- versionName/versionCode 由 build.gradle 自動產生（.ai 版），不在 manifest 寫死 -->
 
 
     <supports-screens
@@ -37,6 +37,8 @@
     <!--uses-permission android:name="android.permission.CAMERA" /-->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 雲端 STT 自錄音（標準 Google 語音彈窗不需要，由 Google app 代錄） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -47,6 +49,9 @@
 	<uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
     <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+	<!-- AI 一句話記帳語音走標準 RecognizerIntent（由 Google app 代錄），app 本身不需
+	     RECORD_AUDIO。2026-07-16 從自控 SpeechRecognizer 回歸標準元件後移除該權限。 -->
+
 	<!-- 用 ${applicationId} 而非寫死：自訂 permission 名稱是「全域唯一」的，
 	     寫死會讓 debug(.ai) 與商店版同名衝突 → INSTALL_FAILED_DUPLICATE_PERMISSION。
 	     release 的 applicationId 就是 tw.tib.financisto，展開後與原本完全相同。 -->
@@ -60,7 +65,8 @@
 		android:icon="@mipmap/app_icon" android:label="@string/app_name"
 		android:hardwareAccelerated="true"
 		android:allowBackup="true"
-		android:fullBackupContent="true"
+		android:fullBackupContent="@xml/backup_rules"
+		android:dataExtractionRules="@xml/data_extraction_rules"
 		android:description="@string/app_description"
 		android:enableOnBackInvokedCallback="true"
 		tools:targetApi="tiramisu">
@@ -187,6 +193,29 @@
 
 		<activity android:name=".activity.BlotterActivity" android:label="@string/blotter"
 			android:theme="@style/AppThemeCompat" />
+
+		<!-- stateHidden：主要用講的，鍵盤不該一進來就彈出擋住中央的錄音鈕 -->
+		<!--
+		  exported=true 是桌面捷徑的前提：捷徑由 launcher（別的 uid）啟動，不 export 會被
+		  「not exported from uid」擋掉。捷徑走自訂 action（見 xml/shortcuts.xml），
+		  Activity 據此判斷要不要一進來就開錄。
+		-->
+		<activity android:name=".ai.AiInputActivity" android:label="@string/ai_bookkeeping"
+			android:exported="true"
+			android:windowSoftInputMode="stateHidden|adjustResize">
+			<intent-filter>
+				<action android:name="tw.tib.financisto.ai.action.VOICE_INPUT" />
+				<category android:name="android.intent.category.DEFAULT" />
+			</intent-filter>
+		</activity>
+
+		<activity android:name=".ai.AiSettingsActivity" android:label="@string/ai_settings" />
+
+		<!-- 補充模式的雲端錄音頁（與主語音頁同款大麥克風；app 內部使用） -->
+		<activity android:name=".ai.VoiceCaptureActivity" android:label="@string/ai_bookkeeping"
+			android:exported="false" />
+
+		<activity android:name=".ai.AiLogActivity" android:label="@string/ai_log_title" />
 
 		<activity android:name=".activity.PlannerActivity" android:label="@string/planner"/>
 
@@ -367,6 +396,8 @@
 			</intent-filter>
 		</activity>
 
+		<!-- authority 同樣是全域唯一，寫死會撞商店版 → INSTALL_FAILED_CONFLICTING_PROVIDER。
+		     release 展開後仍是 tw.tib.financisto，行為不變。 -->
 		<provider
 			android:name="androidx.core.content.FileProvider"
 			android:authorities="${applicationId}"
@@ -391,6 +422,14 @@
 	<queries>
 		<!-- for Dropbox app auth -->
 		<package android:name="com.dropbox.android" />
+		<!-- AI 一句話記帳：targetSdk 30+ 的 package visibility 下，
+		     沒宣告這兩個就 resolve 不到語音辨識，RecognizerIntent 會被誤判為不可用 -->
+		<intent>
+			<action android:name="android.speech.RecognitionService" />
+		</intent>
+		<intent>
+			<action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+		</intent>
 	</queries>
 
 </manifest> 

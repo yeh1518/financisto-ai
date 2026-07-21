@@ -6,13 +6,22 @@ import android.os.Bundle;
 import android.view.WindowManager;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
 
 import tw.tib.financisto.R;
+import tw.tib.financisto.ai.AiDefaultAccountProvider;
 import tw.tib.financisto.utils.MyPreferences;
 
-public class BlotterActivity extends AppCompatActivity {
+public class BlotterActivity extends AppCompatActivity implements AiDefaultAccountProvider {
     public BlotterActivity() {
         super(R.layout.fragment_container);
+    }
+
+    /** 帳戶明細頁 → 把當前 filter 的帳戶露給 AI 浮動鈕當語音記帳預設帳戶。 */
+    @Override
+    public long getAiDefaultAccountId() {
+        Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragment_container_view);
+        return (f instanceof BlotterFragment) ? ((BlotterFragment) f).getAiDefaultAccountId() : -1;
     }
 
     @Override

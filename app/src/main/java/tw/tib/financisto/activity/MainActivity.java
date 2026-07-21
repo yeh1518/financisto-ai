@@ -150,6 +150,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 已在執行時被再次帶到前景（如 AI 語音捷徑「完成後進 App」路徑，帶 CLEAR_TOP 回來）：
+     * onCreate 不會再跑，要在這裡套用 GO_TO_SCREEN 才會切到指定分頁（完成→交易列表）。
+     */
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.hasExtra(GO_TO_SCREEN) && viewPager != null) {
+            viewPager.setCurrentItem(intent.getIntExtra(GO_TO_SCREEN,
+                    MyPreferences.getStartupScreen().ordinal()), false);
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -157,6 +171,10 @@ public class MainActivity extends AppCompatActivity {
         PinProtection.unlock(this);
         if (PinProtection.isUnlocked()) {
             WebViewDialog.checkVersionAndShowWhatsNewIfNeeded(this);
+            // 回到主畫面就刷新當前分頁：AI 語音記帳走的是疊在上層的 AiInputActivity，
+            // 存檔結果不會回到分頁 fragment 的 onActivityResult（原生 +交易那條會），
+            // 少了這行帳戶餘額/交易列表要切分頁才更新。與 onPageSelected 的刷新一致。
+            refreshCurrentTab();
         }
     }
 

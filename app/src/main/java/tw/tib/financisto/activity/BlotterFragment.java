@@ -281,6 +281,8 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 bTemplate.setVisibility(View.VISIBLE);
                 bTemplate.setOnClickListener(v -> createFromTemplate());
             }
+
+            // AI 語音改走全 App 浮動鈕（AiFloatingButton），Blotter 這顆撤掉
         }
 
         bFilter = view.findViewById(R.id.bFilter);
@@ -626,15 +628,15 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         }
     };
 
+    // AI 一句話記帳的 quick-action 位置（隨是否含 template 動態決定）
     private void prepareAddButtonActionGrid() {
         addButtonActionGrid = new QuickActionGrid(getContext());
         addButtonActionGrid.addQuickAction(new MyQuickAction(getContext(), R.drawable.actionbar_add_big, R.string.transaction));
         addButtonActionGrid.addQuickAction(new MyQuickAction(getContext(), R.drawable.ic_action_transfer, R.string.transfer));
         if (addTemplateToAddButton()) {
             addButtonActionGrid.addQuickAction(new MyQuickAction(getContext(), R.drawable.actionbar_tiles_large, R.string.template));
-        } else {
-            addButtonActionGrid.setNumColumns(2);
         }
+        // AI 語音改走全 App 浮動鈕（AiFloatingButton），quick-action grid 的 AI 項也撤掉
         addButtonActionGrid.setOnQuickActionClickListener(addButtonActionListener);
     }
 
@@ -655,6 +657,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 break;
         }
     };
+
 
     private void restoreTransaction(long selectedId) {
         new BlotterOperations(getContext(), this, db, selectedId).restoreTransaction();
@@ -914,6 +917,14 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         recreateCursor();
         AccountWidget.updateWidgets(getContext());
         return newId;
+    }
+
+    /**
+     * 供 AI 浮動鈕取用：這是「單一帳戶明細」時回該帳戶 id，否則 -1。
+     * 只認 isAccountBlotter＋有帳戶 filter 的情況，避免主 blotter 的殘留帳戶 filter 也被當預設。
+     */
+    public long getAiDefaultAccountId() {
+        return isAccountBlotter ? blotterFilter.getAccountId() : -1;
     }
 
     @Override

@@ -110,6 +110,8 @@ public class AccountRecyclerFragment extends AbstractRecyclerViewFragment
         emptyText = view.findViewById(android.R.id.empty);
         progressBar = view.findViewById(android.R.id.progress);
 
+        // AI 語音改走全 App 浮動鈕（AiFloatingButton），帳戶頁這顆撤掉
+
         bSearch = view.findViewById(R.id.bSearch);
         if (bSearch != null) {
             loadFilter();

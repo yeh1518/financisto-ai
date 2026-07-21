@@ -24,6 +24,7 @@ import tw.tib.financisto.R;
 import tw.tib.financisto.model.Account;
 import tw.tib.financisto.model.Category;
 import tw.tib.financisto.model.Currency;
+import tw.tib.financisto.ai.ParsedTransaction;
 import tw.tib.financisto.model.MyEntity;
 import tw.tib.financisto.model.Payee;
 import tw.tib.financisto.model.Transaction;
@@ -46,6 +47,12 @@ public class TransactionActivity extends AbstractTransactionActivity {
     private static final String TAG = "TransactionActivity";
 
     public static final String CURRENT_BALANCE_EXTRA = "accountCurrentBalance";
+    /**
+     * 調整餘額模式下，預先填入的「新餘額」（minor units）。
+     * 給 AI 一句話記帳用（「中信剩下300」）：CURRENT_BALANCE_EXTRA 帶入目前餘額，
+     * 這個帶入目標餘額，差額由既有的 listener 自動算出。
+     */
+    public static final String NEW_BALANCE_EXTRA = "accountNewBalance";
     public static final String AMOUNT_EXTRA = "accountAmount";
     public static final String ACTIVITY_STATE = "ACTIVITY_STATE";
     public static final String SPLIT_PARENT_ACCOUNT = "splitParentAccount";
@@ -211,6 +218,12 @@ public class TransactionActivity extends AbstractTransactionActivity {
         categorySelector.fetchCategories(!isUpdateBalanceMode);
     }
 
+    /** 補充模式切換型別時要知道是否在調整餘額模式（切出時金額不沿用「新餘額」）。 */
+    @Override
+    protected boolean isBalanceAdjustMode() {
+        return isUpdateBalanceMode;
+    }
+
     @Override
     protected void createListNodes(LinearLayout layout) {
         //account
@@ -251,6 +264,20 @@ public class TransactionActivity extends AbstractTransactionActivity {
                 rateView.setIncome();
             } else {
                 rateView.setExpense();
+            }
+            // AI 一句話記帳（「中信剩下300」）：預填講出來的新餘額。
+            // 必須放在上面的 setIncome/setExpense 之後才不會被蓋掉，且正負號要依「新」
+            // 餘額決定（AmountInput.setAmount 內部取絕對值，符號由 income/expense 決定）——
+            // 依舊餘額判斷的話，負餘額帳戶(如信用卡)會把差額算反。
+            // 差額不用自己算：setFromAmount 會觸發上面註冊的 listener。
+            if (getIntent() != null && getIntent().hasExtra(NEW_BALANCE_EXTRA)) {
+                long newBalance = getIntent().getLongExtra(NEW_BALANCE_EXTRA, currentBalance);
+                if (newBalance >= 0) {
+                    rateView.setIncome();
+                } else {
+                    rateView.setExpense();
+                }
+                rateView.setFromAmount(newBalance);
             }
         } else {
             if (currentBalance > 0) {
@@ -387,7 +414,11 @@ public class TransactionActivity extends AbstractTransactionActivity {
     }
 
     private void fetchSplits() {
-        List<Transaction> splits = db.getSplitsForTransaction(transaction.id);
+        // 複製一筆時 transaction.id 已被重設成 -1，用它重查會抓不到子項；此時改用
+        // getTransaction 當初載入好的 transaction.splits（複製分割交易、AI 分割 draft 都靠這條）。
+        List<Transaction> splits = (transaction.id > 0)
+                ? db.getSplitsForTransaction(transaction.id)
+                : (transaction.splits != null ? transaction.splits : new ArrayList<>());
         for (Transaction split : splits) {
             split.id = --idSequence;
             split.categoryAttributes = db.getAllAttributesForTransaction(split.id);
@@ -436,28 +467,49 @@ public class TransactionActivity extends AbstractTransactionActivity {
 
         if (a != null) {
             // update account used in split transactions
+            // ⚠️ selectedAccount 可為 null（AI 分割 prefill 沒帶帳戶時：fetchSplits 先建好清單、
+            // 使用者才第一次選帳戶）——原寫法直接 selectedAccount.id 會 NPE。null 視為 oldId=0，
+            // 順便讓「帳戶未定（fromAccountId=0）」的分割子項認養第一次選到的帳戶，unsplit 才算得對。
+            long oldId = selectedAccount != null ? selectedAccount.id : 0;
             for (var p : viewToSplitMap.entrySet()) {
                 var t = p.getValue();
                 var v = p.getKey();
 
-                if ((t.fromAccountId == selectedAccount.id && t.toAccountId == a.id) ||
-                    (t.fromAccountId == a.id && t.toAccountId == selectedAccount.id))
+                if (oldId > 0 &&
+                    ((t.fromAccountId == oldId && t.toAccountId == a.id) ||
+                     (t.fromAccountId == a.id && t.toAccountId == oldId)))
                 {
                     // will become self transfer, just delete it
                     deleteSplit(v);
                 }
                 else {
-                    if (t.fromAccountId == selectedAccount.id) {
+                    if (t.fromAccountId == oldId) {
                         t.fromAccountId = a.id;
                     }
-                    if (t.toAccountId == selectedAccount.id) {
+                    // toAccountId 只有轉帳分割才有值；oldId=0 時不能碰（一般分割的 to 本來就是 0）
+                    if (oldId > 0 && t.toAccountId == oldId) {
                         t.toAccountId = a.id;
                     }
                     setSplitData(v, t);
                 }
             }
+            if (!viewToSplitMap.isEmpty()) {
+                updateUnsplitAmount();   // 子項帳戶剛被 remap，未分配金額要跟著重算
+            }
 
             u.setAccountTitleBalance(a, accountText, accountBalanceText, accountLimitText);
+
+            // 調整餘額模式下，差額＝新餘額 − 該帳戶目前餘額。currentBalance 原本只在 onCreate
+            // 從 intent 讀一次，換帳戶時沒跟著換，差額就會拿舊帳戶的餘額去減＝算錯。
+            // （原生就有的問題，不是 AI 那條路帶進來的。）
+            // selectedAccount == null＝第一次帶入，intent 給的 currentBalance 本來就是對的
+            if (isUpdateBalanceMode && selectedAccount != null && a.id != selectedAccount.id) {
+                currentBalance = a.totalAmount;
+                if (differenceText != null) {
+                    u.setAmountText(differenceText, rateView.getCurrencyFrom(),
+                            rateView.getFromAmount() - currentBalance, true);
+                }
+            }
 
             selectedAccount = a;
 
@@ -686,6 +738,106 @@ public class TransactionActivity extends AbstractTransactionActivity {
             }
         }
         return null;
+    }
+
+    /**
+     * 補充模式：這句話有帶分割就把本筆改成分割交易、套上各份；否則走一般欄位補充。
+     * 分割是 TransactionActivity 才有的能力（TransferActivity 無），故在此 override。
+     */
+    @Override
+    protected void applyAiSupplementFields(ParsedTransaction t) {
+        if (t.hasSplits() && applyAiSplits(t)) {
+            return;
+        }
+        super.applyAiSupplementFields(t);
+    }
+
+    /**
+     * 把本筆改成分割交易並套上 AI 各份：共用欄位（帳戶/日期/專案）照套，分類改走 SPLIT、
+     * 父金額＝各份加總（unsplit 歸零）。回 true＝至少套進一份；沒有任何有效份（金額都不明）回 false
+     * 交回一般流程、不動現有表單。順序比照 onRestoreInstanceState 重建分割。
+     */
+    private boolean applyAiSplits(ParsedTransaction t) {
+        int valid = 0;
+        for (ParsedTransaction.Split s : t.splits) if (s.amount != null) valid++;
+        if (valid == 0) return false;
+
+        // 共用欄位先套（分類/金額改由分割決定，不走這裡）
+        if (t.account.resolved()) selectAccount(t.account.id, false);
+        if (t.project.resolved()) projectSelector.selectEntity(t.project.id);
+        Long spoken = t.resolveDateTimeMillis();
+        if (spoken != null) setDateTime(spoken);
+
+        // 重建分割清單
+        boolean wasSplit = categorySelector.isSplitCategorySelected();
+        viewToSplitMap.clear();
+        splits.clear();
+        resetSplitsLayout();
+        categorySelector.selectCategory(Category.SPLIT_CATEGORY_ID, false);
+        // selectCategory 對「同一個分類」是 no-op、不會觸發 listener → resetSplitsLayout 清掉的
+        // 「未分配」node 不會被 addOrRemoveSplits 補回。已是分割時要自己補（重講分割的情境）。
+        if (wasSplit) {
+            addOrRemoveSplits();
+        }
+
+        long accountId = getSelectedAccountId();
+        Currency cur = rateView.getCurrencyFrom();
+        int scale = cur != null ? cur.getScale() : 2;
+        // 正負號：明講 income 就 income；補充模式 type 通常 null → 繼承表單現有符號
+        // （在收入交易上講分割，子項也要正號，否則與父金額打架、未分配永不為 0）
+        boolean income = t.isIncome()
+                || (t.transactionType == null && rateView.getFromAmount() > 0);
+        long total = 0;
+        for (ParsedTransaction.Split s : t.splits) {
+            if (s.amount == null) continue;
+            Transaction split = new Transaction();
+            split.id = --idSequence;
+            split.fromAccountId = accountId;
+            split.originalCurrencyId = selectedOriginCurrencyId;
+            long minor = Math.round(Math.abs(s.amount) * Math.pow(10, scale));
+            split.fromAmount = income ? minor : -minor;
+            if (s.category.resolved()) split.categoryId = s.category.id;
+            if (s.note != null && !s.note.trim().isEmpty()) split.note = s.note;
+            addOrEditSplit(split);
+            total += split.fromAmount;
+        }
+        rateView.setFromAmount(total);   // 父金額＝加總，unsplit 歸零
+        return true;
+    }
+
+    /**
+     * 補充模式的表單狀態：交易頁多兩種型態要單獨描述——
+     * (1) 調整餘額模式：金額是「新餘額」不是變動，只給型別＋帳戶，避免模型把它當交易金額拆分。
+     * (2) 分割交易：逐份列出「分類 金額（備註）」，模型才能在再補一份時回報「含現有各份」的完整 splits。
+     * 其餘（單一分類）走基底。
+     */
+    @Override
+    protected String buildAiFormStateContext() {
+        if (isUpdateBalanceMode) {
+            StringBuilder sb = new StringBuilder(AI_FORM_STATE_HEADER);
+            sb.append("型別：調整餘額\n");
+            appendAiAccountLine(sb);
+            return sb.toString();
+        }
+        if (categorySelector.isSplitCategorySelected() && !splits.isEmpty()) {
+            StringBuilder sb = new StringBuilder(AI_FORM_STATE_HEADER);
+            sb.append("型別：").append(aiFormStateTypeLabel()).append('\n');
+            appendAiAccountLine(sb);
+            sb.append("這是分割交易，目前各份（分類 金額）：\n");
+            long accountId = getSelectedAccountId();
+            for (Transaction s : splits.values()) {
+                String cat = aiCategoryName(s.categoryId);
+                sb.append("- ").append(cat != null ? cat : "未分類")
+                        .append(' ').append(aiFormatMajor(Math.abs(s.fromAmount), accountId));
+                if (s.note != null && !s.note.trim().isEmpty()) {
+                    sb.append("（").append(s.note.trim()).append("）");
+                }
+                sb.append('\n');
+            }
+            appendAiNoteProjectLines(sb);
+            return sb.toString();
+        }
+        return super.buildAiFormStateContext();
     }
 
     private void setSplitData(View v, Transaction split) {

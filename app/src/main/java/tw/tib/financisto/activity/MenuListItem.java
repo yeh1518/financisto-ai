@@ -87,14 +87,14 @@ public enum MenuListItem implements SummaryEntityEnum {
     GOOGLE_DRIVE_BACKUP(R.string.backup_database_online_google_drive, R.string.backup_database_online_google_drive_summary, R.drawable.actionbar_google_drive) {
         @Override
         public void call(Fragment fragment) {
-            if (!checkBackupFolderConfigured(fragment.getContext())) return;
-            GreenRobotBus_.getInstance_(fragment.getContext()).post(new MenuListFragment.StartDriveBackup());
+            // Drive 備份在本 fork 停用（package/簽章對不上上游 OAuth）。改用本機備份 + Syncthing。
+            showGoogleDriveDisabled(fragment.getContext());
         }
     },
     GOOGLE_DRIVE_RESTORE(R.string.restore_database_online_google_drive, R.string.restore_database_online_google_drive_summary, R.drawable.actionbar_google_drive) {
         @Override
         public void call(Fragment fragment) {
-            GreenRobotBus_.getInstance_(fragment.getContext()).post(new MenuListFragment.StartDriveRestore());
+            showGoogleDriveDisabled(fragment.getContext());
         }
     },
     DROPBOX_BACKUP(R.string.backup_database_online_dropbox, R.string.backup_database_online_dropbox_summary, R.drawable.actionbar_dropbox) {
@@ -338,6 +338,15 @@ public enum MenuListItem implements SummaryEntityEnum {
     public static void doQifImport(Activity activity, QifImportOptions options) {
         ProgressDialog progressDialog = ProgressDialog.show(activity, null, activity.getString(R.string.qif_import_inprogress), true);
         new QifImportTask(activity, progressDialog, options).execute();
+    }
+
+    /** Drive 備份/還原停用時的統一提示（成因與替代方案見 strings）。 */
+    private static void showGoogleDriveDisabled(Context context) {
+        new AlertDialog.Builder(context)
+                .setTitle(R.string.gdocs_backup)
+                .setMessage(R.string.google_drive_disabled_message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     private static boolean checkBackupFolderConfigured(Context context) {

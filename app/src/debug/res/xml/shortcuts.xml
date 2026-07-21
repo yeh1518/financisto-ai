@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  debug source set 覆寫：main 的 shortcuts.xml 把 targetPackage 寫死成
+  "tw.tib.financisto"，但 debug 的 applicationId 是 "tw.tib.financisto.ai"。
+  不覆寫的話，.ai 版的桌面捷徑會去啟動商店版那個 app（測試時極易混淆）。
+  res/xml 不支援 ${applicationId} placeholder，所以只能整份覆蓋。
+  targetClass 不用改：code 的 namespace 兩邊都是 tw.tib.financisto。
+-->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 排第一個：長按 app 圖示時最好按到，也是拖到桌面的首選 -->
     <shortcut
@@ -9,7 +16,7 @@
         android:shortcutLongLabel="@string/ai_voice_shortcut_long">
         <intent
             android:action="tw.tib.financisto.ai.action.VOICE_INPUT"
-            android:targetPackage="tw.tib.financisto"
+            android:targetPackage="tw.tib.financisto.ai"
             android:targetClass="tw.tib.financisto.ai.AiInputActivity" />
     </shortcut>
     <shortcut
@@ -20,7 +27,7 @@
         android:shortcutLongLabel="@string/transaction_title">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetPackage="tw.tib.financisto"
+            android:targetPackage="tw.tib.financisto.ai"
             android:targetClass="tw.tib.financisto.activity.TransactionActivity" />
     </shortcut>
     <shortcut
@@ -31,7 +38,7 @@
         android:shortcutLongLabel="@string/transfer_title">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetPackage="tw.tib.financisto"
+            android:targetPackage="tw.tib.financisto.ai"
             android:targetClass="tw.tib.financisto.activity.TransferActivity" />
     </shortcut>
     <shortcut
@@ -42,7 +49,7 @@
         android:shortcutLongLabel="@string/new_from_template">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetPackage="tw.tib.financisto"
+            android:targetPackage="tw.tib.financisto.ai"
             android:targetClass="tw.tib.financisto.activity.SelectTemplateActivity" />
     </shortcut>
 </shortcuts>

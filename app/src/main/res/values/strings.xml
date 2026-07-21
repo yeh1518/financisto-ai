@@ -1020,6 +1020,8 @@
     <string name="show_payee_in_transfer_summary">Show payee field in New Transfer screen</string>
     <string name="google_drive_backup_account">Backup account</string>
     <string name="google_drive_backup_account_summary">Choose your Google Drive account</string>
+    <string name="google_drive_disabled_summary">Disabled — use local backup folder + Syncthing</string>
+    <string name="google_drive_disabled_message">Google Drive backup is disabled in this build. Drive sign-in authenticates by package name + signing key against the upstream Google Cloud project, which no longer matches this fork. Use a local backup folder synced with Syncthing instead.</string>
     <string name="google_drive_sign_out">Sign out account</string>
     <string name="google_drive_sign_out_summary">Sign out to choose another account</string>
     <string name="google_drive_permission_requested">Permission requested</string>
@@ -1243,4 +1245,79 @@
         <item>Only show split summary</item>
         <item>Only show split children</item>
     </string-array>
+
+    <!-- AI one-sentence bookkeeping (Step 1) -->
+    <string name="ai_bookkeeping">AI bookkeeping</string>
+    <string name="ai_input_hint">Type a sentence, AI fills the transaction form</string>
+    <string name="ai_input_placeholder">e.g. Coffee 120 paid by CTBC card</string>
+    <string name="ai_parse">Parse</string>
+    <string name="ai_settings">Settings</string>
+    <string name="ai_save">Save</string>
+    <string name="ai_parsing">AI parsing…</string>
+    <string name="ai_recognized">Recognized, please confirm</string>
+    <string name="ai_failed">Failed: %1$s</string>
+    <string name="ai_empty_input">Please type something first</string>
+    <string name="ai_not_configured">API key not set — open Settings first</string>
+    <string name="ai_saved">Saved</string>
+    <string name="ai_settings_saved">Settings saved</string>
+    <string name="ai_settings_base_url">Base URL</string>
+    <string name="ai_settings_base_url_hint">https://api.openai.com/v1</string>
+    <string name="ai_settings_model">Model</string>
+    <string name="ai_settings_model_hint">gpt-4o-mini</string>
+    <string name="ai_settings_api_key">API key</string>
+    <string name="ai_settings_api_key_hint">Enter to update (blank = keep)</string>
+    <string name="ai_api_key_set">API key is set</string>
+    <string name="ai_api_key_unset">API key not set</string>
+    <string name="ai_voice_prompt">Say your transaction</string>
+    <string name="ai_voice_button_desc">Voice input</string>
+    <string name="ai_voice_unavailable">No speech recognition on this device — please type instead</string>
+    <string name="ai_voice_tap_to_talk">Tap to talk</string>
+    <string name="ai_voice_tap_to_stop">● Recording… tap to finish</string>
+    <string name="ai_voice_need_mic">Microphone permission is required for voice input</string>
+    <string name="ai_balance_need_account">Balance adjustment needs an account — please say the account name</string>
+    <string name="ai_voice_supplement_prompt">Say what to add or correct</string>
+    <string name="ai_voice_shortcut_short">Say it</string>
+    <string name="ai_voice_shortcut_long">Voice bookkeeping</string>
+    <string name="ai_log_title">Parse log</string>
+    <string name="ai_log_share">Share</string>
+    <string name="ai_log_clear">Clear</string>
+    <string name="ai_log_empty">No records yet</string>
+    <string name="ai_voice_nothing">Didn\'t catch that — tap the mic to try again</string>
+    <string name="ai_transfer_need_to_account">Transfer needs a destination account — say which account to transfer to</string>
+    <string name="ai_type_switch_cancelled">Type switch cancelled</string>
+    <string name="ai_input_clear_desc">Clear text</string>
+    <string name="ai_auto_send">Send to parse right after recognition</string>
+    <string name="ai_pin_shortcut">Add voice shortcut to home screen</string>
+    <string name="ai_pin_shortcut_unsupported">This launcher can\'t pin shortcuts</string>
+    <string name="ai_shortcut_enters_app">Shortcut enters the app when done (not home)</string>
+    <string name="ai_fetch_models">Models</string>
+    <string name="ai_models_loading">Fetching models…</string>
+    <string name="ai_models_pick">Pick a model</string>
+    <string name="ai_models_empty">No models returned</string>
+    <string name="ai_models_failed">Fetch failed: %1$s</string>
+    <string name="ai_fab_size">Floating mic button size: %1$d dp</string>
+    <!-- Cloud STT + per-provider settings -->
+    <string name="ai_keys_section">API Keys (any one is enough)</string>
+    <string name="ai_stt_gemini_direct">Google AI (transcribe + parse in one)</string>
+    <string name="ai_stt_openai_direct">OpenAI (transcribe + parse in one)</string>
+    <string name="ai_key_edit">Edit</string>
+    <string name="ai_key_set">Set</string>
+    <string name="ai_key_unset">Not set</string>
+    <string name="ai_key_dialog_title">%1$s API key</string>
+    <string name="ai_key_dialog_hint">Paste the API key</string>
+    <string name="ai_key_empty">Please enter a key</string>
+    <string name="ai_key_testing">Testing…</string>
+    <string name="ai_key_test_failed">Test failed: %1$s</string>
+    <string name="ai_key_saved">Key saved</string>
+    <string name="ai_stt_section">Speech recognition</string>
+    <string name="ai_stt_engine">Engine</string>
+    <string name="ai_stt_builtin">Built-in (Google popup)</string>
+    <string name="ai_llm_section">AI parsing</string>
+    <string name="ai_llm_provider">Provider</string>
+    <string name="ai_no_provider_key">Set an API key first</string>
+    <string name="ai_stt_not_configured">Cloud STT not configured — check keys in Settings</string>
+    <string name="ai_stt_need_mic">Microphone permission is required for cloud voice input</string>
+    <string name="ai_rec_transcribing">Transcribing…</string>
+    <string name="ai_rec_retry">Retry</string>
+    <string name="ai_voice_recording_label">● %1$s — tap mic to finish</string>
 </resources>

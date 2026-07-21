@@ -46,6 +46,7 @@
 			android:cacheColorHint="@android:color/transparent"
 			android:fastScrollEnabled="true" />
 
+
 		<TextView
 			android:id="@android:id/empty"
 			android:layout_width="fill_parent"
@@ -121,6 +122,8 @@
 					android:id="@+id/bAdd"
 					style="@style/BottomBarButton"
 					android:src="@drawable/actionbar_add_big" />
+
+				<!-- AI 語音改走全 App 浮動鈕（AiFloatingButton），Blotter 這顆撤掉。 -->
 
 				<ImageButton
 					android:id="@+id/bTransfer"

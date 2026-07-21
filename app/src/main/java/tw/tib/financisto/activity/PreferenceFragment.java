@@ -4,6 +4,7 @@ import static android.app.Activity.RESULT_OK;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
+import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.content.ComponentName;
 import android.content.Context;
@@ -129,26 +130,10 @@ public class PreferenceFragment extends PreferenceFragmentCompat {
             }
         });
 
-        pGoogleDriveSignIn = preferenceScreen.findPreference("google_drive_backup_account");
-        pGoogleDriveSignIn.setOnPreferenceClickListener(arg0 -> {
-            chooseAccount();
-            return true;
-        });
-        pGoogleDriveSignOut = preferenceScreen.findPreference("google_drive_sign_out");
-        pGoogleDriveSignOut.setOnPreferenceClickListener(arg0 -> {
-            signOutGoogleAccount();
-            return true;
-        });
-        Preference pGoogleDriveBackupFolder = preferenceScreen.findPreference("google_drive_backup_folder");
-        pGoogleDriveBackupFolder.setOnPreferenceChangeListener((Preference preference, Object newValue) -> {
-            new GoogleDriveAuthorizeFolderTask(getActivity(),
-                    (String) newValue,
-                    REQUEST_AUTHORIZATION).execute();
-            return true;
-        });
-
-        GoogleSignInAccount googleDriveAccount = GoogleSignIn.getLastSignedInAccount(context);
-        updateGoogleDriveSignIn(googleDriveAccount);
+        // Google Drive 備份在本 fork 停用：Drive OAuth 靠「package 名稱 + 簽章 SHA-1」
+        // 對認上游的 Google Cloud 專案，換了 applicationId（.ai）與簽章金鑰後認不得，
+        // 登入根本不會成功。改用「本機備份資料夾 + Syncthing」。（Gary 定案 2026-07-16）
+        disableGoogleDriveBackup();
 
         Preference useFingerprint = preferenceScreen.findPreference("pin_protection_use_fingerprint");
         if (FingerprintUtils.fingerprintUnavailable(context)) {
@@ -172,6 +157,34 @@ public class PreferenceFragment extends PreferenceFragmentCompat {
             pGoogleDriveSignIn.setSummary(getString(R.string.google_drive_signed_in_as,
                     account.getEmail()));
             pGoogleDriveSignOut.setEnabled(true);
+        }
+    }
+
+    /**
+     * 停用整個 Google Drive 備份區。主項目保持可點——點了跳訊息說明為何不能用、該用什麼替代；
+     * 其餘子項目直接灰掉（不可點）。See disableGoogleDriveBackup 的成因註解。
+     */
+    private void disableGoogleDriveBackup() {
+        PreferenceScreen ps = getPreferenceScreen();
+        pGoogleDriveSignIn = ps.findPreference("google_drive_backup_account");
+        if (pGoogleDriveSignIn != null) {
+            pGoogleDriveSignIn.setSummary(R.string.google_drive_disabled_summary);
+            pGoogleDriveSignIn.setOnPreferenceClickListener(p -> {
+                new AlertDialog.Builder(getContext())
+                        .setTitle(R.string.gdocs_backup)
+                        .setMessage(R.string.google_drive_disabled_message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show();
+                return true;
+            });
+        }
+        pGoogleDriveSignOut = ps.findPreference("google_drive_sign_out");
+        for (String key : new String[]{
+                "google_drive_sign_out", "google_drive_backup_folder",
+                "google_drive_upload_backup", "google_drive_upload_autobackup",
+                "google_drive_upload_pictures", "google_drive_download_pictures"}) {
+            Preference p = ps.findPreference(key);
+            if (p != null) p.setEnabled(false);
         }
     }
 

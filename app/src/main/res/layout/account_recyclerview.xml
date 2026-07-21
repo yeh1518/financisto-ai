@@ -90,6 +90,8 @@
             style="@style/BottomBarButton"
             android:src="@drawable/actionbar_add_big" />
 
+        <!-- AI 語音改走全 App 浮動鈕（AiFloatingButton），帳戶頁這顆撤掉 -->
+
         <ImageButton
             android:id="@+id/bSearch"
             style="@style/BottomBarButton"

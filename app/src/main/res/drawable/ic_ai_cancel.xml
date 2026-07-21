@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <!-- 叉叉＝取消（編輯既有交易時，bSaveAndNew 會變成「取消」） -->
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M760,256L704,200L480,424L256,200L200,256L424,480L200,704L256,760L480,536L704,760L760,704L536,480Z"/>
+</vector>

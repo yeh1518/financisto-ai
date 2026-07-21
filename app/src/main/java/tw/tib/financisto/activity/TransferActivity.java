@@ -20,6 +20,7 @@ import android.widget.Toast;
 import tw.tib.financisto.R;
 import tw.tib.financisto.db.DatabaseHelper.AccountColumns;
 import tw.tib.financisto.model.Account;
+import tw.tib.financisto.model.Currency;
 import tw.tib.financisto.model.Transaction;
 import tw.tib.financisto.utils.MyPreferences;
 
@@ -220,6 +221,25 @@ public class TransferActivity extends AbstractTransactionActivity {
 		}
 	}
 
+	/**
+	 * 轉帳特有：基底的 selectAccount() 在這裡只管「轉出」，轉入帳戶要自己接。
+	 * 轉入金額也要一併設，否則只有轉出側被更新。
+	 * override 就地套用層（applyAiSupplementFields）而非 applyAiSupplement——後者是型別切換
+	 * 的 orchestrator（final），這裡只補轉帳特有欄位。
+	 */
+	@Override
+	protected void applyAiSupplementFields(tw.tib.financisto.ai.ParsedTransaction t) {
+		super.applyAiSupplementFields(t);
+		if (t.toAccount.resolved()) {
+			selectToAccount(t.toAccount.id);
+		}
+		if (t.amount != null) {
+			Currency c = rateView.getCurrencyTo();
+			int scale = c != null ? c.getScale() : 2;
+			rateView.setToAmount(Math.round(Math.abs(t.amount) * Math.pow(10, scale)));
+		}
+	}
+
 	@Override
 	protected Account selectAccount(long accountId, boolean selectLast) {
 		Account account = db.getAccount(accountId);
@@ -229,6 +249,15 @@ public class TransferActivity extends AbstractTransactionActivity {
 			rateView.selectCurrencyFrom(account.currency);
 		}
 		return account;
+	}
+
+	/**
+	 * 轉帳頁的「當前帳戶」＝轉出帳戶。基底的 selectedAccount 在轉帳頁不設（改用 selectedAccountFromId），
+	 * 補充模式切換型別/餘額時要靠這個抓當前帳戶，否則沒講帳戶就抓成 -1。
+	 */
+	@Override
+	protected long getSelectedAccountId() {
+		return selectedAccountFromId;
 	}
 
 	protected void selectAccount(Account account, TextView accountText, TextView accountBalanceText, TextView accountLimitText, boolean selectLast) {
@@ -241,6 +270,28 @@ public class TransferActivity extends AbstractTransactionActivity {
 				categorySelector.selectCategory(account.lastCategoryId);
 			}
 		}
+	}
+
+	/**
+	 * 補充模式的表單狀態：轉帳頁用 selectedAccountFromId/ToId（基底 selectedAccount 不設），
+	 * 故整段自建：型別＝轉帳、轉出/轉入帳戶、金額（轉出帳戶 scale）；分割不適用轉帳。
+	 */
+	@Override
+	protected String buildAiFormStateContext() {
+		StringBuilder sb = new StringBuilder(AI_FORM_STATE_HEADER);
+		sb.append("型別：轉帳\n");
+		Account from = selectedAccountFromId > 0 ? db.getAccount(selectedAccountFromId) : null;
+		Account to = selectedAccountToId > 0 ? db.getAccount(selectedAccountToId) : null;
+		if (from != null) sb.append("轉出帳戶：").append(from.title).append('\n');
+		if (to != null) sb.append("轉入帳戶：").append(to.title).append('\n');
+		long minor = rateView.getFromAmount();
+		if (minor != 0) {
+			sb.append("金額：").append(aiFormatMajor(Math.abs(minor), selectedAccountFromId)).append('\n');
+		}
+		String cat = aiCategoryName(categorySelector.getSelectedCategoryId());
+		if (cat != null) sb.append("分類：").append(cat).append('\n');
+		appendAiNoteProjectLines(sb);
+		return sb.toString();
 	}
 
 }
