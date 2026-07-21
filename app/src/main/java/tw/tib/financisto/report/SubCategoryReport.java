@@ -64,12 +64,14 @@ public class SubCategoryReport extends Report {
         final ExchangeRateProvider rates = db.getHistoryRates();
         try {
             final int leftColumnIndex = c.getColumnIndex(DatabaseHelper.SubCategoryReportColumns.LEFT);
+            // createNode 每列呼叫；getColumnIndex 是字串比對，提出迴圈外（同 Report.getUnitsFromCursor）
+            final int datetimeIndex = c.getColumnIndex(DatabaseHelper.ReportColumns.DATETIME);
             CategoryTree<CategoryAmount> amounts = CategoryTree.createFromCursor(c, new NodeCreator<CategoryAmount>(){
                 @Override
                 public CategoryAmount createNode(Cursor c) {
                     BigDecimal amount;
                     try {
-                        amount = TransactionsTotalCalculator.getAmountFromCursor(db, c, currency, rates, c.getColumnIndex(DatabaseHelper.ReportColumns.DATETIME));
+                        amount = TransactionsTotalCalculator.getAmountFromCursor(db, c, currency, rates, datetimeIndex);
                     } catch (UnableToCalculateRateException e) {
                         amount = BigDecimal.ZERO;
                     }
