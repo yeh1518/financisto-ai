@@ -1,3 +1,30 @@
+# Financisto AI
+
+[Financisto Holo](https://github.com/tiberiusteng/financisto1-holo) 的 AI 加強 fork：
+對著 app 講一句「身上現金早餐120」，LLM 解析成完整交易帶入表單，確認後儲存。
+
+本 fork 新增：
+
+* **AI 一句話記帳**——全 App 浮動麥克風鈕；語音或打字一句話 → 帳戶/分類/金額/
+  日期/專案/備註自動解析帶入表單。支援分割交易、轉帳、調整餘額（「中信剩下300」）、
+  補充模式（對既有表單追加講一句）
+* 語音辨識：標準 Google 語音輸入，或雲端 STT 自錄音（Groq / OpenAI / Gemini）
+* LLM 解析：OpenAI / Gemini structured output，注入帳戶與分類樹 context、
+  嚴格 id 驗證防幻覺；API key 加密存本機，不進備份
+* 帳戶「計入統計報表」開關：虛擬額度/信封袋帳戶的額度操作不再汙染收支統計
+* 修正：交易列表 fast scroll 誤觸跳位、開樣板/排程列表閃退（v235）
+* 效能：總額計算改 SQL 端聚合（兩萬筆以上資料集有感）
+* debug build 帶 `.ai` applicationId 尾綴，與 Play 商店版同機並存互不干擾
+
+金額相關改動以全量真實備份驗證等價性（`tools/verify_report_equivalence.py`）。
+
+上游（Play 商店版）：https://github.com/tiberiusteng/financisto1-holo
+授權：GPL v2（見 license.txt），與上游相同。
+
+---
+
+以下為上游原始 README：
+
 # Financisto Holo
 
 Get it on Google Play: https://play.google.com/store/apps/details?id=tw.tib.financisto
