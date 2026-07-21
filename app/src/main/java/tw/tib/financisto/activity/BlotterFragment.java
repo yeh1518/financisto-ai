@@ -210,8 +210,9 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         // onViewCreated will create and start loader, which will use blotterFilter prepared above
         super.onViewCreated(view, savedInstanceState);
 
-        // fast scroll 改動態開關：靜止時右緣不攔截（原生隱形拉桿誤觸跳位問題），
-        // 捲動時才現身可抓。MassOp / BudgetBlotter 繼承本類一併生效。
+        // Fast scroll is toggled dynamically: disabled while idle so the invisible
+        // thumb no longer intercepts right-edge touches, enabled while scrolling.
+        // MassOp / BudgetBlotter inherit this too.
         tw.tib.financisto.utils.SafeFastScroll.attach(getListView());
 
         if (!mainBlotter) {

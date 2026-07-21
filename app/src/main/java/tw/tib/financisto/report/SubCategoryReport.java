@@ -64,7 +64,8 @@ public class SubCategoryReport extends Report {
         final ExchangeRateProvider rates = db.getHistoryRates();
         try {
             final int leftColumnIndex = c.getColumnIndex(DatabaseHelper.SubCategoryReportColumns.LEFT);
-            // createNode 每列呼叫；getColumnIndex 是字串比對，提出迴圈外（同 Report.getUnitsFromCursor）
+            // createNode is called per row and getColumnIndex compares strings —
+            // hoist it out of the loop (same as Report.getUnitsFromCursor)
             final int datetimeIndex = c.getColumnIndex(DatabaseHelper.ReportColumns.DATETIME);
             CategoryTree<CategoryAmount> amounts = CategoryTree.createFromCursor(c, new NodeCreator<CategoryAmount>(){
                 @Override

@@ -92,7 +92,8 @@ public abstract class Report {
             ArrayList<GraphUnit> units = new ArrayList<GraphUnit>();
             GraphUnit u = null;
             long lastId = -1;
-            // getColumnIndex 是逐字串比對，放迴圈裡＝每列白付三次；報表動輒數千列，先取一次
+            // getColumnIndex compares strings on every call; inside the loop that is three
+            // wasted lookups per row, and reports often have thousands of rows — resolve once
             int isTransferIdx = c.getColumnIndex(ReportColumns.IS_TRANSFER);
             int nameIdx = c.getColumnIndex(ReportColumns.NAME);
             int datetimeIdx = c.getColumnIndex(ReportColumns.DATETIME);

@@ -115,18 +115,24 @@ public class TransactionsTotalCalculator {
     }
 
     /**
-     * 混合聚合（效能修正 2026-07-20）：原本把「全部」符合列（主 blotter ≈ 全部交易）拉進
-     * Java 逐列換匯累加，2 萬多列跨 JNI 搬運＋逐列 BigDecimal 是總額列慢的主因。
+     * Hybrid aggregation (performance): previously ALL matching rows (the main
+     * blotter is roughly every transaction) were pulled into Java and converted
+     * row by row — tens of thousands of rows across JNI plus per-row BigDecimal
+     * work made the total bar slow.
      *
-     * getConvertedAmount 的分支順序保證：from 側幣別＝目標幣別的列**一律**貢獻 +from_amount
-     * （不看 to/original），所以這批（絕大多數）能在 SQL 端直接 SUM；只有 from 側非目標幣別
-     * 的列（外幣，通常極少）才需要逐列走原本的換匯邏輯。兩段相加＝與原逐列版精確等價
-     * （整數 SUM 無捨入；截尾時機也維持「最後才 longValue」不變）。
+     * getConvertedAmount's branch order guarantees that rows whose from-side
+     * currency equals the target currency ALWAYS contribute +from_amount
+     * (to/original are never consulted for them), so those rows (the vast
+     * majority) can be summed directly in SQL; only rows with a different
+     * from-side currency (foreign, usually very few) still need the original
+     * per-row conversion. Adding the two parts is exactly equivalent to the
+     * row-by-row version (integer SUM has no rounding; truncation still
+     * happens only at the final longValue()).
      */
     private Total getBalanceInHomeCurrency(String view, Currency toCurrency, WhereFilter filter) {
         Log.d("Financisto", "Query balance: "+filter.getSelection()+" => "+ Arrays.toString(filter.getSelectionArgs()));
         long t0 = System.currentTimeMillis();
-        // 快路徑：from 側已是目標幣別 → SQL 直接 SUM
+        // fast path: from-side already in the target currency, SUM directly in SQL
         long homeSum = 0;
         Cursor hc = db.db().query(view, new String[]{"SUM(from_amount)"},
                 andWhere(filter.getSelection(), "from_account_currency_id=" + toCurrency.id),
@@ -136,7 +142,7 @@ public class TransactionsTotalCalculator {
         } finally {
             hc.close();
         }
-        // 慢路徑：其餘列（需換匯）維持逐列處理
+        // slow path: remaining rows (need conversion) keep the per-row logic
         Cursor c = db.db().query(view, HOME_CURRENCY_PROJECTION,
                 andWhere(filter.getSelection(), "from_account_currency_id!=" + toCurrency.id),
                 filter.getSelectionArgs(), null, null, null);
