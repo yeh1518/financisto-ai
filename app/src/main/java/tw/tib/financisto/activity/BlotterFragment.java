@@ -461,6 +461,9 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         }
 
         bGoToToday = view.findViewById(R.id.bToday);
+        // 樣板/排程列表用 R.layout.templates，沒有 bToday 這顆鈕 → findViewById 回 null。
+        // 上游 v235 原碼未防護，非 blotter 版列表點進去會 NPE 閃退（點樣板即中）。
+        if (bGoToToday != null) {
         if (MyPreferences.isShowGoToTodayButton()) {
             bGoToToday.setVisibility(View.VISIBLE);
             bGoToToday.setOnClickListener(v -> {
@@ -502,6 +505,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         }
         else {
             bGoToToday.setVisibility(View.GONE);
+        }
         }
 
         applyFilter();
