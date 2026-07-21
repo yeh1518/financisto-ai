@@ -218,7 +218,10 @@ public class VoiceCaptureActivity extends ComponentActivity {
     private void cancel() {
         finished = true;
         if (recording && recorder != null) {
-            recorder.cancel();
+            // cancel() 內部 join 寫入執行緒（最多 3 秒）——丟獨立 thread，不卡主執行緒
+            final WavAudioRecorder r = recorder;
+            recorder = null;
+            new Thread(r::cancel, "wav-cancel").start();
         } else if (wavFile != null) {
             wavFile.delete();
         }
@@ -231,7 +234,9 @@ public class VoiceCaptureActivity extends ComponentActivity {
         // back 手勢等不經 cancel() 的關閉：錄音一定停、沒交付的檔不留
         if (!finished) {
             if (recording && recorder != null) {
-                recorder.cancel();
+                final WavAudioRecorder r = recorder;
+                recorder = null;
+                new Thread(r::cancel, "wav-cancel").start();   // 不在主執行緒 join
             } else if (wavFile != null) {
                 wavFile.delete();
             }

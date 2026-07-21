@@ -302,7 +302,12 @@ public class AiInputActivity extends ComponentActivity {
 
     private void cancelRecording() {
         stopRecordingUi();
-        if (recorder != null) recorder.cancel();
+        // recorder.cancel() 內部 join 錄音寫入執行緒（最多 3 秒），不能在主執行緒做——
+        // 進設定/離開畫面時的「頓一下」就是這裡。UI 已復原，實際收尾丟獨立 thread
+        // （不用 activity 的 executor：onDestroy 的 shutdownNow 會把任務砍掉、麥克風不停）。
+        final WavAudioRecorder r = recorder;
+        recorder = null;
+        if (r != null) new Thread(r::cancel, "wav-cancel").start();
         statusText.setText("");
     }
 
@@ -540,6 +545,16 @@ public class AiInputActivity extends ComponentActivity {
             long newBalance = toMinorUnits(t.amount, accountId, ctx);
             intent.putExtra(TransactionActivity.NEW_BALANCE_EXTRA, t.amount < 0 ? -newBalance : newBalance);
         }
+        // 「街口剩下895，飲食買炸春捲」：balance 也可能講出用途——分類/備註/專案帶進表單
+        if (t.category.resolved()) {
+            intent.putExtra(AbstractTransactionActivity.AI_PREFILL_CATEGORY_ID_EXTRA, t.category.id);
+        }
+        if (!TextUtils.isEmpty(t.note)) {
+            intent.putExtra(AbstractTransactionActivity.AI_PREFILL_NOTE_EXTRA, t.note);
+        }
+        if (t.project.resolved()) {
+            intent.putExtra(AbstractTransactionActivity.AI_PREFILL_PROJECT_ID_EXTRA, t.project.id);
+        }
         startActivityForResult(intent, REQ_CONFIRM);
     }
 
@@ -670,7 +685,11 @@ public class AiInputActivity extends ComponentActivity {
 
     @Override
     protected void onDestroy() {
-        if (recording && recorder != null) recorder.cancel();
+        if (recording && recorder != null) {
+            final WavAudioRecorder r = recorder;
+            recorder = null;
+            new Thread(r::cancel, "wav-cancel").start();   // 不在主執行緒 join
+        }
         discardRetryWav();
         cleanupDraft();
         executor.shutdownNow();

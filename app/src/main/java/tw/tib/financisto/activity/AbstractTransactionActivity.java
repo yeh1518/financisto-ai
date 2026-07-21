@@ -88,6 +88,11 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	public static final String TEMPLATE_EXTRA = "isTemplate";
 	public static final String DATETIME_EXTRA = "dateTimeExtra";
 	public static final String NEW_FROM_TEMPLATE_EXTRA = "newFromTemplateExtra";
+	/** AI 調整餘額 prefill：balance 型也可能講出用途（「街口剩下895，飲食買炸春捲」）。
+	 *  調整餘額不走 draft-shuttle（沒有 template 可帶欄位），分類/備註/專案改用這組 extra 帶進表單。 */
+	public static final String AI_PREFILL_CATEGORY_ID_EXTRA = "aiPrefillCategoryId";
+	public static final String AI_PREFILL_NOTE_EXTRA = "aiPrefillNote";
+	public static final String AI_PREFILL_PROJECT_ID_EXTRA = "aiPrefillProjectId";
 
 	private static final int RECURRENCE_REQUEST = 4003;
 	private static final int NOTIFICATION_REQUEST = 4004;
@@ -391,6 +396,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			if (transaction.isScheduled()) {
 				selectStatus(TransactionStatus.PN);
 			}
+			// AI 調整餘額 prefill：放在 selectAccount 之後才不會被「帳戶的上次分類」蓋掉
+			applyAiPrefillExtras(intent);
 		}
 
 		if (isShowTakePicture) {
@@ -801,6 +808,17 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		return false;
 	}
 
+	/** 套 AI_PREFILL_* extras（目前只有調整餘額的兩個啟動點會帶）。 */
+	private void applyAiPrefillExtras(Intent intent) {
+		if (intent == null) return;
+		long catId = intent.getLongExtra(AI_PREFILL_CATEGORY_ID_EXTRA, -1);
+		if (catId >= 0) categorySelector.selectCategory(catId, false);
+		String note = intent.getStringExtra(AI_PREFILL_NOTE_EXTRA);
+		if (!TextUtils.isEmpty(note)) noteText.setText(note);
+		long projId = intent.getLongExtra(AI_PREFILL_PROJECT_ID_EXTRA, -1);
+		if (projId > 0) projectSelector.selectEntity(projId);
+	}
+
 	/**
 	 * 補充模式講到餘額（「剩下X」）→ 切到「調整餘額」模式：帶入帳戶目前餘額 + 講出來的新餘額，
 	 * 差額由 TransactionActivity 自己算。走 CURRENT_BALANCE / NEW_BALANCE extra（同 AiInputActivity
@@ -829,6 +847,14 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		}
 		Long spoken = t.resolveDateTimeMillis();
 		if (spoken != null) intent.putExtra(DATETIME_EXTRA, (long) spoken);
+		// 分類/備註/專案帶去調整餘額表單：這句話講到的優先，沒講到的沿用當前表單已填的（切模式不丟資料）
+		long catId = t.category.resolved() ? t.category.id : categorySelector.getSelectedCategoryId();
+		if (catId > 0) intent.putExtra(TransactionActivity.AI_PREFILL_CATEGORY_ID_EXTRA, catId);
+		String note = !TextUtils.isEmpty(t.note) ? t.note
+				: (noteText != null ? noteText.getText().toString().trim() : "");
+		if (!TextUtils.isEmpty(note)) intent.putExtra(TransactionActivity.AI_PREFILL_NOTE_EXTRA, note);
+		long projId = t.project.resolved() ? t.project.id : projectSelector.getSelectedEntityId();
+		if (projId > 0) intent.putExtra(TransactionActivity.AI_PREFILL_PROJECT_ID_EXTRA, projId);
 		startActivityForResult(intent, AI_TYPE_SWITCH_REQUEST);
 		return true;
 	}

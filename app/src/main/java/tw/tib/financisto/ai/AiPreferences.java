@@ -301,15 +301,36 @@ public class AiPreferences {
         }
     }
 
+    // EncryptedSharedPreferences 每次重建都要走 Android Keystore（MasterKey），主執行緒
+    // 一次可達百毫秒級；設定頁 onCreate 連讀多個 provider 的 key 就是「進設定頓一下」的主因。
+    // 快取單一實例（process 級），並由 Application 啟動時在背景預熱，首次使用也不卡 UI。
+    private static volatile SharedPreferences sSecurePrefs;
+
+    /** 背景預熱 Keystore/EncryptedSharedPreferences（Application 啟動時呼叫；失敗靜默，用到時再重試）。 */
+    public static void warmUpSecure(Context context) {
+        final Context app = context.getApplicationContext();
+        tw.tib.financisto.Application.getExecutor().execute(() -> {
+            try {
+                securePrefs(app);
+            } catch (Exception ignored) {}
+        });
+    }
+
     private static SharedPreferences securePrefs(Context context) throws Exception {
-        MasterKey masterKey = new MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build();
-        return EncryptedSharedPreferences.create(
-                context,
-                SECURE_FILE,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
+        SharedPreferences cached = sSecurePrefs;
+        if (cached != null) return cached;
+        synchronized (AiPreferences.class) {
+            if (sSecurePrefs != null) return sSecurePrefs;
+            MasterKey masterKey = new MasterKey.Builder(context.getApplicationContext())
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build();
+            sSecurePrefs = EncryptedSharedPreferences.create(
+                    context.getApplicationContext(),
+                    SECURE_FILE,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
+            return sSecurePrefs;
+        }
     }
 }
