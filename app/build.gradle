@@ -21,6 +21,16 @@ android {
         applicationId "tw.tib.financisto"
         minSdkVersion 23
         targetSdkVersion 36
+
+        // 版本號每次 build 自動帶當下時間，每包都不同、一眼看得出建置時間（Gary 2026-07-21，
+        // 從 manifest 的固定 230/2026-07-10 搬來 gradle）。
+        // versionCode＝2020-01-01 起的分鐘數：單調遞增、每分鐘唯一、遠低於 int 上限(2.1e9)，
+        // 覆蓋安裝不會因版本倒退被擋。versionName＝建置時間，顯示在關於頁（尾綴 -ai 由 debug 疊加）。
+        def verEpochMs = new GregorianCalendar(2020, 0, 1).getTimeInMillis()
+        def verCode = (int) ((System.currentTimeMillis() - verEpochMs) / 60000L)
+        versionCode verCode
+        versionName new Date().format('yyyy-MM-dd.HHmm')
+
         multiDexEnabled = true
 
         testApplicationId "tw.tib.financisto.test"
@@ -37,6 +47,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // dev fork installs side-by-side with the Play-store Financisto Holo
+            // (same namespace/code package tw.tib.financisto, different install id)
+            applicationIdSuffix ".ai"
+            versionNameSuffix "-ai"
+        }
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt', 'proguard-google-api-client.txt'
@@ -88,6 +104,9 @@ dependencies {
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
 
     implementation 'com.google.android.material:material:1.9.0'
+
+    // AI 一句話記帳：加密儲存 API key（master key 落在 Android Keystore）
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 
     implementation 'androidx.activity:activity:1.8.2'
     implementation 'androidx.appcompat:appcompat:1.6.1'

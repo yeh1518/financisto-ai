@@ -12,8 +12,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:tools="http://schemas.android.com/tools"
 	package="tw.tib.financisto"
-	android:versionName="2026-07-19" android:versionCode="235"
-    android:installLocation="internalOnly">
+	android:installLocation="internalOnly">
+    <!-- versionName/versionCode 由 build.gradle 自動產生，不在 manifest 寫死 -->
+
 
     <supports-screens
 	    android:smallScreens="true"
@@ -45,9 +46,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 	<uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
-    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />    
-	<permission android:name="tw.tib.financisto.permission.C2D_MESSAGE" android:protectionLevel="signature" />
-    <uses-permission android:name="tw.tib.financisto.permission.C2D_MESSAGE"/>
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
+	<!-- 用 ${applicationId} 而非寫死：自訂 permission 名稱是「全域唯一」的，
+	     寫死會讓 debug(.ai) 與商店版同名衝突 → INSTALL_FAILED_DUPLICATE_PERMISSION。
+	     release 的 applicationId 就是 tw.tib.financisto，展開後與原本完全相同。 -->
+	<permission android:name="${applicationId}.permission.C2D_MESSAGE" android:protectionLevel="signature" />
+    <uses-permission android:name="${applicationId}.permission.C2D_MESSAGE"/>
 
 
     <application
@@ -365,7 +369,7 @@
 
 		<provider
 			android:name="androidx.core.content.FileProvider"
-			android:authorities="tw.tib.financisto"
+			android:authorities="${applicationId}"
 			android:grantUriPermissions="true">
 			<meta-data
 				android:name="android.support.FILE_PROVIDER_PATHS"

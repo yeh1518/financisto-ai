@@ -1,9 +1,28 @@
 .idea/**
 .gradle/**
-gradle/**
 build/**
 app/build/**
 captures/
 *.iml
-gradlew*
 local.properties
+
+# 注意：gradle/wrapper/ 與 gradlew* 是「要進 git」的，別再加回忽略名單。
+# wrapper 進 git 才能讓乾淨 clone 直接 ./gradlew 建置（.gradle/ 是建置快取，仍然忽略）。
+
+# --- secrets（API key 等，一律不進版控）---
+.env
+.env.*
+*.key
+*.pfx
+*.pem
+*.keystore
+*.jks
+secrets/
+ai-config.local.*
+
+# --- 個人資料與私人開發筆記（維護者本地留存，不進公開版控）---
+local-backups/
+*.backup
+DEV-BUILD.md
+docs/對帳規則.md
+tools/restructure-categories.py

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  debug source set 覆寫：debug 版 applicationId 是 tw.tib.financisto.ai，
+  與 Play 商店現役 Financisto Holo 同機並存。名稱若一樣，launcher 上兩個
+  icon 完全無法分辨、測試時很容易把帳記進錯的 app。
+  只有 debug 會套用，release 仍是原本的 "Financisto"。
+-->
+<resources>
+    <string name="app_name" translatable="false">Financisto AI</string>
+</resources>
