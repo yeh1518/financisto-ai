@@ -185,6 +185,9 @@ public abstract class Report {
             filter.put(c);
         }
         filter.eq("from_account_is_include_into_totals", "1");
+        // 與 v_report_* views 的統計規則一致：報表數字不含虛擬額度帳戶上的交易，
+        // 點進明細也不該看到（明細走 v_blotter/v_all_transactions，單列無鏡像，只需濾 from 側）
+        filter.eq("from_account_is_include_into_reports", "1");
         Intent intent = new Intent(context, getBlotterActivityClass());
         filter.toIntent(intent);
         return intent;

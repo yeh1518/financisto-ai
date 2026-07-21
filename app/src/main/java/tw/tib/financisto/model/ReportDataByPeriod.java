@@ -550,10 +550,13 @@ public class ReportDataByPeriod {
 	{
 		int accounts[] = new int[0];
 		
-		String where = AccountColumns.CURRENCY_ID+"=?";
+		// 排除「不計入統計」的虛擬額度帳戶：2D 圖表直接查 transactions 表（無鏡像列），
+		// 把虛擬帳戶從帳戶集合拿掉＝其上的額度操作與轉出都不進圖；真帳戶轉入它的轉帳
+		// 仍以 from 側（真帳戶）計入＝視為支出，與報表 views 的規則一致。
+		String where = AccountColumns.CURRENCY_ID+"=? and is_include_into_reports=1";
 		Cursor c = null;
 		try {
-			c = db.query(DatabaseHelper.ACCOUNT_TABLE, new String[]{AccountColumns.ID}, 
+			c = db.query(DatabaseHelper.ACCOUNT_TABLE, new String[]{AccountColumns.ID},
 					   where, new String[]{Long.toString(currency.id)}, null, null, null);
 			accounts = new int[c.getCount()];
 			int index=0;

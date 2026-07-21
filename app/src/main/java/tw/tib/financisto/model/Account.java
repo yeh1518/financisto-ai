@@ -57,7 +57,14 @@ public class Account extends MyEntity {
 	public int sortOrder;
 
 	@Column(name = "is_include_into_totals")
-	public boolean isIncludeIntoTotals = true; 
+	public boolean isIncludeIntoTotals = true;
+
+	/**
+	 * false＝虛擬額度帳戶（信封袋）：仍計入總額（那是它存在的目的），但統計報表排除
+	 * 其上的額度操作；真帳戶轉入它的轉帳在統計中視為真帳戶的支出（見 v_report_* views）。
+	 */
+	@Column(name = "is_include_into_reports")
+	public boolean isIncludeIntoReports = true;
 	
 	@Column(name = "last_account_id")
 	public long lastAccountId;
