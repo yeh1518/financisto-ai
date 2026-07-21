@@ -462,10 +462,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         }
 
         bGoToToday = view.findViewById(R.id.bToday);
-        // 樣板/排程列表用 R.layout.templates，沒有 bToday 這顆鈕 → findViewById 回 null。
-        // 上游 v235 原碼未防護，非 blotter 版列表點進去會 NPE 閃退（點樣板即中）。
-        if (bGoToToday != null) {
-        if (MyPreferences.isShowGoToTodayButton()) {
+        if (MyPreferences.isShowGoToTodayButton() && bGoToToday != null) {
             bGoToToday.setVisibility(View.VISIBLE);
             bGoToToday.setOnClickListener(v -> {
                 if (adapter == null) return;
@@ -504,9 +501,8 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 setSelection(pos);
             });
         }
-        else {
+        else if (bGoToToday != null) {
             bGoToToday.setVisibility(View.GONE);
-        }
         }
 
         applyFilter();
@@ -1023,7 +1019,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
 
             // at 2026-07-13, my database has ~33500 transactions and this takes ~200 ms
             // first getCount() actually calculates record count, subsequent calls are cached
-            var count = adapter.getCount();
+            var count = cursor.getCount();
 
             activity.runOnUiThread(() -> {
                 if (count == 0) {
