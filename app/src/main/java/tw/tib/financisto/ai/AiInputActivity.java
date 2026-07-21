@@ -42,7 +42,7 @@ import java.util.List;
  *
  * 語音走**標準 Google 元件** {@link RecognizerIntent}：斷句、靜音判斷、錄音中動畫全交給
  * 系統的語音輸入彈窗，app 不自己維護辨識狀態機。自搓的跨重啟累積版試過幾輪都會在「停久被
- * 中斷、再按繼續」時蓋掉前文，索性回歸標準（Gary 定案 2026-07-16）。
+ * 中斷、再按繼續」時蓋掉前文，索性回歸標準（2026-07-16 定案）。
  *
  * 每按一次麥克風＝一段辨識，回來的文字**接在輸入框現有內容後面**（游標移到最後），
  * 所以接著講會自然累加、永不覆蓋。是否辨識完直接送解析由畫面上的開關決定（記在 prefs）。
@@ -142,7 +142,7 @@ public class AiInputActivity extends ComponentActivity {
         voiceLabel = findViewById(R.id.ai_voice_label);
         voiceCancelButton = findViewById(R.id.ai_voice_cancel);
         voiceRetryButton = findViewById(R.id.ai_voice_retry);
-        // 閒置麥克風就顯示成動畫基準大小，開錄不會突然縮一下（Gary 調校 2026-07-20）
+        // 閒置麥克風就顯示成動畫基準大小，開錄不會突然縮一下（2026-07-20 調校）
         voiceButton.setScaleX(MIC_BASE_SCALE);
         voiceButton.setScaleY(MIC_BASE_SCALE);
         voiceButton.setOnClickListener(v -> startVoice());
@@ -246,7 +246,7 @@ public class AiInputActivity extends ComponentActivity {
         startSystemVoice();
     }
 
-    // ---------------- 雲端模式：就地錄音（不疊視窗，Gary 定案 2026-07-20） ----------------
+    // ---------------- 雲端模式：就地錄音（不疊視窗，2026-07-20 定案） ----------------
 
     /**
      * 點大麥克風的雲端行為：閒置→開錄（轉紅＋隨音量縮放＋計時）；錄音中→完成、送辨識/解析。
@@ -635,7 +635,7 @@ public class AiInputActivity extends ComponentActivity {
                     return;
                 }
             }
-            // 沒辨識出東西：提示一下，使用者自己再按一次（Gary 的第 1 點）
+            // 沒辨識出東西：提示一下，使用者自己再按一次（設計決策）
             Toast.makeText(this, R.string.ai_voice_nothing, Toast.LENGTH_SHORT).show();
             inputText.requestFocus();
             return;

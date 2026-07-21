@@ -25,7 +25,7 @@ import tw.tib.financisto.R;
 import tw.tib.financisto.activity.AbstractTransactionActivity;
 
 /**
- * 全 App 的 AI 語音浮動鈕（Gary 定案 2026-07-17）：一處註冊、每個 Activity 都有，取代原本
+ * 全 App 的 AI 語音浮動鈕（2026-07-17 定案）：一處註冊、每個 Activity 都有，取代原本
  * 分散在帳戶頁 / Blotter / 交易表單的三顆麥克風鈕。
  *
  * 靠 {@link Application.ActivityLifecycleCallbacks} 在每個 Activity resume 時把浮動鈕

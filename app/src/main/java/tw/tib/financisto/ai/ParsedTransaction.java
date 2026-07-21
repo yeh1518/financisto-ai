@@ -55,7 +55,7 @@ public class ParsedTransaction {
     public String time;
 
     /**
-     * 講出來的日期/時間 → epoch millis。規則（Gary 定案 2026-07-17）：
+     * 講出來的日期/時間 → epoch millis。規則（2026-07-17 定案）：
      * <ul>
      *   <li>日期＋時間都講 → 就用那個日期那個時間</li>
      *   <li>只講日期 → **那個日期 + 當下時刻**</li>

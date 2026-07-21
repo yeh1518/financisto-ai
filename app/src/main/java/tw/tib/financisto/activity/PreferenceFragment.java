@@ -132,7 +132,7 @@ public class PreferenceFragment extends PreferenceFragmentCompat {
 
         // Google Drive 備份在本 fork 停用：Drive OAuth 靠「package 名稱 + 簽章 SHA-1」
         // 對認上游的 Google Cloud 專案，換了 applicationId（.ai）與簽章金鑰後認不得，
-        // 登入根本不會成功。改用「本機備份資料夾 + Syncthing」。（Gary 定案 2026-07-16）
+        // 登入根本不會成功。改用「本機備份資料夾 + Syncthing」。（2026-07-16 定案）
         disableGoogleDriveBackup();
 
         Preference useFingerprint = preferenceScreen.findPreference("pin_protection_use_fingerprint");

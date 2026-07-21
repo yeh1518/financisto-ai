@@ -1,5 +1,5 @@
 @echo off
-rem Windowed AVD launcher -- Gary runs this from HIS OWN interactive PowerShell,
+rem Windowed AVD launcher -- run this from YOUR OWN interactive PowerShell,
 rem NOT via mesh-ssh. A window only appears on the interactive desktop; an ssh /
 rem session-0 launch would draw it on an invisible desktop (see DEV-BUILD.md).
 rem

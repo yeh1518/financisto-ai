@@ -234,7 +234,7 @@
 
         <!-- 捷徑收尾行為：完成後進 App 對應畫面 vs 回桌面。
              textOn/Off 清空 + switchMinWidth：Holo Switch 的滑塊寬度跟著「開啟/關閉」字寬跑，
-             整顆會過寬（Gary 抓 60%）；清掉字、壓 min width 就回到正常大小 -->
+             整顆會過寬（實測抓 60%）；清掉字、壓 min width 就回到正常大小 -->
         <Switch
             android:id="@+id/ai_shortcut_enters_app"
             android:layout_width="match_parent"

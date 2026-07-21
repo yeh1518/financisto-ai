@@ -481,7 +481,7 @@ public class AiSettingsActivity extends ComponentActivity {
 
     /**
      * 請系統把「語音記帳」捷徑釘到桌面。給 launcher 不支援長按 app 圖示拖捷徑的人用
-     * （Gary 的手機就是）。requestPinShortcut 需 API 26+，且要 launcher 支援釘選——
+     * （部分機型如此）。requestPinShortcut 需 API 26+，且要 launcher 支援釘選——
      * 不支援時系統直接回 false，這裡給個提示而非當掉。
      */
     private void pinVoiceShortcut() {

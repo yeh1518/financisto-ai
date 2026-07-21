@@ -776,7 +776,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		if (type == null) return false;                    // 沒指定型別 → 不切
 
 		// 餘額：補充模式講「剩下X／餘額X」→ 切到調整餘額模式。不能就地套——amount 是「新餘額」不是變動金額，
-		// 直接當交易金額灌進去會錯亂（Gary 回報的舊問題）。
+		// 直接當交易金額灌進去會錯亂（使用者回報的舊問題）。
 		if (t.isBalance()) {
 			return switchToBalanceAdjust(t);
 		}

@@ -22,7 +22,7 @@ android {
         minSdkVersion 23
         targetSdkVersion 36
 
-        // 版本號每次 build 自動帶當下時間，每包都不同、一眼看得出建置時間（Gary 2026-07-21，
+        // 版本號每次 build 自動帶當下時間，每包都不同、一眼看得出建置時間（2026-07-21，
         // 從 manifest 的固定 230/2026-07-10 搬來 gradle）。
         // versionCode＝2020-01-01 起的分鐘數：單調遞增、每分鐘唯一、遠低於 int 上限(2.1e9)，
         // 覆蓋安裝不會因版本倒退被擋。versionName＝建置時間，顯示在關於頁（尾綴 -ai 由 debug 疊加）。

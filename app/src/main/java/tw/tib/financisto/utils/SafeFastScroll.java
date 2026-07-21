@@ -5,7 +5,7 @@ import android.os.Looper;
 import android.widget.AbsListView;
 
 /**
- * 修 ListView 原生 fast scroll 的誤觸問題（Gary 回報 2026-07-20）：
+ * 修 ListView 原生 fast scroll 的誤觸問題（2026-07-20 回報）：
  * 框架的 FastScroller 在縮圖「淡出隱形後」右緣觸控照樣被攔截、直接跳位——
  * 靜止狀態下點到列表右側就整個列表亂跳，非常容易誤觸。
  *

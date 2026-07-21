@@ -17,7 +17,7 @@ import androidx.security.crypto.MasterKey;
  * LLM 的 Gemini 走其 OpenAI 相容層，解析鏈（BookkeepingParser）程式碼不變。
  * 端點 URL 全部設死在 provider 定義（不再開放自由填寫；要接自架 proxy 再議）。
  *
- * 舊版單一 key（SECURE_KEY_API_LEGACY）視為 OpenAI 的 key 讀取回退（Gary 的舊設定就是
+ * 舊版單一 key（SECURE_KEY_API_LEGACY）視為 OpenAI 的 key 讀取回退（既有舊設定就是
  * OpenAI），新存檔一律走 per-provider slot。
  */
 public class AiPreferences {

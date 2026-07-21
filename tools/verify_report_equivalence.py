@@ -12,7 +12,7 @@
     python tools/verify_report_equivalence.py <backup.backup> [ref_before] [ref_after]
     # ref 預設 master / HEAD
 
-背景：對齊「改金額/統計前用全量真實備份驗等價性再出貨」的規矩（Gary 無法自驗算對錯）。
+背景：對齊「改金額/統計前用全量真實備份驗等價性再出貨」的規矩（人工難以自行驗算）。
 2026-07-21 首次用於上游 financisto1-holo v235 合併驗證（結論：報表金額零差異）。
 """
 import gzip, sqlite3, subprocess, sys, os, re, glob
