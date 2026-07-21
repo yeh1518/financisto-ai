@@ -60,8 +60,10 @@ public class Account extends MyEntity {
 	public boolean isIncludeIntoTotals = true;
 
 	/**
-	 * false＝虛擬額度帳戶（信封袋）：仍計入總額（那是它存在的目的），但統計報表排除
-	 * 其上的額度操作；真帳戶轉入它的轉帳在統計中視為真帳戶的支出（見 v_report_* views）。
+	 * false = virtual sub-account (e.g. a budget envelope or sinking fund): still
+	 * counted into totals (that is what it exists for), but its own transactions are
+	 * excluded from report statistics, and transfers into it from a normal account
+	 * count as expenses of the source account (see the v_report_* views).
 	 */
 	@Column(name = "is_include_into_reports")
 	public boolean isIncludeIntoReports = true;

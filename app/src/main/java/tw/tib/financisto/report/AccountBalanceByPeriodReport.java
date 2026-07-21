@@ -64,7 +64,7 @@ public class AccountBalanceByPeriodReport extends Report2DChart {
         currentFilterOrder = 0;
         List<Account> accounts = em.getAllAccountsList();
         for (Account a: accounts) {
-            if (!a.isIncludeIntoReports) continue;   // 虛擬額度帳戶不進統計圖
+            if (!a.isIncludeIntoReports) continue;   // excluded from reports, no chart entry
             filterIds.add(a.id);
             filterTitles.add(a.title);
         }

@@ -550,9 +550,11 @@ public class ReportDataByPeriod {
 	{
 		int accounts[] = new int[0];
 		
-		// 排除「不計入統計」的虛擬額度帳戶：2D 圖表直接查 transactions 表（無鏡像列），
-		// 把虛擬帳戶從帳戶集合拿掉＝其上的額度操作與轉出都不進圖；真帳戶轉入它的轉帳
-		// 仍以 from 側（真帳戶）計入＝視為支出，與報表 views 的規則一致。
+		// Exclude accounts that are not included into reports: 2D charts query the
+		// transactions table directly (no mirrored rows), so dropping those accounts
+		// from the account set keeps their own transactions and outgoing transfers out
+		// of the chart, while transfers into them from normal accounts still count on
+		// the from side (as an expense) — consistent with the v_report_* views.
 		String where = AccountColumns.CURRENCY_ID+"=? and is_include_into_reports=1";
 		Cursor c = null;
 		try {
