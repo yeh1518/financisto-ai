@@ -26,3 +26,10 @@ local-backups/
 DEV-BUILD.md
 docs/對帳規則.md
 tools/restructure-categories.py
+
+# 實驗資料（含個人財務資訊，只留本地）
+docs/experiments/on-device-llm-eval/entities.json
+docs/experiments/on-device-llm-eval/testset.json
+docs/experiments/on-device-llm-eval/result_*.json
+docs/experiments/on-device-llm-eval/gemma_failures.json
+docs/experiments/on-device-llm-eval/q36_fail.json
