@@ -1123,6 +1123,11 @@
   <string name="ai_voice_shortcut_short">說一句</string>
   <string name="ai_voice_shortcut_long">語音記帳</string>
   <string name="ai_log_title">解析紀錄</string>
+  <string name="ai_notification_template">AI 通知樣板解析</string>
+  <string name="ai_notification_template_pick">選一則通知來產樣板</string>
+  <string name="ai_notification_template_generating">正在產生樣板…</string>
+  <string name="ai_notification_template_failed">樣板產生失敗：%1$s</string>
+  <string name="ai_api_key_missing">AI 解析尚未設定——請先到 AI 設定填 API key</string>
   <string name="ai_log_share">分享</string>
   <string name="ai_log_clear">清除</string>
   <string name="ai_log_empty">還沒有紀錄</string>

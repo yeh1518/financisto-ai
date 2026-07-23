@@ -16,6 +16,7 @@ import android.util.Log;
 import java.util.List;
 import java.util.Set;
 
+import tw.tib.financisto.ai.NotificationJournal;
 import tw.tib.financisto.db.DatabaseAdapter;
 import tw.tib.financisto.model.SmsTemplate;
 
@@ -82,6 +83,10 @@ public class NotificationListener extends NotificationListenerService {
 
             Log.d(TAG, "title=\"" + title + "\", body=\"" + body + "\"");
             Log.d(TAG, sbn.getNotification().extras.toString());
+
+            // 存進滾動日誌給「AI 產樣板」的通知列表用（cache 滑掉就沒了，日誌留 7 天）。
+            // body 存與樣板引擎吃到的同一格式（含 title 前綴），生成樣板回測才一致。
+            NotificationJournal.record(context, packageName, title, body);
 
             if (processTemplate && (existing == null || !body.equals(existing.body))) {
                 final DatabaseAdapter db = new DatabaseAdapter(context);

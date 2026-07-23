@@ -72,6 +72,13 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    testOptions {
+        unitTests {
+            // 本地單元測試碰到 android.util.Log 等 framework 呼叫時回預設值而非炸掉
+            // （TemplateGenerator.validate 走 SmsTransactionProcessor，內含 Log.d）
+            returnDefaultValues = true
+        }
+    }
 }
 
 final SUPPORT_LIB_VER = '27.0.2'
@@ -86,6 +93,7 @@ configurations.all {
 }
 
 dependencies {
+    testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.0-alpha02'
     annotationProcessor "org.androidannotations:androidannotations:$AAVersion"
     implementation "org.androidannotations:androidannotations-api:$AAVersion"

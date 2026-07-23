@@ -41,6 +41,15 @@ import java.util.ArrayList;
 public class SmsTemplateActivity extends AbstractActivity {
     private static final String TAG = "SmsTemplateActivity";
 
+    // AI 產樣板（NotificationListActivity 挑選模式）帶進來的預填值：
+    // 全部只是預填、不落地，使用者過目調整後按存才寫 DB。
+    public static final String EXTRA_PREFILL_TITLE = "PREFILL_TITLE";
+    public static final String EXTRA_PREFILL_TEMPLATE = "PREFILL_TEMPLATE";
+    public static final String EXTRA_PREFILL_EXAMPLE = "PREFILL_EXAMPLE";
+    public static final String EXTRA_PREFILL_ACCOUNT_ID = "PREFILL_ACCOUNT_ID";
+    public static final String EXTRA_PREFILL_CATEGORY_ID = "PREFILL_CATEGORY_ID";
+    public static final String EXTRA_PREFILL_IS_INCOME = "PREFILL_IS_INCOME";
+
     private DatabaseAdapter db;
 
     private EditText smsDescription;
@@ -256,8 +265,31 @@ public class SmsTemplateActivity extends AbstractActivity {
             if (id != -1) {
                 smsTemplate = db.load(SmsTemplate.class, id);
                 editSmsTemplate();
+            } else if (intent.hasExtra(EXTRA_PREFILL_TEMPLATE)) {
+                prefillFromGenerator(intent);
             }
         }
+    }
+
+    /** AI 產樣板的預填：填欄位、選帳戶/分類，example 帶原通知讓即時驗證直接亮結果。 */
+    private void prefillFromGenerator(Intent intent) {
+        smsNumber.setText(intent.getStringExtra(EXTRA_PREFILL_TITLE));
+        templateTxt.setText(intent.getStringExtra(EXTRA_PREFILL_TEMPLATE));
+        String example = intent.getStringExtra(EXTRA_PREFILL_EXAMPLE);
+        if (exampleTxt != null && example != null) {
+            exampleTxt.setText(example);
+        }
+        long accountId = intent.getLongExtra(EXTRA_PREFILL_ACCOUNT_ID, -1);
+        if (accountId != -1) {
+            selectedAccount(accountId);
+        }
+        // 走 smsTemplate.categoryId 讓分類選擇器「可見＋預選」；
+        // 設 this.categoryId 會進「固定分類」模式把選擇器整個藏掉（那是分類頁入口用的）。
+        long prefillCategoryId = intent.getLongExtra(EXTRA_PREFILL_CATEGORY_ID, -1);
+        if (prefillCategoryId != -1) {
+            smsTemplate.categoryId = prefillCategoryId;
+        }
+        toggleIncome.setChecked(intent.getBooleanExtra(EXTRA_PREFILL_IS_INCOME, false));
     }
 
     private void editSmsTemplate() {
