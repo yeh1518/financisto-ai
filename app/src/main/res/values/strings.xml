@@ -1120,6 +1120,13 @@
     <string name="pref_tpl_adding_to_note">Add notification text to transaction note</string>
     <string name="sms_tpl_list_category_payee_project_name">%1$s, %2$s, %3$s</string>
     <string name="sms_tpl_error_log">Account not found or cannot parse price for notification template from sender `%1$s`, template `%2$s`, content `%3$s`</string>
+    <string name="pref_google_wallet">Google Wallet</string>
+    <string name="pref_google_wallet_transaction_title">Create transactions</string>
+    <string name="pref_google_wallet_transaction_summary">Requires notification access. Account matched by name, label or number having last 4 digits.</string>
+    <string name="pref_google_wallet_transaction_status">Status of transaction created from Google Wallet notification: %s</string>
+    <string name="new_wallet_transaction_text">New transaction added from Google Wallet</string>
+    <string name="new_wallet_transaction_title">Google Wallet transaction</string>
+    <string name="google_wallet_error_log">No Financisto account matches the Google Wallet card `%s`. Name an account the same as the card, or put the card\'s last 4 digits in the account card number field.</string>
 
     <string name="card_issuer_default">Default</string>
     <string name="electronic_payment_type">Payment type</string>
