@@ -26,6 +26,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -63,6 +64,7 @@ public class AiSettingsActivity extends ComponentActivity {
 
     private TextView sttProviderValue, sttModelValue, llmProviderValue, llmModelValue;
     private TextView fabSizeValue, shortcutBehaviorValue;
+    private TextView sttModelTitle;
     private View sttModelRow;
 
     @Override
@@ -96,6 +98,7 @@ public class AiSettingsActivity extends ComponentActivity {
         fabSizeValue = findViewById(R.id.ai_fab_size_value);
         shortcutBehaviorValue = findViewById(R.id.ai_shortcut_behavior_value);
         sttModelRow = findViewById(R.id.ai_stt_model_row);
+        sttModelTitle = findViewById(R.id.ai_stt_model_title);
 
         findViewById(R.id.ai_stt_provider_row).setOnClickListener(v -> pickSttProvider());
         sttModelRow.setOnClickListener(v -> pickModel(true));
@@ -123,11 +126,12 @@ public class AiSettingsActivity extends ComponentActivity {
         sttProviderValue.setText(sttProviderLabel(sttProvider));
         sttModelValue.setText(TextUtils.isEmpty(sttModel)
                 ? getString(R.string.ai_model_unset) : sttModel);
-        // 內建沒有模型；一次到位的模型固定（Gemini 跟解析區走、OpenAI 用 audio-preview）
-        boolean showSttModel = !AiPreferences.PROVIDER_SYSTEM.equals(sttProvider)
-                && !AiPreferences.PROVIDER_GEMINI_DIRECT.equals(sttProvider)
-                && !AiPreferences.PROVIDER_OPENAI_DIRECT.equals(sttProvider);
+        // 只有「內建」無模型可選（隱藏該列）；一次到位時該列＝可選的「音檔直解模型」，標題也換掉
+        boolean direct = AiPreferences.PROVIDER_GEMINI_DIRECT.equals(sttProvider)
+                || AiPreferences.PROVIDER_OPENAI_DIRECT.equals(sttProvider);
+        boolean showSttModel = !AiPreferences.PROVIDER_SYSTEM.equals(sttProvider);
         sttModelRow.setVisibility(showSttModel ? View.VISIBLE : View.GONE);
+        sttModelTitle.setText(direct ? R.string.ai_direct_model_title : R.string.ai_stt_model_title);
 
         llmProviderValue.setText(AiPreferences.hasKey(this, llmProvider)
                 ? displayName(llmProvider) : getString(R.string.ai_no_provider_key));
@@ -252,12 +256,19 @@ public class AiSettingsActivity extends ComponentActivity {
     private void pickModel(boolean forStt) {
         final String provider = forStt ? sttProvider : llmProvider;
         if (AiPreferences.PROVIDER_SYSTEM.equals(provider)) return;
+        // OpenAI 一次到位：/models 不標示哪顆吃音訊，改給安全白名單，杜絕選到不吃音訊的模型
+        if (AiPreferences.PROVIDER_OPENAI_DIRECT.equals(provider)) {
+            pickFromList(Arrays.asList(AiPreferences.OPENAI_DIRECT_MODELS), forStt);
+            return;
+        }
+        // 一次到位的 Gemini 收斂回 gemini 這家（端點、key、模型過濾都以底層家為準）
+        final String realProvider = AiPreferences.underlyingProvider(provider);
         final String key = AiPreferences.getKey(this, provider);
         if (TextUtils.isEmpty(key)) {
             Toast.makeText(this, R.string.ai_no_provider_key, Toast.LENGTH_LONG).show();
             return;
         }
-        final String url = AiPreferences.llmBaseUrl(provider) + "/models";
+        final String url = AiPreferences.llmBaseUrl(realProvider) + "/models";
 
         Toast.makeText(this, R.string.ai_models_loading, Toast.LENGTH_SHORT).show();
         new Thread(() -> {
@@ -266,7 +277,7 @@ public class AiSettingsActivity extends ComponentActivity {
                 List<String> models = new ArrayList<>();
                 for (String id : all) {
                     String clean = stripModelsPrefix(id);
-                    boolean ok = forStt ? isSttModel(provider, clean) : isLlm(clean);
+                    boolean ok = forStt ? isSttModel(realProvider, clean) : isLlm(clean);
                     if (ok) models.add(clean);
                 }
                 Collections.sort(models);
@@ -291,6 +302,16 @@ public class AiSettingsActivity extends ComponentActivity {
                 });
             }
         }).start();
+    }
+
+    /** 從固定清單選模型（一次到位的 OpenAI 白名單用，不打 /models）；選完即存。 */
+    private void pickFromList(List<String> models, boolean forStt) {
+        String cur = forStt ? sttModel : llmModel;
+        showChoice(R.string.ai_models_pick, models, models.indexOf(cur), which -> {
+            if (forStt) sttModel = models.get(which);
+            else llmModel = models.get(which);
+            persistSelections();
+        });
     }
 
     /** Gemini 的 OpenAI 相容層回的 id 帶 models/ 前綴，存乾淨名（兩層 API 都收）。 */

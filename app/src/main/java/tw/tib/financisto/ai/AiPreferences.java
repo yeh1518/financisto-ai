@@ -36,8 +36,18 @@ public class AiPreferences {
      */
     public static final String PROVIDER_GEMINI_DIRECT = "gemini_direct";
     public static final String PROVIDER_OPENAI_DIRECT = "openai_direct";
-    /** OpenAI 一次到位固定用的音訊輸入模型（一般 gpt-4o-mini 不吃音訊）。 */
+    /** OpenAI 一次到位的預設音訊輸入模型（一般 gpt-4o-mini 不吃音訊）。 */
     public static final String DIRECT_MODEL_OPENAI = "gpt-4o-mini-audio-preview";
+
+    /**
+     * OpenAI 一次到位可選的音訊輸入模型白名單。/models 清單不標示哪顆吃音訊，直接開放整包
+     * 會讓使用者選到不吃音訊的模型、要到呼叫失敗才發現，故手動維護這份安全清單。
+     * （Gemini 不需要——其全系列模型皆吃音訊，走 /models 動態清單即可。）
+     */
+    public static final String[] OPENAI_DIRECT_MODELS = {
+            "gpt-4o-mini-audio-preview",
+            "gpt-4o-audio-preview",
+    };
 
     /** 三家雲端 provider（STT 選單另外加「內建」在最前）。 */
     public static final String[] CLOUD_PROVIDERS = {PROVIDER_GEMINI, PROVIDER_GROQ, PROVIDER_OPENAI};
@@ -127,8 +137,18 @@ public class AiPreferences {
             case PROVIDER_GROQ: return "whisper-large-v3-turbo";
             case PROVIDER_GEMINI: return "gemini-3.5-flash";
             case PROVIDER_OPENAI: return "gpt-4o-mini-transcribe";
+            // 一次到位：STT 模型槽改存「音檔直解的解析模型」（見 getDirectParseModel）
+            case PROVIDER_GEMINI_DIRECT: return defaultLlmModel(PROVIDER_GEMINI);
+            case PROVIDER_OPENAI_DIRECT: return DIRECT_MODEL_OPENAI;
             default: return "";
         }
+    }
+
+    /** 把一次到位的 provider id 收斂回底層家（gemini_direct→gemini、openai_direct→openai）。 */
+    public static String underlyingProvider(String provider) {
+        if (PROVIDER_GEMINI_DIRECT.equals(provider)) return PROVIDER_GEMINI;
+        if (PROVIDER_OPENAI_DIRECT.equals(provider)) return PROVIDER_OPENAI;
+        return provider;
     }
 
     // ---------------- LLM（BookkeepingParser 介面維持不變） ----------------
@@ -168,10 +188,12 @@ public class AiPreferences {
     }
 
     /**
-     * 一次到位用的解析模型：OpenAI 固定用 audio-preview（一般模型不吃音訊）；
-     * Gemini 解析端本來就選 Gemini 就用它設的模型，否則用 Gemini 預設。
+     * 一次到位用的解析模型。優先用使用者在設定頁明選的（存在 STT 模型槽，direct 模式該槽
+     * 專用於此）；沒設才回退預設：OpenAI 用能吃音訊的 audio-preview、Gemini 沿用解析模型
+     * 或其預設。（舊設定的 direct 使用者 STT 模型槽為空，會落到回退分支，行為不變。）
      */
     public String getDirectParseModel() {
+        if (sttModel != null && !sttModel.trim().isEmpty()) return sttModel.trim();
         if (PROVIDER_OPENAI_DIRECT.equals(sttProvider)) return DIRECT_MODEL_OPENAI;
         return PROVIDER_GEMINI.equals(llmProvider) ? llmModel : defaultLlmModel(PROVIDER_GEMINI);
     }

@@ -144,7 +144,7 @@
                 android:layout_height="wrap_content" />
         </LinearLayout>
 
-        <!-- 內建辨識／一次到位沒有模型可選，整列動態隱藏 -->
+        <!-- 內建辨識沒有模型可選，整列動態隱藏；一次到位時標題動態改為「一次到位模型」 -->
         <LinearLayout
             android:id="@+id/ai_stt_model_row"
             style="@style/AiClickableRow"
@@ -152,6 +152,7 @@
             android:layout_height="wrap_content">
 
             <TextView
+                android:id="@+id/ai_stt_model_title"
                 style="@style/AiRowTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

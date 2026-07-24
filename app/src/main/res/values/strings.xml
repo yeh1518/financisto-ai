@@ -1298,6 +1298,7 @@
     <string name="ai_save_hint">Save applies to the Speech recognition and AI parsing choices above. API keys and the settings below take effect immediately.</string>
     <string name="ai_other_section">Other</string>
     <string name="ai_stt_model_title">Recognition model</string>
+    <string name="ai_direct_model_title">One-shot model (transcribe + parse)</string>
     <string name="ai_llm_model_title">Parsing model</string>
     <string name="ai_model_unset">Not set (tap to load list)</string>
     <string name="ai_fab_size_title">Voice button size</string>
