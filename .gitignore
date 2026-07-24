@@ -31,6 +31,7 @@ tools/restructure-categories.py
 docs/experiments/on-device-llm-eval/entities.json
 docs/experiments/on-device-llm-eval/testset.json
 docs/experiments/on-device-llm-eval/result_*.json
+docs/experiments/on-device-llm-eval/cloud_result_*.json
 docs/experiments/on-device-llm-eval/gemma_failures.json
 docs/experiments/on-device-llm-eval/q36_fail.json
 
