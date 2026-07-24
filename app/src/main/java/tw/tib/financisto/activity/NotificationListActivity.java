@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
@@ -71,6 +73,19 @@ public class NotificationListActivity extends AppCompatActivity {
             return WindowInsetsCompat.CONSUMED;
         });
 
+        // 自癒：listener 可能被系統解綁（權限看似還在但收不到）——每次開列表都請求重綁
+        NotificationListener.requestRebindIfGranted(this);
+        // 沒授權就直接引導去系統設定（AI 設定入口進來時原本沒有任何提示，2026-07-23 補）
+        if (!NotificationListener.isAccessGranted(this)) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.notification_access_title)
+                    .setMessage(R.string.notification_access_missing)
+                    .setPositiveButton(R.string.notification_access_open_settings,
+                            (d, w) -> openNotificationAccessSettings())
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        }
+
         list = findViewById(android.R.id.list);
         list.setAdapter(new NotificationListAdapter(this, pickMode));
         list.setOnItemClickListener((adapterView, view, i, l) -> {
@@ -88,6 +103,42 @@ public class NotificationListActivity extends AppCompatActivity {
 
             Toast.makeText(this, R.string.notification_copied, Toast.LENGTH_SHORT).show();
         });
+    }
+
+    private static final int MENU_ACCESS_SETTINGS = 1;
+    private static final int MENU_TEMPLATE_LIST = 2;
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // 權限快捷：更新後 listener 解綁時，關開一次通知存取權是唯一的手動解——給條近路
+        menu.add(Menu.NONE, MENU_ACCESS_SETTINGS, 0, R.string.notification_access_open_settings);
+        if (pickMode) {
+            // AI 設定入口進來的順路：直通樣板列表，不必繞回實體選單
+            menu.add(Menu.NONE, MENU_TEMPLATE_LIST, 1, R.string.sms_templates);
+        }
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case MENU_ACCESS_SETTINGS:
+                openNotificationAccessSettings();
+                return true;
+            case MENU_TEMPLATE_LIST:
+                startActivity(new Intent(this, SmsDragListActivity.class));
+                return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void openNotificationAccessSettings() {
+        try {
+            startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.notification_access_settings_unavailable,
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     /** 丟 LLM 產樣板（背景執行緒），成功就帶著預填值開原生樣板編輯器。 */

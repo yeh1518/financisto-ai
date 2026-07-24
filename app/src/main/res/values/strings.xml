@@ -1284,6 +1284,10 @@
     <string name="ai_notification_template_generating">Generating template…</string>
     <string name="ai_notification_template_failed">Template generation failed: %1$s</string>
     <string name="ai_api_key_missing">AI parsing not configured — set an API key in AI settings first</string>
+    <string name="notification_access_title">Notification access</string>
+    <string name="notification_access_missing">Notification access is not granted, so no notifications can be captured. Open system settings to grant it?\n\nTip: if access looks granted but the list stays empty (e.g. right after an app update), toggle it off and on once.</string>
+    <string name="notification_access_open_settings">Notification access settings</string>
+    <string name="notification_access_settings_unavailable">Can\'t open notification access settings on this device</string>
     <string name="ai_log_share">Share</string>
     <string name="ai_log_clear">Clear</string>
     <string name="ai_log_empty">No records yet</string>

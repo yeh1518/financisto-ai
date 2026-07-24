@@ -1128,6 +1128,10 @@
   <string name="ai_notification_template_generating">正在產生樣板…</string>
   <string name="ai_notification_template_failed">樣板產生失敗：%1$s</string>
   <string name="ai_api_key_missing">AI 解析尚未設定——請先到 AI 設定填 API key</string>
+  <string name="notification_access_title">通知存取權</string>
+  <string name="notification_access_missing">尚未授予通知存取權，收不到任何通知。要前往系統設定開啟嗎？\n\n提示：若權限看起來已開但列表一直是空的（例如剛更新完 app），把它關掉再開一次即可復活。</string>
+  <string name="notification_access_open_settings">通知存取權設定</string>
+  <string name="notification_access_settings_unavailable">此裝置無法開啟通知存取權設定頁</string>
   <string name="ai_log_share">分享</string>
   <string name="ai_log_clear">清除</string>
   <string name="ai_log_empty">還沒有紀錄</string>

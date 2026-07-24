@@ -5,6 +5,7 @@ import static tw.tib.financisto.service.FinancistoService.SMS_TRANSACTION_BODY;
 import static tw.tib.financisto.service.FinancistoService.SMS_TRANSACTION_NUMBER;
 
 import android.app.Notification;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -12,6 +13,8 @@ import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.text.SpannableString;
 import android.util.Log;
+
+import androidx.core.app.NotificationManagerCompat;
 
 import java.util.List;
 import java.util.Set;
@@ -24,6 +27,28 @@ public class NotificationListener extends NotificationListenerService {
     private static final String TAG = "NotificationListener";
     private String packageName;
     private NotificationCache notificationCache;
+
+    /** 使用者是否已授予通知存取權（授了不代表 listener 有被系統綁上，見下）。 */
+    public static boolean isAccessGranted(Context context) {
+        return NotificationManagerCompat.getEnabledListenerPackages(context)
+                .contains(context.getPackageName());
+    }
+
+    /**
+     * 請系統重新綁定 listener。Android 有個長年怪癖：APK 更新（或某些系統狀況）後
+     * listener 會被解綁、且**權限還顯示已授予**，但通知完全收不到，得手動關開一次
+     * 通知存取權才復活。官方解法就是 requestRebind——在 APK 更新後（PackageReplaceReceiver）
+     * 與開啟通知列表時各叫一次自癒；沒授權或已綁定時是 no-op，多叫無害。
+     */
+    public static void requestRebindIfGranted(Context context) {
+        if (!isAccessGranted(context)) return;
+        try {
+            requestRebind(new ComponentName(context, NotificationListener.class));
+            Log.d(TAG, "requestRebind sent");
+        } catch (Exception e) {
+            Log.e(TAG, "requestRebind failed", e);
+        }
+    }
 
     @Override
     public void onListenerConnected() {

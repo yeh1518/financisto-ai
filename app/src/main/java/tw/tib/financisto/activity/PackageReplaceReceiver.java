@@ -17,6 +17,7 @@ import android.util.Log;
 
 import tw.tib.financisto.service.DailyAutoBackupScheduler;
 import tw.tib.financisto.service.FinancistoService;
+import tw.tib.financisto.service.NotificationListener;
 
 public class PackageReplaceReceiver extends BroadcastReceiver {
     private static final String TAG = "PackageReplaceReceiver";
@@ -27,6 +28,9 @@ public class PackageReplaceReceiver extends BroadcastReceiver {
         Log.i(TAG, "reschedule transactions and auto backup");
         requestScheduleAll(context);
         requestScheduleAutoBackup(context);
+        // APK 更新後 notification listener 常被系統解綁（權限看起來還在但收不到通知），
+        // 主動請系統重綁自癒（2026-07-23 Gary 實機更新後踩到）
+        NotificationListener.requestRebindIfGranted(context);
     }
 
     protected void requestScheduleAll(Context context) {
