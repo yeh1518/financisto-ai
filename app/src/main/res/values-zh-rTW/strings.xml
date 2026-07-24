@@ -1128,6 +1128,12 @@
   <string name="ai_notification_template_generating">正在產生樣板…</string>
   <string name="ai_notification_template_failed">樣板產生失敗：%1$s</string>
   <string name="ai_api_key_missing">AI 解析尚未設定——請先到 AI 設定填 API key</string>
+  <string name="ai_intro_title">AI 記帳說明</string>
+  <string name="ai_intro_help">說明</string>
+  <string name="ai_intro_got_it">開始使用</string>
+  <string name="ai_intro_open_settings">前往 AI 設定</string>
+  <string name="ai_intro_message">講一句話記一筆：點麥克風說「全家買咖啡60」，AI 填好表單讓你確認再存。\n\n• 長按麥克風或浮動鈕＝直接開 AI 設定\n• 也可以打字後按解析\n• 銀行／支付通知想自動記帳：AI 設定 →「AI 通知樣板解析」\n\n【要準備什麼】\n一把雲端 AI 的 API key（Gemini／OpenAI／Groq 擇一），填在 AI 設定裡。\n\n【想完全免費】\nGemini 免費 key ＋ 語音辨識選「內建」＝ 不花錢。Gemini 免費額度每天約 250 次請求，個人記帳綽綽有餘（額度由 Google 決定，可能調整）。\n\n【隱私】\n你的語音與文字會直接送到你選的雲端服務商處理，不經過本 App 開發者的任何伺服器（本 App 沒有伺服器）。是否接受該服務商的條款與風險請自行評估承擔；不想上雲就用手動記帳，帳本資料一樣只留在你的裝置上。</string>
+  <string name="ai_not_configured_detail">還沒設定 API key，AI 記帳無法使用。\n\n到 AI 設定填一把 key 就能開始；想完全免費可用 Gemini 的免費 key ＋ 語音辨識選「內建」。詳見說明。</string>
   <string name="notification_access_title">通知存取權</string>
   <string name="notification_access_missing">尚未授予通知存取權，收不到任何通知。要前往系統設定開啟嗎？\n\n提示：若權限看起來已開但列表一直是空的（例如剛更新完 app），把它關掉再開一次即可復活。</string>
   <string name="notification_access_open_settings">通知存取權設定</string>

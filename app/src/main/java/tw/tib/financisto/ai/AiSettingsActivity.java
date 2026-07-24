@@ -109,6 +109,7 @@ public class AiSettingsActivity extends ComponentActivity {
         ((Button) findViewById(R.id.ai_save_button)).setOnClickListener(v -> save());
         findViewById(R.id.ai_log_button).setOnClickListener(v ->
                 startActivity(new Intent(this, AiLogActivity.class)));
+        findViewById(R.id.ai_help_button).setOnClickListener(v -> AiIntroDialog.show(this));
         findViewById(R.id.ai_notification_template_button).setOnClickListener(v -> {
             Intent intent = new Intent(this, tw.tib.financisto.activity.NotificationListActivity.class);
             intent.putExtra(tw.tib.financisto.activity.NotificationListActivity.EXTRA_PICK_FOR_TEMPLATE, true);

@@ -247,6 +247,13 @@
             android:thumbTextPadding="10dp" />
 
         <Button
+            android:id="@+id/ai_help_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/ai_intro_help" />
+
+        <Button
             android:id="@+id/ai_notification_template_button"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

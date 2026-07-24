@@ -1284,6 +1284,12 @@
     <string name="ai_notification_template_generating">Generating template…</string>
     <string name="ai_notification_template_failed">Template generation failed: %1$s</string>
     <string name="ai_api_key_missing">AI parsing not configured — set an API key in AI settings first</string>
+    <string name="ai_intro_title">About AI bookkeeping</string>
+    <string name="ai_intro_help">Help</string>
+    <string name="ai_intro_got_it">Get started</string>
+    <string name="ai_intro_open_settings">Open AI settings</string>
+    <string name="ai_intro_message">Say one sentence, get one entry: tap the mic and say "coffee at the corner store 60", and AI fills in the form for you to confirm.\n\n• Long-press the mic or the floating button to open AI settings\n• You can also type and hit parse\n• To auto-record bank/payment notifications: AI settings → "AI notification template"\n\n[What you need]\nOne cloud AI API key (Gemini, OpenAI or Groq), entered in AI settings.\n\n[To run it for free]\nA free Gemini key + speech recognition set to "Built-in" costs nothing. Gemini\'s free tier allows roughly 250 requests per day — plenty for personal bookkeeping (quotas are set by Google and may change).\n\n[Privacy]\nYour audio and text go straight to the cloud provider you choose. They never pass through any server of this app\'s developer (there is no such server). Accepting that provider\'s terms and risks is your call; if you\'d rather not use the cloud, just enter transactions manually — your ledger stays on your device either way.</string>
+    <string name="ai_not_configured_detail">No API key is set, so AI bookkeeping can\'t run.\n\nAdd a key in AI settings to get started. For a free setup, use a free Gemini key with speech recognition set to "Built-in". See Help for details.</string>
     <string name="notification_access_title">Notification access</string>
     <string name="notification_access_missing">Notification access is not granted, so no notifications can be captured. Open system settings to grant it?\n\nTip: if access looks granted but the list stays empty (e.g. right after an app update), toggle it off and on once.</string>
     <string name="notification_access_open_settings">Notification access settings</string>

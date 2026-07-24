@@ -47,6 +47,7 @@ public class AiPreferences {
     public static final String KEY_STT_PROVIDER = "ai_stt_provider";
     public static final String KEY_STT_MODEL = "ai_stt_model";
     public static final String KEY_AUTO_SEND = "ai_auto_send";
+    public static final String KEY_INTRO_SHOWN = "ai_intro_shown";
     public static final String KEY_SHORTCUT_ENTERS_APP = "ai_shortcut_enters_app";
     public static final String KEY_FAB_SIZE_DP = "ai_fab_size_dp";
     public static final String KEY_FAB_TRANS_X = "ai_fab_trans_x";
@@ -227,6 +228,17 @@ public class AiPreferences {
                 .putString(KEY_LLM_PROVIDER, llmProvider == null ? PROVIDER_OPENAI : llmProvider)
                 .putString(KEY_MODEL, llmModel == null ? "" : llmModel.trim())
                 .apply();
+    }
+
+    /** 第一次用語音前的說明是否看過（看過就不再自動彈，改由設定頁按鈕叫出）。 */
+    public static boolean isIntroShown(Context context) {
+        return PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(KEY_INTRO_SHOWN, false);
+    }
+
+    public static void saveIntroShown(Context context, boolean shown) {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putBoolean(KEY_INTRO_SHOWN, shown).apply();
     }
 
     /** 辨識完是否直接送解析（畫面上的開關；預設否＝停在文字讓使用者接著講/手動送）。 */

@@ -146,6 +146,12 @@ public class AiInputActivity extends ComponentActivity {
         voiceButton.setScaleX(MIC_BASE_SCALE);
         voiceButton.setScaleY(MIC_BASE_SCALE);
         voiceButton.setOnClickListener(v -> startVoice());
+        // 長按麥克風＝進 AI 設定（與全 App 浮動鈕同手勢，改設定不必點來點去）
+        voiceButton.setOnLongClickListener(v -> {
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            startActivity(new Intent(this, AiSettingsActivity.class));
+            return true;
+        });
         voiceCancelButton.setOnClickListener(v -> cancelRecording());
         voiceRetryButton.setOnClickListener(v -> {
             if (retryWav != null && !voiceWorking) {
@@ -238,12 +244,31 @@ public class AiInputActivity extends ComponentActivity {
      * 內建模式＝標準 Google 語音彈窗。
      */
     private void startVoice() {
+        // 第一次用先看說明（含免費組合與隱私聲明）；按「開始使用」才接著錄
+        if (!recording && AiIntroDialog.showIfFirstTime(this, this::startVoice)) return;
         AiPreferences prefs = AiPreferences.load(this);
+        // 沒設 key 就別讓人對著麥克風講完才發現不能用——直接給引導
+        if (!prefs.isConfigured() && !prefs.isCloudSttConfigured()) {
+            promptToConfigure();
+            return;
+        }
         if (prefs.isCloudStt()) {
             toggleInlineVoice(prefs);
             return;
         }
         startSystemVoice();
+    }
+
+    /** 未設定 API key 時的引導：直接給「前往設定」與「說明」兩條路，不只是丟 toast。 */
+    private void promptToConfigure() {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.ai_intro_title)
+                .setMessage(R.string.ai_not_configured_detail)
+                .setPositiveButton(R.string.ai_intro_open_settings, (d, w) ->
+                        startActivity(new Intent(this, AiSettingsActivity.class)))
+                .setNeutralButton(R.string.ai_intro_help, (d, w) -> AiIntroDialog.show(this))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     // ---------------- 雲端模式：就地錄音（不疊視窗，2026-07-20 定案） ----------------

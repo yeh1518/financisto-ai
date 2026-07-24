@@ -126,12 +126,18 @@ public class AiFloatingButton implements Application.ActivityLifecycleCallbacks 
         }
     }
 
-    /** 拖曳 vs 點擊：移動超過 touchSlop 算拖曳（記位置），否則算點擊（分派動作）。 */
+    /**
+     * 拖曳 vs 點擊 vs 長按：移動超過 touchSlop 算拖曳（記位置）；按住不動超過長按時間
+     * ＝直接進 AI 設定（省得為了改設定點來點去）；否則算點擊（分派動作）。
+     */
     private void attachDragAndClick(ImageView fab, Activity activity) {
         int slop = ViewConfiguration.get(activity).getScaledTouchSlop();
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
         fab.setOnTouchListener(new View.OnTouchListener() {
             float downRawX, downRawY, startX, startY;
             boolean dragged;
+            boolean longPressed;
+            Runnable longPress;
 
             @Override
             public boolean onTouch(View v, MotionEvent e) {
@@ -142,17 +148,33 @@ public class AiFloatingButton implements Application.ActivityLifecycleCallbacks 
                         startX = v.getTranslationX();
                         startY = v.getTranslationY();
                         dragged = false;
+                        longPressed = false;
+                        longPress = () -> {
+                            longPressed = true;
+                            v.performHapticFeedback(
+                                    android.view.HapticFeedbackConstants.LONG_PRESS);
+                            openSettings(activity);
+                        };
+                        handler.postDelayed(longPress,
+                                ViewConfiguration.getLongPressTimeout());
                         return true;
                     case MotionEvent.ACTION_MOVE:
                         float dx = e.getRawX() - downRawX;
                         float dy = e.getRawY() - downRawY;
-                        if (Math.abs(dx) > slop || Math.abs(dy) > slop) dragged = true;
+                        if (Math.abs(dx) > slop || Math.abs(dy) > slop) {
+                            dragged = true;
+                            handler.removeCallbacks(longPress);   // 開始拖就不是長按
+                        }
+                        if (longPressed) return true;             // 已進設定就不再跟著手指跑
                         // 夾在畫面內：位置會存進 prefs，拖出畫面外就再也點不到、也拖不回來了
                         v.setTranslationX(clampX(v, startX + dx));
                         v.setTranslationY(clampY(v, startY + dy));
                         return true;
                     case MotionEvent.ACTION_UP:
-                        if (dragged) {
+                        handler.removeCallbacks(longPress);
+                        if (longPressed) {
+                            // 長按已經開了設定；放開不要再觸發點擊
+                        } else if (dragged) {
                             saveDragPosition(activity, v);
                         } else {
                             v.performClick();
@@ -162,12 +184,18 @@ public class AiFloatingButton implements Application.ActivityLifecycleCallbacks 
                     case MotionEvent.ACTION_CANCEL:
                         // 拖到一半被攔截（例如父層接手觸控）：鈕已經移動了，位置也要存，
                         // 否則切到別的畫面又會跳回舊位置。取消不算點擊。
+                        handler.removeCallbacks(longPress);
                         if (dragged) saveDragPosition(activity, v);
                         return true;
                 }
                 return false;
             }
         });
+    }
+
+    /** 長按浮動鈕的去處：AI 設定。 */
+    private static void openSettings(Activity activity) {
+        activity.startActivity(new android.content.Intent(activity, AiSettingsActivity.class));
     }
 
     private static void saveDragPosition(Activity activity, View v) {
