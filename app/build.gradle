@@ -13,6 +13,16 @@ configurations {
 
 apply plugin: 'com.android.application'
 
+// Release 簽章：讀 gitignored 的 keystore.properties（真正的金鑰/密碼在 myinfra secrets）。
+// 檔案不存在時（別人 clone、或沒有金鑰的機器）releaseSigning 為 null → release 退回 debug 簽章，
+// 仍 build 得出來（只是不是可散佈的穩定簽章）。
+def keystorePropsFile = rootProject.file('keystore.properties')
+def releaseSigningReady = keystorePropsFile.exists()
+def keystoreProps = new Properties()
+if (releaseSigningReady) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
 android {
     namespace = 'tw.tib.financisto'
     compileSdk = 36
@@ -46,6 +56,17 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseSigningReady) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // dev fork installs side-by-side with the Play-store Financisto Holo
@@ -54,9 +75,14 @@ android {
             versionNameSuffix "-ai"
         }
         release {
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt', 'proguard-google-api-client.txt'
-            signingConfig = signingConfigs.debug
+            // 同 debug 帶 .ai 尾綴：本 fork 的簽章金鑰與 Play 商店版不同，用同一個
+            // applicationId 會被系統拒裝；帶尾綴＝獨立 app、與商店版並存、可用備份還原搬資料。
+            applicationIdSuffix ".ai"
+            versionNameSuffix "-ai"
+            // minify 暫時關閉：AI 相關類別（okhttp / org.json / EncryptedSharedPreferences）
+            // 尚未驗證 proguard keep 規則，先求 release 行為與 debug 一致、可散佈的穩定簽章優先。
+            minifyEnabled false
+            signingConfig releaseSigningReady ? signingConfigs.release : signingConfigs.debug
         }
     }
     packagingOptions {

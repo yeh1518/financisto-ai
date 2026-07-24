@@ -36,3 +36,8 @@ docs/experiments/on-device-llm-eval/q36_fail.json
 
 # 本地備份設定（個人基建，不進公開 repo）
 .backup-manifest
+
+# Release 簽章（絕不進 git）
+keystore.properties
+*.jks
+*.keystore
