@@ -224,7 +224,7 @@ public class TemplateGenerator {
             throw new GenerateException("網路錯誤：" + e.getMessage(), e);
         }
         if (code < 200 || code >= 300) {
-            throw new GenerateException("API 回傳 " + code + "：" + shorten(responseBody));
+            throw new GenerateException(BookkeepingParser.httpErrorMessage(code, responseBody));
         }
 
         try {

@@ -173,7 +173,7 @@ public class SpeechTranscriber {
             throw new TranscribeException("網路錯誤：" + e.getMessage(), e);
         }
         if (code < 200 || code >= 300) {
-            throw new TranscribeException("API 回傳 " + code + "：" + shorten(responseBody));
+            throw new TranscribeException(BookkeepingParser.httpErrorMessage(code, responseBody));
         }
         return responseBody;
     }

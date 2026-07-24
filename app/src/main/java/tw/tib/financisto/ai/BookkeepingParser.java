@@ -259,7 +259,7 @@ public class BookkeepingParser {
         }
 
         if (code < 200 || code >= 300) {
-            throw new ParseException("API 回傳 " + code + "：" + shorten(responseBody));
+            throw new ParseException(httpErrorMessage(code, responseBody));
         }
 
         try {
@@ -350,7 +350,7 @@ public class BookkeepingParser {
         }
 
         if (code < 200 || code >= 300) {
-            throw new ParseException("API 回傳 " + code + "：" + shorten(responseBody));
+            throw new ParseException(httpErrorMessage(code, responseBody));
         }
 
         return parseResponse(responseBody, userText, supplement, formStateContext);
@@ -505,6 +505,21 @@ public class BookkeepingParser {
 
     private static String emptyToNull(String s) {
         return (s == null || s.trim().isEmpty()) ? null : s;
+    }
+
+    /**
+     * 把 HTTP 錯誤翻成看得懂的話。429 特別處理：免費層（尤其 Groq，TPM 8000 而本 app
+     * 每次請求約 5~6k tokens）很容易一分鐘只能跑一筆，直接顯示原始 JSON 只會讓人困惑。
+     */
+    static String httpErrorMessage(int code, String responseBody) {
+        if (code == 429) {
+            return "已達服務商的用量限制（每分鐘 token 上限），請稍候再試。"
+                    + "免費方案較容易碰到，可到 AI 設定換 provider 或看說明。";
+        }
+        if (code == 401 || code == 403) {
+            return "API key 無效或被拒（" + code + "）。請到 AI 設定確認 key。";
+        }
+        return "API 回傳 " + code + "：" + shorten(responseBody);
     }
 
     private static String shorten(String s) {
