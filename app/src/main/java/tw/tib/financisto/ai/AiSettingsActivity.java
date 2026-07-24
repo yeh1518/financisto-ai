@@ -11,16 +11,10 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.Spinner;
-import android.widget.Switch;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -45,33 +39,31 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 import tw.tib.financisto.R;
+import tw.tib.financisto.activity.NotificationListActivity;
 
 /**
- * AI 設定頁（2026-07-20 重構為 per-provider）。
+ * AI 設定頁（2026-07-23 改為全選單式，Gary 定案）。
  *
- * 結構：三家 API key 各自管理（編輯彈窗、**存前必打 /models 測通**）→ 語音辨識
- * （內建/雲端 provider 選單＋模型）→ AI 解析（provider 選單＋模型）。
- * 選單只列「已有 key」的 provider——沒 key 的選了也不能用，不如不出現。
- * key 由彈窗即存；provider/模型選擇由底部「儲存」寫入。
+ * 三條原則：
+ * 1. **沒有儲存按鈕**——每個選擇當下就落地（key 本來就是彈窗即存）。
+ * 2. **模型不能手打**——只能從該 provider 的 /models 抓回來的清單裡選，杜絕打錯字。
+ * 3. **每項都是「點一列 → 彈選單」**——含浮動鈕大小（疊窗拖拉＋示意圖）與捷徑行為
+ *    （原本是唯一的 Switch，字長還會尷尬換行）。
  *
  * 刻意用純 Activity + 手排 widget，不掛 androidx PreferenceFragment（理由同前版：
  * 避開 framework Material 主題缺 preferenceTheme 的崩潰，並完全掌控 key 的加密落地）。
  */
 public class AiSettingsActivity extends ComponentActivity {
 
-    private Spinner sttProviderSpinner;
-    private Spinner llmProviderSpinner;
-    private EditText sttModelText;
-    private EditText llmModelText;
+    // 目前選擇（改動即存，不留待儲存鈕）
+    private String sttProvider;
+    private String sttModel;
+    private String llmProvider;
+    private String llmModel;
+
+    private TextView sttProviderValue, sttModelValue, llmProviderValue, llmModelValue;
+    private TextView fabSizeValue, shortcutBehaviorValue;
     private View sttModelRow;
-
-    /** 各 spinner 目前列出的 provider id（與顯示名同 index；LLM 無可用時為空清單）。 */
-    private final List<String> sttProviderIds = new ArrayList<>();
-    private final List<String> llmProviderIds = new ArrayList<>();
-
-    /** 上一次選中的 provider——換 provider 才帶預設模型，初始復原不動使用者存的模型。 */
-    private String lastSttProvider;
-    private String lastLlmProvider;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,54 +79,70 @@ public class AiSettingsActivity extends ComponentActivity {
             return WindowInsetsCompat.CONSUMED;
         });
 
-        sttProviderSpinner = findViewById(R.id.ai_stt_provider_spinner);
-        llmProviderSpinner = findViewById(R.id.ai_llm_provider_spinner);
-        sttModelText = findViewById(R.id.ai_stt_model);
-        llmModelText = findViewById(R.id.ai_model);
-        sttModelRow = findViewById(R.id.ai_stt_model_row);
+        AiPreferences prefs = AiPreferences.load(this);
+        sttProvider = prefs.getSttProvider();
+        sttModel = prefs.getSttModel();
+        llmProvider = prefs.getLlmProvider();
+        llmModel = prefs.getModel();
 
         bindKeyRow(AiPreferences.PROVIDER_GEMINI, R.id.ai_key_status_gemini, R.id.ai_key_edit_gemini);
         bindKeyRow(AiPreferences.PROVIDER_GROQ, R.id.ai_key_status_groq, R.id.ai_key_edit_groq);
         bindKeyRow(AiPreferences.PROVIDER_OPENAI, R.id.ai_key_status_openai, R.id.ai_key_edit_openai);
 
-        AiPreferences prefs = AiPreferences.load(this);
-        lastSttProvider = prefs.getSttProvider();
-        lastLlmProvider = prefs.getLlmProvider();
-        sttModelText.setText(prefs.isCloudStt() ? prefs.getSttModel() : "");
-        llmModelText.setText(prefs.getModel());
-        rebuildProviderSpinners();
+        sttProviderValue = findViewById(R.id.ai_stt_provider_value);
+        sttModelValue = findViewById(R.id.ai_stt_model_value);
+        llmProviderValue = findViewById(R.id.ai_llm_provider_value);
+        llmModelValue = findViewById(R.id.ai_llm_model_value);
+        fabSizeValue = findViewById(R.id.ai_fab_size_value);
+        shortcutBehaviorValue = findViewById(R.id.ai_shortcut_behavior_value);
+        sttModelRow = findViewById(R.id.ai_stt_model_row);
 
-        findViewById(R.id.ai_stt_fetch_models_button).setOnClickListener(v -> fetchModels(true));
-        findViewById(R.id.ai_fetch_models_button).setOnClickListener(v -> fetchModels(false));
-        ((Button) findViewById(R.id.ai_save_button)).setOnClickListener(v -> save());
-        findViewById(R.id.ai_log_button).setOnClickListener(v ->
-                startActivity(new Intent(this, AiLogActivity.class)));
-        findViewById(R.id.ai_help_button).setOnClickListener(v -> AiIntroDialog.show(this));
-        findViewById(R.id.ai_notification_template_button).setOnClickListener(v -> {
-            Intent intent = new Intent(this, tw.tib.financisto.activity.NotificationListActivity.class);
-            intent.putExtra(tw.tib.financisto.activity.NotificationListActivity.EXTRA_PICK_FOR_TEMPLATE, true);
+        findViewById(R.id.ai_stt_provider_row).setOnClickListener(v -> pickSttProvider());
+        sttModelRow.setOnClickListener(v -> pickModel(true));
+        findViewById(R.id.ai_llm_provider_row).setOnClickListener(v -> pickLlmProvider());
+        findViewById(R.id.ai_llm_model_row).setOnClickListener(v -> pickModel(false));
+
+        findViewById(R.id.ai_fab_size_row).setOnClickListener(v -> showFabSizeDialog());
+        findViewById(R.id.ai_shortcut_behavior_row).setOnClickListener(v -> pickShortcutBehavior());
+        findViewById(R.id.ai_pin_shortcut_row).setOnClickListener(v -> pinVoiceShortcut());
+        findViewById(R.id.ai_notification_template_row).setOnClickListener(v -> {
+            Intent intent = new Intent(this, NotificationListActivity.class);
+            intent.putExtra(NotificationListActivity.EXTRA_PICK_FOR_TEMPLATE, true);
             startActivity(intent);
         });
-        findViewById(R.id.ai_pin_shortcut_button).setOnClickListener(v -> pinVoiceShortcut());
+        findViewById(R.id.ai_help_row).setOnClickListener(v -> AiIntroDialog.show(this));
+        findViewById(R.id.ai_log_row).setOnClickListener(v ->
+                startActivity(new Intent(this, AiLogActivity.class)));
 
-        Switch shortcutEntersAppSwitch = findViewById(R.id.ai_shortcut_enters_app);
-        shortcutEntersAppSwitch.setChecked(AiPreferences.isShortcutEntersApp(this));
-        shortcutEntersAppSwitch.setOnCheckedChangeListener((CompoundButton b, boolean checked) ->
-                AiPreferences.saveShortcutEntersApp(this, checked));
-
-        setupFabSizeSeek();
+        refreshAllValues();
     }
 
-    // ================= API key 列 =================
+    // ================= 顯示值 =================
 
-    private void bindKeyRow(String provider, int statusId, int editId) {
-        refreshKeyStatus(provider, statusId);
-        findViewById(editId).setOnClickListener(v -> showKeyDialog(provider, statusId));
+    private void refreshAllValues() {
+        sttProviderValue.setText(sttProviderLabel(sttProvider));
+        sttModelValue.setText(TextUtils.isEmpty(sttModel)
+                ? getString(R.string.ai_model_unset) : sttModel);
+        // 內建沒有模型；一次到位的模型固定（Gemini 跟解析區走、OpenAI 用 audio-preview）
+        boolean showSttModel = !AiPreferences.PROVIDER_SYSTEM.equals(sttProvider)
+                && !AiPreferences.PROVIDER_GEMINI_DIRECT.equals(sttProvider)
+                && !AiPreferences.PROVIDER_OPENAI_DIRECT.equals(sttProvider);
+        sttModelRow.setVisibility(showSttModel ? View.VISIBLE : View.GONE);
+
+        llmProviderValue.setText(AiPreferences.hasKey(this, llmProvider)
+                ? displayName(llmProvider) : getString(R.string.ai_no_provider_key));
+        llmModelValue.setText(TextUtils.isEmpty(llmModel)
+                ? getString(R.string.ai_model_unset) : llmModel);
+
+        fabSizeValue.setText(getString(R.string.ai_fab_size, AiPreferences.getFabSizeDp(this)));
+        shortcutBehaviorValue.setText(AiPreferences.isShortcutEntersApp(this)
+                ? getString(R.string.ai_shortcut_behavior_app)
+                : getString(R.string.ai_shortcut_behavior_home));
     }
 
-    private void refreshKeyStatus(String provider, int statusId) {
-        ((TextView) findViewById(statusId)).setText(AiPreferences.hasKey(this, provider)
-                ? getString(R.string.ai_key_set) : getString(R.string.ai_key_unset));
+    private void persistSelections() {
+        AiPreferences.saveSelections(this, sttProvider, sttModel, llmProvider, llmModel);
+        refreshAllValues();
     }
 
     private static String displayName(String provider) {
@@ -146,178 +154,107 @@ public class AiSettingsActivity extends ComponentActivity {
         }
     }
 
-    /**
-     * 編輯 key 的彈窗：輸入 → 儲存前先打該家 /models 測通（驗 key 有效，免費），
-     * 通過才落地；失敗把錯誤顯示在彈窗裡、不關窗。自己接管按鈕才能做到「存失敗不關窗」
-     * （AlertDialog 預設按了就 dismiss）。
-     */
-    private void showKeyDialog(String provider, int statusId) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (16 * getResources().getDisplayMetrics().density);
-        box.setPadding(pad, pad, pad, 0);
-
-        final EditText keyInput = new EditText(this);
-        keyInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        keyInput.setHint(R.string.ai_key_dialog_hint);
-        box.addView(keyInput);
-
-        final TextView status = new TextView(this);
-        status.setTextSize(12);
-        box.addView(status);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.ai_key_dialog_title, displayName(provider)))
-                .setView(box)
-                .setPositiveButton(R.string.ai_save, null)   // null＝不自動 dismiss，下面接管
-                .setNegativeButton(android.R.string.cancel, null)
-                .create();
-        dialog.show();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String key = keyInput.getText().toString().trim();
-            if (key.isEmpty()) {
-                status.setText(R.string.ai_key_empty);
-                return;
-            }
-            status.setText(R.string.ai_key_testing);
-            setDialogBusy(dialog, keyInput, true);
-            new Thread(() -> {
-                try {
-                    requestModels(AiPreferences.llmBaseUrl(provider) + "/models", key);
-                    runOnUiThread(() -> {
-                        if (isFinishing()) return;
-                        AiPreferences.saveKey(this, provider, key);
-                        refreshKeyStatus(provider, statusId);
-                        rebuildProviderSpinners();
-                        dialog.dismiss();
-                        Toast.makeText(this, R.string.ai_key_saved, Toast.LENGTH_SHORT).show();
-                    });
-                } catch (final Exception e) {
-                    runOnUiThread(() -> {
-                        if (isFinishing() || !dialog.isShowing()) return;
-                        status.setText(getString(R.string.ai_key_test_failed, e.getMessage()));
-                        setDialogBusy(dialog, keyInput, false);
-                    });
-                }
-            }).start();
-        });
-    }
-
-    private static void setDialogBusy(AlertDialog dialog, EditText input, boolean busy) {
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(!busy);
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(!busy);
-        input.setEnabled(!busy);
+    private String sttProviderLabel(String provider) {
+        if (AiPreferences.PROVIDER_SYSTEM.equals(provider)) return getString(R.string.ai_stt_builtin);
+        if (AiPreferences.PROVIDER_GEMINI_DIRECT.equals(provider)) return getString(R.string.ai_stt_gemini_direct);
+        if (AiPreferences.PROVIDER_OPENAI_DIRECT.equals(provider)) return getString(R.string.ai_stt_openai_direct);
+        return displayName(provider);
     }
 
     // ================= provider 選單 =================
 
-    /**
-     * 重建兩個 provider 選單：STT＝內建＋已有 key 的家；LLM＝已有 key 的家
-     * （沒半家就放「先設定 key」占位並鎖住）。key 新存成功後即時重建。
-     */
-    private void rebuildProviderSpinners() {
-        // --- STT ---
-        sttProviderIds.clear();
-        List<String> sttNames = new ArrayList<>();
-        sttProviderIds.add(AiPreferences.PROVIDER_SYSTEM);
-        sttNames.add(getString(R.string.ai_stt_builtin));
+    /** STT 可選：內建 ＋ 已有 key 的家（Gemini/OpenAI 多一個「一次到位」）。 */
+    private void pickSttProvider() {
+        List<String> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        ids.add(AiPreferences.PROVIDER_SYSTEM);
+        names.add(getString(R.string.ai_stt_builtin));
         for (String p : AiPreferences.CLOUD_PROVIDERS) {
-            if (AiPreferences.hasKey(this, p)) {
-                sttProviderIds.add(p);
-                sttNames.add(displayName(p));
-                // Gemini / OpenAI 是通用模型，多一個「辨識＋解析一次到位」（跳過兩段串接、更快）
-                if (AiPreferences.PROVIDER_GEMINI.equals(p)) {
-                    sttProviderIds.add(AiPreferences.PROVIDER_GEMINI_DIRECT);
-                    sttNames.add(getString(R.string.ai_stt_gemini_direct));
-                } else if (AiPreferences.PROVIDER_OPENAI.equals(p)) {
-                    sttProviderIds.add(AiPreferences.PROVIDER_OPENAI_DIRECT);
-                    sttNames.add(getString(R.string.ai_stt_openai_direct));
-                }
+            if (!AiPreferences.hasKey(this, p)) continue;
+            ids.add(p);
+            names.add(displayName(p));
+            if (AiPreferences.PROVIDER_GEMINI.equals(p)) {
+                ids.add(AiPreferences.PROVIDER_GEMINI_DIRECT);
+                names.add(getString(R.string.ai_stt_gemini_direct));
+            } else if (AiPreferences.PROVIDER_OPENAI.equals(p)) {
+                ids.add(AiPreferences.PROVIDER_OPENAI_DIRECT);
+                names.add(getString(R.string.ai_stt_openai_direct));
             }
         }
-        setupSpinner(sttProviderSpinner, sttNames, sttProviderIds.indexOf(lastSttProvider),
-                pos -> onSttProviderPicked(sttProviderIds.get(pos)));
-        onSttProviderVisibility(lastSttProvider);
-
-        // --- LLM ---
-        llmProviderIds.clear();
-        List<String> llmNames = new ArrayList<>();
-        for (String p : AiPreferences.CLOUD_PROVIDERS) {
-            if (AiPreferences.hasKey(this, p)) {
-                llmProviderIds.add(p);
-                llmNames.add(displayName(p));
+        showChoice(R.string.ai_stt_engine, names, ids.indexOf(sttProvider), which -> {
+            String picked = ids.get(which);
+            if (!picked.equals(sttProvider)) {
+                sttProvider = picked;
+                sttModel = AiPreferences.defaultSttModel(picked);   // 換家＝帶該家預設模型
             }
-        }
-        if (llmProviderIds.isEmpty()) {
-            llmNames.add(getString(R.string.ai_no_provider_key));
-            setupSpinner(llmProviderSpinner, llmNames, 0, null);
-            llmProviderSpinner.setEnabled(false);
-        } else {
-            llmProviderSpinner.setEnabled(true);
-            setupSpinner(llmProviderSpinner, llmNames, llmProviderIds.indexOf(lastLlmProvider),
-                    pos -> onLlmProviderPicked(llmProviderIds.get(pos)));
-        }
-    }
-
-    private interface OnPicked { void pick(int position); }
-
-    private void setupSpinner(Spinner spinner, List<String> names, int selectIndex, OnPicked onPicked) {
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, names);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setSelection(Math.max(0, selectIndex));
-        spinner.setOnItemSelectedListener(onPicked == null ? null : new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                onPicked.pick(position);
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
+            persistSelections();
         });
     }
 
-    /** 換 STT provider：帶入該家預設模型（同 provider 的初始回呼不動使用者存的值）。 */
-    private void onSttProviderPicked(String provider) {
-        if (!provider.equals(lastSttProvider)) {
-            lastSttProvider = provider;
-            sttModelText.setText(AiPreferences.defaultSttModel(provider));
+    /** 解析可選：已有 key 的家；一家都沒有就引導去設 key。 */
+    private void pickLlmProvider() {
+        List<String> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (String p : AiPreferences.CLOUD_PROVIDERS) {
+            if (!AiPreferences.hasKey(this, p)) continue;
+            ids.add(p);
+            names.add(displayName(p));
         }
-        onSttProviderVisibility(provider);
-    }
-
-    private void onSttProviderVisibility(String provider) {
-        // 內建沒有模型；一次到位的模型固定（Gemini 跟解析區走、OpenAI 用 audio-preview），皆不顯示模型列
-        boolean showModel = !AiPreferences.PROVIDER_SYSTEM.equals(provider)
-                && !AiPreferences.PROVIDER_GEMINI_DIRECT.equals(provider)
-                && !AiPreferences.PROVIDER_OPENAI_DIRECT.equals(provider);
-        sttModelRow.setVisibility(showModel ? View.VISIBLE : View.GONE);
-    }
-
-    private void onLlmProviderPicked(String provider) {
-        if (!provider.equals(lastLlmProvider)) {
-            lastLlmProvider = provider;
-            llmModelText.setText(AiPreferences.defaultLlmModel(provider));
+        if (ids.isEmpty()) {
+            Toast.makeText(this, R.string.ai_no_provider_key, Toast.LENGTH_LONG).show();
+            return;
         }
+        showChoice(R.string.ai_llm_provider, names, ids.indexOf(llmProvider), which -> {
+            String picked = ids.get(which);
+            if (!picked.equals(llmProvider)) {
+                llmProvider = picked;
+                llmModel = AiPreferences.defaultLlmModel(picked);
+            }
+            persistSelections();
+        });
     }
 
-    // ================= 模型清單 =================
+    private void pickShortcutBehavior() {
+        List<String> names = new ArrayList<>();
+        names.add(getString(R.string.ai_shortcut_behavior_home));
+        names.add(getString(R.string.ai_shortcut_behavior_app));
+        int cur = AiPreferences.isShortcutEntersApp(this) ? 1 : 0;
+        showChoice(R.string.ai_shortcut_behavior_title, names, cur, which -> {
+            AiPreferences.saveShortcutEntersApp(this, which == 1);
+            refreshAllValues();
+        });
+    }
+
+    private interface OnPicked { void pick(int which); }
+
+    /** 單選清單彈窗：點了就套用並關閉（不需要「確定」）。 */
+    private void showChoice(int titleId, List<String> names, int checked, OnPicked onPicked) {
+        String[] arr = names.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+                .setTitle(titleId)
+                .setSingleChoiceItems(arr, checked, (d, which) -> {
+                    d.dismiss();
+                    onPicked.pick(which);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    // ================= 模型清單（只能選，不能打） =================
 
     /**
-     * 抓當前選中 provider 的 /models 清單讓使用者用選的。
+     * 點模型列＝去該 provider 抓 /models，回來讓使用者選；選完即存。
+     * 不提供手打——打錯字的模型名要到實際呼叫失敗才會發現，代價太高。
+     *
      * @param forStt true＝語音模型（whisper/transcribe 系；Gemini 全模型皆可聽音訊，列 gemini 系），
      *               false＝解析模型（黑名單粗篩掉非 LLM）。
      */
-    private void fetchModels(boolean forStt) {
-        final String provider = forStt
-                ? sttProviderIds.get(sttProviderSpinner.getSelectedItemPosition())
-                : (llmProviderIds.isEmpty() ? null
-                        : llmProviderIds.get(llmProviderSpinner.getSelectedItemPosition()));
-        if (provider == null || AiPreferences.PROVIDER_SYSTEM.equals(provider)) {
-            Toast.makeText(this, R.string.ai_no_provider_key, Toast.LENGTH_SHORT).show();
-            return;
-        }
+    private void pickModel(boolean forStt) {
+        final String provider = forStt ? sttProvider : llmProvider;
+        if (AiPreferences.PROVIDER_SYSTEM.equals(provider)) return;
         final String key = AiPreferences.getKey(this, provider);
         if (TextUtils.isEmpty(key)) {
-            Toast.makeText(this, R.string.ai_no_provider_key, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.ai_no_provider_key, Toast.LENGTH_LONG).show();
             return;
         }
         final String url = AiPreferences.llmBaseUrl(provider) + "/models";
@@ -337,9 +274,14 @@ public class AiSettingsActivity extends ComponentActivity {
                     if (isFinishing()) return;
                     if (models.isEmpty()) {
                         Toast.makeText(this, R.string.ai_models_empty, Toast.LENGTH_LONG).show();
-                    } else {
-                        showModelPicker(models, forStt ? sttModelText : llmModelText);
+                        return;
                     }
+                    String cur = forStt ? sttModel : llmModel;
+                    showChoice(R.string.ai_models_pick, models, models.indexOf(cur), which -> {
+                        if (forStt) sttModel = models.get(which);
+                        else llmModel = models.get(which);
+                        persistSelections();
+                    });
                 });
             } catch (final Exception e) {
                 runOnUiThread(() -> {
@@ -390,7 +332,7 @@ public class AiSettingsActivity extends ComponentActivity {
 
     /**
      * 粗篩掉明顯不是對話 LLM 的模型。用黑名單而非白名單，才能相容各家 /models
-     * （名稱五花八門）。誤放一兩個沒關係，使用者仍可手動改。
+     * （名稱五花八門）。誤放一兩個沒關係，選錯再換就是。
      */
     private static boolean isLlm(String id) {
         String s = id.toLowerCase(Locale.US);
@@ -411,78 +353,162 @@ public class AiSettingsActivity extends ComponentActivity {
         return s.contains("whisper") || s.contains("transcribe");
     }
 
-    private void showModelPicker(List<String> models, EditText target) {
-        String[] arr = models.toArray(new String[0]);
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.ai_models_pick)
-                .setItems(arr, (dialog, which) -> target.setText(arr[which]))
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+    // ================= API key 列 =================
+
+    private void bindKeyRow(String provider, int statusId, int editId) {
+        refreshKeyStatus(provider, statusId);
+        findViewById(editId).setOnClickListener(v -> showKeyDialog(provider, statusId));
     }
 
-    // ================= 其他既有設定 =================
-
-    private ImageView fabPreview;
+    private void refreshKeyStatus(String provider, int statusId) {
+        ((TextView) findViewById(statusId)).setText(AiPreferences.hasKey(this, provider)
+                ? getString(R.string.ai_key_set) : getString(R.string.ai_key_unset));
+    }
 
     /**
-     * 浮動語音鈕大小：SeekBar 值域 [MIN, MAX]，即時更新標籤、放手才存。
-     * 設定頁本身**不掛**全 App 那顆功能鈕（會套娃，見 AiFloatingButton.EXCLUDED），
-     * 改在調整大小時顯示一顆**只示意大小、點了沒作用**的預覽鈕（樣式/位置比照真的那顆）。
+     * 編輯 key 的彈窗：輸入 → 儲存前先打該家 /models 測通（驗 key 有效，免費），
+     * 通過才落地；失敗把錯誤顯示在彈窗裡、不關窗。自己接管按鈕才能做到「存失敗不關窗」
+     * （AlertDialog 預設按了就 dismiss）。
      */
-    private void setupFabSizeSeek() {
-        TextView label = findViewById(R.id.ai_fab_size_label);
-        SeekBar seek = findViewById(R.id.ai_fab_size_seek);
-        seek.setMax(AiPreferences.FAB_SIZE_MAX - AiPreferences.FAB_SIZE_MIN);
-        int cur = AiPreferences.getFabSizeDp(this);
-        seek.setProgress(cur - AiPreferences.FAB_SIZE_MIN);
-        label.setText(getString(R.string.ai_fab_size, cur));
-        ensureFabPreview();
-        seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {
-                int dp = AiPreferences.FAB_SIZE_MIN + progress;
-                label.setText(getString(R.string.ai_fab_size, dp));
-                showFabPreview(dp);          // 改大小才出現、示意大小
+    private void showKeyDialog(String provider, int statusId) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        box.setPadding(pad, pad, pad, 0);
+
+        final EditText keyInput = new EditText(this);
+        keyInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        keyInput.setHint(R.string.ai_key_dialog_hint);
+        box.addView(keyInput);
+
+        final TextView status = new TextView(this);
+        status.setTextSize(12);
+        box.addView(status);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.ai_key_dialog_title, displayName(provider)))
+                .setView(box)
+                .setPositiveButton(R.string.ai_save, null)   // null＝不自動 dismiss，下面接管
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String key = keyInput.getText().toString().trim();
+            if (key.isEmpty()) {
+                status.setText(R.string.ai_key_empty);
+                return;
             }
-            @Override public void onStartTrackingTouch(SeekBar s) {
-                showFabPreview(AiPreferences.FAB_SIZE_MIN + s.getProgress());
-            }
-            @Override public void onStopTrackingTouch(SeekBar s) {
-                AiPreferences.saveFabSizeDp(AiSettingsActivity.this,
-                        AiPreferences.FAB_SIZE_MIN + s.getProgress());
-            }
+            status.setText(R.string.ai_key_testing);
+            setDialogBusy(dialog, keyInput, true);
+            new Thread(() -> {
+                try {
+                    requestModels(AiPreferences.llmBaseUrl(provider) + "/models", key);
+                    runOnUiThread(() -> {
+                        if (isFinishing()) return;
+                        AiPreferences.saveKey(this, provider, key);
+                        refreshKeyStatus(provider, statusId);
+                        // 這家剛有 key＝解析可以改用它（原本可能還停在沒 key 的家）
+                        if (!AiPreferences.hasKey(this, llmProvider)) {
+                            llmProvider = provider;
+                            llmModel = AiPreferences.defaultLlmModel(provider);
+                            persistSelections();
+                        } else {
+                            refreshAllValues();
+                        }
+                        dialog.dismiss();
+                        Toast.makeText(this, R.string.ai_key_saved, Toast.LENGTH_SHORT).show();
+                    });
+                } catch (final Exception e) {
+                    runOnUiThread(() -> {
+                        if (isFinishing() || !dialog.isShowing()) return;
+                        status.setText(getString(R.string.ai_key_test_failed, e.getMessage()));
+                        setDialogBusy(dialog, keyInput, false);
+                    });
+                }
+            }).start();
         });
     }
 
-    /** 建立示意用預覽鈕（半透明、右下角、比照真鈕樣式；不可點）。 */
-    private void ensureFabPreview() {
-        if (fabPreview != null) return;
-        float d = getResources().getDisplayMetrics().density;
-        fabPreview = new ImageView(this);
-        fabPreview.setImageResource(R.drawable.ic_ai_mic);
-        fabPreview.setBackgroundResource(R.drawable.btn_ai_mic_circle);
-        fabPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        fabPreview.setAlpha(0.6f);
-        fabPreview.setClickable(false);      // 只是示意大小、點了沒作用（觸控穿透）
-        fabPreview.setFocusable(false);
-        fabPreview.setVisibility(View.GONE);
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(0, 0);
-        lp.gravity = Gravity.BOTTOM | Gravity.END;
-        lp.rightMargin = (int) (16 * d);
-        lp.bottomMargin = (int) (88 * d);    // 同真鈕：在下排工具列上方
-        addContentView(fabPreview, lp);
+    private static void setDialogBusy(AlertDialog dialog, EditText input, boolean busy) {
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(!busy);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(!busy);
+        input.setEnabled(!busy);
     }
 
-    private void showFabPreview(int sizeDp) {
-        if (fabPreview == null) return;
+    // ================= 浮動鈕大小（疊窗拖拉＋示意圖） =================
+
+    /**
+     * 疊窗內拖拉大小，示意鈕就畫在窗上跟著變（比照真鈕的圖示與底色）。
+     * 設定頁本身不掛全 App 那顆功能鈕（會套娃，見 AiFloatingButton.EXCLUDED），
+     * 所以示意只能自己畫一顆。放手即存，關窗就結束。
+     */
+    private void showFabSizeDialog() {
         float d = getResources().getDisplayMetrics().density;
-        int size = (int) (sizeDp * d);
-        int pad = (int) (sizeDp * 0.25f * d);
-        ViewGroup.LayoutParams lp = fabPreview.getLayoutParams();
-        lp.width = size;
-        lp.height = size;
-        fabPreview.setLayoutParams(lp);
-        fabPreview.setPadding(pad, pad, pad, pad);
-        fabPreview.setVisibility(View.VISIBLE);
+        int pad = (int) (16 * d);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(pad, pad, pad, 0);
+
+        final TextView label = new TextView(this);
+        box.addView(label);
+
+        final SeekBar seek = new SeekBar(this);
+        seek.setMax(AiPreferences.FAB_SIZE_MAX - AiPreferences.FAB_SIZE_MIN);
+        box.addView(seek);
+
+        // 示意鈕的容器：固定高度＝最大尺寸，鈕變大變小時窗不會跟著抽動
+        FrameLayout previewBox = new FrameLayout(this);
+        final ImageView preview = new ImageView(this);
+        preview.setImageResource(R.drawable.ic_ai_mic);
+        preview.setBackgroundResource(R.drawable.btn_ai_mic_circle);
+        preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        preview.setClickable(false);      // 只是示意大小，點了沒作用
+        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(0, 0);
+        plp.gravity = Gravity.CENTER;
+        previewBox.addView(preview, plp);
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (int) ((AiPreferences.FAB_SIZE_MAX + 24) * d));
+        box.addView(previewBox, blp);
+
+        final int[] current = {AiPreferences.getFabSizeDp(this)};
+        seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {
+                current[0] = AiPreferences.FAB_SIZE_MIN + progress;
+                label.setText(getString(R.string.ai_fab_size, current[0]));
+                int size = (int) (current[0] * d);
+                int p = (int) (current[0] * 0.25f * d);
+                ViewGroup.LayoutParams lp = preview.getLayoutParams();
+                lp.width = size;
+                lp.height = size;
+                preview.setLayoutParams(lp);
+                preview.setPadding(p, p, p, p);
+            }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {
+                AiPreferences.saveFabSizeDp(AiSettingsActivity.this, current[0]);
+            }
+        });
+        seek.setProgress(current[0] - AiPreferences.FAB_SIZE_MIN);
+        // setProgress 若與現值相同不會觸發回呼，手動補一次初始繪製
+        label.setText(getString(R.string.ai_fab_size, current[0]));
+        int size0 = (int) (current[0] * d);
+        int pad0 = (int) (current[0] * 0.25f * d);
+        plp.width = size0;
+        plp.height = size0;
+        preview.setLayoutParams(plp);
+        preview.setPadding(pad0, pad0, pad0, pad0);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.ai_fab_size_title)
+                .setView(box)
+                .setPositiveButton(android.R.string.ok, (dlg, w) -> {
+                    AiPreferences.saveFabSizeDp(this, current[0]);
+                    refreshAllValues();
+                })
+                .setOnDismissListener(dlg -> refreshAllValues())
+                .show();
     }
 
     /**
@@ -513,29 +539,5 @@ public class AiSettingsActivity extends ComponentActivity {
         } catch (Exception e) {
             Toast.makeText(this, R.string.ai_pin_shortcut_unsupported, Toast.LENGTH_LONG).show();
         }
-    }
-
-    /** provider/模型選擇落地（key 不歸這裡管，彈窗即存）。 */
-    private void save() {
-        String sttProvider = sttProviderIds.get(sttProviderSpinner.getSelectedItemPosition());
-        String sttModel = sttModelText.getText().toString().trim();
-        if (sttModel.isEmpty()) sttModel = AiPreferences.defaultSttModel(sttProvider);
-
-        // LLM 沒半家有 key＝維持原設定不動（占位項不能存）
-        String llmProvider;
-        String llmModel;
-        if (llmProviderIds.isEmpty()) {
-            AiPreferences prefs = AiPreferences.load(this);
-            llmProvider = prefs.getLlmProvider();
-            llmModel = prefs.getModel();
-        } else {
-            llmProvider = llmProviderIds.get(llmProviderSpinner.getSelectedItemPosition());
-            llmModel = llmModelText.getText().toString().trim();
-            if (llmModel.isEmpty()) llmModel = AiPreferences.defaultLlmModel(llmProvider);
-        }
-
-        AiPreferences.saveSelections(this, sttProvider, sttModel, llmProvider, llmModel);
-        Toast.makeText(this, R.string.ai_settings_saved, Toast.LENGTH_SHORT).show();
-        finish();
     }
 }

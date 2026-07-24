@@ -21,6 +21,41 @@
 	<style name="EditDivider">
 		<item name="android:background">@drawable/divider_horizontal_dark</item>
 	</style>
+
+	<!-- AI 設定頁的分區樣式（2026-07-23 版面整理） -->
+	<style name="AiSectionHeader">
+		<item name="android:textStyle">bold</item>
+		<item name="android:textColor">?android:attr/colorAccent</item>
+		<item name="android:paddingBottom">6dp</item>
+	</style>
+	<style name="AiSettingRow">
+		<item name="android:orientation">horizontal</item>
+		<item name="android:gravity">center_vertical</item>
+		<item name="android:paddingTop">2dp</item>
+		<item name="android:paddingBottom">2dp</item>
+	</style>
+	<style name="AiDivider">
+		<item name="android:background">?android:attr/listDivider</item>
+		<item name="android:layout_marginTop">18dp</item>
+		<item name="android:layout_marginBottom">14dp</item>
+	</style>
+	<!-- 設定項＝可點的一列（標題在上、目前值在下），點了彈選單。長字串不會尷尬換行 -->
+	<style name="AiClickableRow">
+		<item name="android:orientation">vertical</item>
+		<item name="android:background">?android:attr/selectableItemBackground</item>
+		<item name="android:clickable">true</item>
+		<item name="android:focusable">true</item>
+		<item name="android:paddingTop">12dp</item>
+		<item name="android:paddingBottom">12dp</item>
+	</style>
+	<style name="AiRowTitle">
+		<item name="android:textSize">16sp</item>
+	</style>
+	<style name="AiRowValue">
+		<item name="android:textSize">13sp</item>
+		<item name="android:textColor">?android:attr/textColorSecondary</item>
+		<item name="android:paddingTop">2dp</item>
+	</style>
 	<style name="TextAppearance" parent="android:TextAppearance.Small">
 		<item name="android:textStyle">normal</item>
 		<item name="android:antialias">true</item>

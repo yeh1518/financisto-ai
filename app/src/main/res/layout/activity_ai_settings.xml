@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- id 供 window insets 使用；理由同 activity_ai_input.xml -->
+<!-- id 供 window insets 使用；理由同 activity_ai_input.xml
+
+     版面（2026-07-23 二次整理，Gary 定案）：統一成「點一列 → 彈選單 → 選完即生效」，
+     沒有儲存按鈕、沒有可手打的欄位（模型只能從 /models 抓回來的清單選，打錯字就不會發生）。
+     每列都是「標題在上、目前值在下」，長字串不會像 Switch 那樣尷尬換行。 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/ai_settings_root"
     android:layout_width="match_parent"
@@ -9,26 +13,35 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="24dp">
 
-        <!-- ================= API Keys（三家各自存，存前必測） ================= -->
+        <!-- ================= API Keys ================= -->
+        <TextView
+            style="@style/AiSectionHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/ai_keys_section" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/ai_keys_section"
-            android:textStyle="bold" />
+            android:paddingBottom="4dp"
+            android:text="@string/ai_keys_hint"
+            android:textSize="12sp" />
 
         <LinearLayout
+            style="@style/AiSettingRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Google AI Key" />
+                android:text="@string/ai_provider_gemini" />
 
             <TextView
                 android:id="@+id/ai_key_status_gemini"
@@ -47,16 +60,15 @@
         </LinearLayout>
 
         <LinearLayout
+            style="@style/AiSettingRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Groq Key" />
+                android:text="@string/ai_provider_groq" />
 
             <TextView
                 android:id="@+id/ai_key_status_groq"
@@ -75,16 +87,15 @@
         </LinearLayout>
 
         <LinearLayout
+            style="@style/AiSettingRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="OpenAI Key" />
+                android:text="@string/ai_provider_openai" />
 
             <TextView
                 android:id="@+id/ai_key_status_openai"
@@ -102,171 +113,210 @@
                 android:text="@string/ai_key_edit" />
         </LinearLayout>
 
-        <!-- ================= 語音辨識（先語音、後解析） ================= -->
+        <View
+            style="@style/AiDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp" />
+
+        <!-- ================= 語音辨識 ================= -->
         <TextView
+            style="@style/AiSectionHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="20dp"
-            android:text="@string/ai_stt_section"
-            android:textStyle="bold" />
+            android:text="@string/ai_stt_section" />
 
         <LinearLayout
+            android:id="@+id/ai_stt_provider_row"
+            style="@style/AiClickableRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
             <TextView
-                android:layout_width="wrap_content"
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/ai_stt_engine" />
 
-            <Spinner
-                android:id="@+id/ai_stt_provider_spinner"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1" />
+            <TextView
+                android:id="@+id/ai_stt_provider_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
-        <!-- 內建辨識沒有模型可選，整列動態隱藏 -->
+        <!-- 內建辨識／一次到位沒有模型可選，整列動態隱藏 -->
         <LinearLayout
             android:id="@+id/ai_stt_model_row"
+            style="@style/AiClickableRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
-            <EditText
-                android:id="@+id/ai_stt_model"
-                android:layout_width="0dp"
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="@string/ai_settings_model"
-                android:importantForAutofill="no"
-                android:inputType="text" />
+                android:text="@string/ai_stt_model_title" />
 
-            <Button
-                android:id="@+id/ai_stt_fetch_models_button"
-                style="?android:attr/buttonStyleSmall"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/ai_fetch_models" />
+            <TextView
+                android:id="@+id/ai_stt_model_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
         <!-- ================= AI 解析 ================= -->
         <TextView
+            style="@style/AiSectionHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="20dp"
-            android:text="@string/ai_llm_section"
-            android:textStyle="bold" />
+            android:paddingTop="10dp"
+            android:text="@string/ai_llm_section" />
 
         <LinearLayout
+            android:id="@+id/ai_llm_provider_row"
+            style="@style/AiClickableRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
             <TextView
-                android:layout_width="wrap_content"
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/ai_llm_provider" />
 
-            <Spinner
-                android:id="@+id/ai_llm_provider_spinner"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1" />
+            <TextView
+                android:id="@+id/ai_llm_provider_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/ai_llm_model_row"
+            style="@style/AiClickableRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
-            <EditText
-                android:id="@+id/ai_model"
-                android:layout_width="0dp"
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="@string/ai_settings_model"
-                android:importantForAutofill="no"
-                android:inputType="text" />
+                android:text="@string/ai_llm_model_title" />
 
-            <Button
-                android:id="@+id/ai_fetch_models_button"
-                style="?android:attr/buttonStyleSmall"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/ai_fetch_models" />
+            <TextView
+                android:id="@+id/ai_llm_model_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
         </LinearLayout>
 
-        <Button
-            android:id="@+id/ai_save_button"
+        <View
+            style="@style/AiDivider"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="@string/ai_save" />
+            android:layout_height="1dp" />
 
-        <!-- 浮動語音鈕大小 -->
+        <!-- ================= 其他項目 ================= -->
         <TextView
-            android:id="@+id/ai_fab_size_label"
+            style="@style/AiSectionHeader"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp" />
+            android:text="@string/ai_other_section" />
 
-        <SeekBar
-            android:id="@+id/ai_fab_size_seek"
+        <LinearLayout
+            android:id="@+id/ai_fab_size_row"
+            style="@style/AiClickableRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content">
 
-        <Button
-            android:id="@+id/ai_pin_shortcut_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/ai_pin_shortcut" />
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_fab_size_title" />
 
-        <!-- 捷徑收尾行為：完成後進 App 對應畫面 vs 回桌面。
-             textOn/Off 清空 + switchMinWidth：Holo Switch 的滑塊寬度跟著「開啟/關閉」字寬跑，
-             整顆會過寬（實測抓 60%）；清掉字、壓 min width 就回到正常大小 -->
-        <Switch
-            android:id="@+id/ai_shortcut_enters_app"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:switchMinWidth="52dp"
-            android:text="@string/ai_shortcut_enters_app"
-            android:textOff=""
-            android:textOn=""
-            android:thumbTextPadding="10dp" />
+            <TextView
+                android:id="@+id/ai_fab_size_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
 
-        <Button
-            android:id="@+id/ai_help_button"
+        <LinearLayout
+            android:id="@+id/ai_shortcut_behavior_row"
+            style="@style/AiClickableRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/ai_intro_help" />
+            android:layout_height="wrap_content">
 
-        <Button
-            android:id="@+id/ai_notification_template_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/ai_notification_template" />
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_shortcut_behavior_title" />
 
-        <Button
-            android:id="@+id/ai_log_button"
+            <TextView
+                android:id="@+id/ai_shortcut_behavior_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_pin_shortcut_row"
+            style="@style/AiClickableRow"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            style="?android:attr/borderlessButtonStyle"
-            android:text="@string/ai_log_title" />
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_pin_shortcut" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_notification_template_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_notification_template" />
+
+            <TextView
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_notification_template_summary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_help_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_intro_help" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_log_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_log_title" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>
