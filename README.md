@@ -7,13 +7,20 @@
 
 * **AI 一句話記帳**——全 App 浮動麥克風鈕；語音或打字一句話 → 帳戶/分類/金額/
   日期/專案/備註自動解析帶入表單。支援分割交易、轉帳、調整餘額（「中信剩下300」）、
-  補充模式（對既有表單追加講一句）
-* 語音辨識：標準 Google 語音輸入，或雲端 STT 自錄音（Groq / OpenAI / Gemini）
-* LLM 解析：OpenAI / Gemini structured output，注入帳戶與分類樹 context、
-  嚴格 id 驗證防幻覺；API key 加密存本機，不進備份
+  補充模式（對既有表單追加講一句）。長按麥克風／浮動鈕直接進 AI 設定
+* **AI 通知樣板解析**——把上游「通知樣板自動記帳」的樣板改由 AI 產：在 AI 設定選一則
+  銀行/支付通知，LLM 產出對應的解析樣板（含帳戶/分類綁定建議），程式端用原生引擎
+  雙重回測驗證（金額比對＋變異測試）後預填進樣板編輯器，過目即存。之後同類通知由
+  **原生機制**全自動記帳——AI 只做一次性的「產樣板」，執行期零 API 費、離線、隱私
+* 語音辨識：標準 Google 語音輸入，或雲端 STT 自錄音（Groq / OpenAI / Gemini）；
+  Gemini / OpenAI 另有「語音直達」一次到位模式（音檔直接解析成表單，跳過兩段串接）
+* LLM 解析：OpenAI-相容 structured output（OpenAI / Gemini / Groq），注入帳戶與
+  分類樹 context、嚴格 id 驗證防幻覺；模型只能從 /models 清單選、不手打；
+  API key 加密存本機（Android Keystore），不進備份
+* **可完全免費**：Gemini 免費 key ＋ 語音辨識選「內建」＝ 零成本（個人記帳用量下
+  免費額度充足）
 * 帳戶「計入統計報表」開關：虛擬額度/信封袋帳戶的額度操作不再汙染收支統計
-* 修正：交易列表 fast scroll 誤觸跳位、開樣板/排程列表閃退（v235）
-* 效能：總額計算改 SQL 端聚合（兩萬筆以上資料集有感）
+  （此功能已上游 merge，PR #124）
 * debug build 帶 `.ai` applicationId 尾綴，與 Play 商店版同機並存互不干擾
 
 金額相關改動以全量真實備份驗證等價性（`tools/verify_report_equivalence.py`）。
