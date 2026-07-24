@@ -125,17 +125,18 @@ public class AiPreferences {
 
     public static String defaultLlmModel(String provider) {
         switch (provider) {
-            case PROVIDER_GROQ: return "openai/gpt-oss-120b";   // Groq 上支援 structured outputs
-            case PROVIDER_GEMINI: return "gemini-3.5-flash";    // 2.5 已被 Google 提早停用（2026-07）
+            case PROVIDER_GROQ: return "openai/gpt-oss-120b";      // Groq 上支援 structured outputs
+            // 2026-07 端側/雲端平價評測：flash-lite 24/24 全對、最快又平價（見 on-device-llm-eval）
+            case PROVIDER_GEMINI: return "gemini-3.1-flash-lite";
             case PROVIDER_OPENAI:
-            default: return "gpt-4o-mini";
+            default: return "gpt-4.1-mini";                       // OpenAI 平價中準度最佳（4o-mini 較弱）
         }
     }
 
     public static String defaultSttModel(String provider) {
         switch (provider) {
             case PROVIDER_GROQ: return "whisper-large-v3-turbo";
-            case PROVIDER_GEMINI: return "gemini-3.5-flash";
+            case PROVIDER_GEMINI: return "gemini-3.1-flash-lite";
             case PROVIDER_OPENAI: return "gpt-4o-mini-transcribe";
             // 一次到位：STT 模型槽改存「音檔直解的解析模型」（見 getDirectParseModel）
             case PROVIDER_GEMINI_DIRECT: return defaultLlmModel(PROVIDER_GEMINI);
