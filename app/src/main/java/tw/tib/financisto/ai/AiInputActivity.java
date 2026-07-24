@@ -75,6 +75,7 @@ public class AiInputActivity extends ComponentActivity {
     private ProgressBar progress;
     private TextView statusText;
     private Switch autoSendSwitch;
+    private TextView directHint;   // 語音直解模式：取代開關的純說明文字
 
     // --- 雲端模式就地錄音狀態（內建模式用不到這些） ---
     private ImageButton voiceButton;
@@ -130,10 +131,9 @@ public class AiInputActivity extends ComponentActivity {
         progress = findViewById(R.id.ai_progress);
         statusText = findViewById(R.id.ai_status);
         autoSendSwitch = findViewById(R.id.ai_auto_send);
+        directHint = findViewById(R.id.ai_direct_hint);
 
-        autoSendSwitch.setChecked(AiPreferences.isAutoSend(this));
-        autoSendSwitch.setOnCheckedChangeListener((CompoundButton b, boolean checked) ->
-                AiPreferences.saveAutoSend(this, checked));
+        refreshAutoSendSwitch(AiPreferences.load(this));
 
         parseButton.setOnClickListener(v -> onParse());
         findViewById(R.id.ai_settings_button).setOnClickListener(v ->
@@ -460,6 +460,27 @@ public class AiInputActivity extends ComponentActivity {
         AiPreferences prefs = AiPreferences.load(this);
         if (!prefs.isConfigured()) {
             statusText.setText(R.string.ai_not_configured);
+        }
+        refreshAutoSendSwitch(prefs);   // 從設定改了辨識方式回來要即時反映
+    }
+
+    /**
+     * 語音直解模式下「辨識完直接送出」開關無意義（音檔直解一律錄完就解析）→ **隱藏開關**、
+     * 改顯示純說明文字，且**不動 ai_auto_send** 存值；兩段式（辨識→解析）藏說明、顯示開關、
+     * 恢復可切並讀回原本的 ai_auto_send 值。
+     */
+    private void refreshAutoSendSwitch(AiPreferences prefs) {
+        autoSendSwitch.setOnCheckedChangeListener(null);   // 先卸監聽，setChecked 才不會誤寫 pref
+        if (prefs.isDirectVoiceParse()) {
+            autoSendSwitch.setVisibility(View.GONE);
+            directHint.setVisibility(View.VISIBLE);
+        } else {
+            directHint.setVisibility(View.GONE);
+            autoSendSwitch.setVisibility(View.VISIBLE);
+            autoSendSwitch.setText(R.string.ai_auto_send);
+            autoSendSwitch.setChecked(AiPreferences.isAutoSend(this));
+            autoSendSwitch.setOnCheckedChangeListener((CompoundButton b, boolean checked) ->
+                    AiPreferences.saveAutoSend(this, checked));
         }
     }
 

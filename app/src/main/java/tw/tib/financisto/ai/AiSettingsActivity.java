@@ -62,10 +62,9 @@ public class AiSettingsActivity extends ComponentActivity {
     private String llmProvider;
     private String llmModel;
 
-    private TextView sttProviderValue, sttModelValue, llmProviderValue, llmModelValue;
+    // 合併列：sttProviderValue／llmProviderValue 各顯示「provider \ model」
+    private TextView sttProviderValue, llmProviderValue;
     private TextView fabSizeValue, shortcutBehaviorValue;
-    private TextView sttModelTitle;
-    private View sttModelRow;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,18 +91,13 @@ public class AiSettingsActivity extends ComponentActivity {
         bindKeyRow(AiPreferences.PROVIDER_OPENAI, R.id.ai_key_status_openai, R.id.ai_key_edit_openai);
 
         sttProviderValue = findViewById(R.id.ai_stt_provider_value);
-        sttModelValue = findViewById(R.id.ai_stt_model_value);
         llmProviderValue = findViewById(R.id.ai_llm_provider_value);
-        llmModelValue = findViewById(R.id.ai_llm_model_value);
         fabSizeValue = findViewById(R.id.ai_fab_size_value);
         shortcutBehaviorValue = findViewById(R.id.ai_shortcut_behavior_value);
-        sttModelRow = findViewById(R.id.ai_stt_model_row);
-        sttModelTitle = findViewById(R.id.ai_stt_model_title);
 
-        findViewById(R.id.ai_stt_provider_row).setOnClickListener(v -> pickSttProvider());
-        sttModelRow.setOnClickListener(v -> pickModel(true));
-        findViewById(R.id.ai_llm_provider_row).setOnClickListener(v -> pickLlmProvider());
-        findViewById(R.id.ai_llm_model_row).setOnClickListener(v -> pickModel(false));
+        // 合併列：點一下＝先選辨識方式／服務，再接著選模型（見 pickStt／pickLlm）
+        findViewById(R.id.ai_stt_provider_row).setOnClickListener(v -> pickStt());
+        findViewById(R.id.ai_llm_provider_row).setOnClickListener(v -> pickLlm());
 
         findViewById(R.id.ai_fab_size_row).setOnClickListener(v -> showFabSizeDialog());
         findViewById(R.id.ai_shortcut_behavior_row).setOnClickListener(v -> pickShortcutBehavior());
@@ -123,25 +117,33 @@ public class AiSettingsActivity extends ComponentActivity {
     // ================= 顯示值 =================
 
     private void refreshAllValues() {
-        sttProviderValue.setText(sttProviderLabel(sttProvider));
-        sttModelValue.setText(TextUtils.isEmpty(sttModel)
-                ? getString(R.string.ai_model_unset) : sttModel);
-        // 只有「內建」無模型可選（隱藏該列）；一次到位時該列＝可選的「音檔直解模型」，標題也換掉
-        boolean direct = AiPreferences.PROVIDER_GEMINI_DIRECT.equals(sttProvider)
-                || AiPreferences.PROVIDER_OPENAI_DIRECT.equals(sttProvider);
-        boolean showSttModel = !AiPreferences.PROVIDER_SYSTEM.equals(sttProvider);
-        sttModelRow.setVisibility(showSttModel ? View.VISIBLE : View.GONE);
-        sttModelTitle.setText(direct ? R.string.ai_direct_model_title : R.string.ai_stt_model_title);
-
-        llmProviderValue.setText(AiPreferences.hasKey(this, llmProvider)
-                ? displayName(llmProvider) : getString(R.string.ai_no_provider_key));
-        llmModelValue.setText(TextUtils.isEmpty(llmModel)
-                ? getString(R.string.ai_model_unset) : llmModel);
+        sttProviderValue.setText(sttCombinedValue());
+        llmProviderValue.setText(llmCombinedValue());
 
         fabSizeValue.setText(getString(R.string.ai_fab_size, AiPreferences.getFabSizeDp(this)));
         shortcutBehaviorValue.setText(AiPreferences.isShortcutEntersApp(this)
                 ? getString(R.string.ai_shortcut_behavior_app)
                 : getString(R.string.ai_shortcut_behavior_home));
+    }
+
+    /** 辨識方式列的值：「辨識方式 \ 模型」；內建無模型只顯示辨識方式。 */
+    private String sttCombinedValue() {
+        if (AiPreferences.PROVIDER_SYSTEM.equals(sttProvider)) {
+            return getString(R.string.ai_stt_builtin);
+        }
+        return sttProviderLabel(sttProvider) + " \\ " + modelOrUnset(sttModel);
+    }
+
+    /** 服務列的值：「服務 \ 模型」；沒設 key 提示去設。 */
+    private String llmCombinedValue() {
+        if (!AiPreferences.hasKey(this, llmProvider)) {
+            return getString(R.string.ai_no_provider_key);
+        }
+        return displayName(llmProvider) + " \\ " + modelOrUnset(llmModel);
+    }
+
+    private String modelOrUnset(String model) {
+        return TextUtils.isEmpty(model) ? getString(R.string.ai_model_unset) : model;
     }
 
     private void persistSelections() {
@@ -167,8 +169,11 @@ public class AiSettingsActivity extends ComponentActivity {
 
     // ================= provider 選單 =================
 
-    /** STT 可選：內建 ＋ 已有 key 的家（Gemini/OpenAI 多一個「一次到位」）。 */
-    private void pickSttProvider() {
+    /**
+     * 辨識方式及模型：先選辨識方式（內建 ＋ 已有 key 的家，Gemini/OpenAI 多一個「語音直解」），
+     * 選完接著跳模型清單（內建無模型就結束）。要只換模型＝再點一次、選同一個方式再挑新模型。
+     */
+    private void pickStt() {
         List<String> ids = new ArrayList<>();
         List<String> names = new ArrayList<>();
         ids.add(AiPreferences.PROVIDER_SYSTEM);
@@ -189,14 +194,19 @@ public class AiSettingsActivity extends ComponentActivity {
             String picked = ids.get(which);
             if (!picked.equals(sttProvider)) {
                 sttProvider = picked;
-                sttModel = AiPreferences.defaultSttModel(picked);   // 換家＝帶該家預設模型
+                sttModel = AiPreferences.defaultSttModel(picked);   // 換方式＝帶該方式預設模型
             }
-            persistSelections();
+            persistSelections();                                    // 先落地辨識方式
+            if (!AiPreferences.PROVIDER_SYSTEM.equals(picked)) {
+                pickModel(true);                                    // 內建無模型；其餘接著選模型
+            }
         });
     }
 
-    /** 解析可選：已有 key 的家；一家都沒有就引導去設 key。 */
-    private void pickLlmProvider() {
+    /**
+     * 服務及模型：先選服務（已有 key 的家；一家都沒有就引導去設 key），選完接著跳模型清單。
+     */
+    private void pickLlm() {
         List<String> ids = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (String p : AiPreferences.CLOUD_PROVIDERS) {
@@ -215,6 +225,7 @@ public class AiSettingsActivity extends ComponentActivity {
                 llmModel = AiPreferences.defaultLlmModel(picked);
             }
             persistSelections();
+            pickModel(false);
         });
     }
 

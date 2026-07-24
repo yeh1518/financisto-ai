@@ -1173,8 +1173,8 @@
   <string name="ai_fab_size">語音浮動鈕大小：%1$d dp</string>
   <!-- 雲端 STT + per-provider 設定 -->
   <string name="ai_keys_section">API Keys（擇一即可）</string>
-  <string name="ai_stt_gemini_direct">Google AI（辨識＋解析一次）</string>
-  <string name="ai_stt_openai_direct">OpenAI（辨識＋解析一次）</string>
+  <string name="ai_stt_gemini_direct">Google AI（語音直解）</string>
+  <string name="ai_stt_openai_direct">OpenAI（語音直解）</string>
   <string name="ai_key_edit">編輯</string>
   <string name="ai_key_set">已設定</string>
   <string name="ai_key_unset">未設定</string>
@@ -1186,6 +1186,9 @@
   <string name="ai_key_saved">key 已儲存</string>
   <string name="ai_stt_section">語音辨識</string>
   <string name="ai_stt_engine">辨識方式</string>
+  <string name="ai_stt_combined_title">辨識方式及模型</string>
+  <string name="ai_llm_combined_title">服務及模型</string>
+  <string name="ai_direct_autosend_note">語音直解：辨識完直接解析</string>
   <string name="ai_stt_builtin">內建（Google 語音彈窗）</string>
   <string name="ai_llm_section">AI 解析</string>
   <string name="ai_llm_provider">服務</string>

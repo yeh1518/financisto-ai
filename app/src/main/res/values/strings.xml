@@ -1335,8 +1335,8 @@
     <string name="ai_fab_size">Floating mic button size: %1$d dp</string>
     <!-- Cloud STT + per-provider settings -->
     <string name="ai_keys_section">API Keys (any one is enough)</string>
-    <string name="ai_stt_gemini_direct">Google AI (transcribe + parse in one)</string>
-    <string name="ai_stt_openai_direct">OpenAI (transcribe + parse in one)</string>
+    <string name="ai_stt_gemini_direct">Google AI (voice direct-parse)</string>
+    <string name="ai_stt_openai_direct">OpenAI (voice direct-parse)</string>
     <string name="ai_key_edit">Edit</string>
     <string name="ai_key_set">Set</string>
     <string name="ai_key_unset">Not set</string>
@@ -1348,6 +1348,9 @@
     <string name="ai_key_saved">Key saved</string>
     <string name="ai_stt_section">Speech recognition</string>
     <string name="ai_stt_engine">Engine</string>
+    <string name="ai_stt_combined_title">Recognition &amp; model</string>
+    <string name="ai_llm_combined_title">Service &amp; model</string>
+    <string name="ai_direct_autosend_note">Voice direct-parse: parses right after recognition</string>
     <string name="ai_stt_builtin">Built-in (Google popup)</string>
     <string name="ai_llm_section">AI parsing</string>
     <string name="ai_llm_provider">Provider</string>

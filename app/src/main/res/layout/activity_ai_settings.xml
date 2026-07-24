@@ -135,31 +135,11 @@
                 style="@style/AiRowTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/ai_stt_engine" />
+                android:text="@string/ai_stt_combined_title" />
 
+            <!-- 值＝「辨識方式 \ 模型」（內建無模型只顯示辨識方式）；點列＝先選方式再選模型 -->
             <TextView
                 android:id="@+id/ai_stt_provider_value"
-                style="@style/AiRowValue"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-
-        <!-- 內建辨識沒有模型可選，整列動態隱藏；一次到位時標題動態改為「一次到位模型」 -->
-        <LinearLayout
-            android:id="@+id/ai_stt_model_row"
-            style="@style/AiClickableRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <TextView
-                android:id="@+id/ai_stt_model_title"
-                style="@style/AiRowTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/ai_stt_model_title" />
-
-            <TextView
-                android:id="@+id/ai_stt_model_value"
                 style="@style/AiRowValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
@@ -183,29 +163,11 @@
                 style="@style/AiRowTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/ai_llm_provider" />
+                android:text="@string/ai_llm_combined_title" />
 
+            <!-- 值＝「服務 \ 模型」；點列＝先選服務再選模型 -->
             <TextView
                 android:id="@+id/ai_llm_provider_value"
-                style="@style/AiRowValue"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/ai_llm_model_row"
-            style="@style/AiClickableRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <TextView
-                style="@style/AiRowTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/ai_llm_model_title" />
-
-            <TextView
-                android:id="@+id/ai_llm_model_value"
                 style="@style/AiRowValue"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />

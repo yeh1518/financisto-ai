@@ -138,6 +138,16 @@
             android:textOn=""
             android:thumbTextPadding="10dp" />
 
+        <!-- 語音直解模式：開關無意義 → 隱藏開關、改顯示這行純說明（見 refreshAutoSendSwitch） -->
+        <TextView
+            android:id="@+id/ai_direct_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:text="@string/ai_direct_autosend_note"
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
