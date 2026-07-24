@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 背景用 AI fork 紫底（見 values/colors.xml ai_launcher_background）；前景/monochrome 沿用原本。
+     API 26+ adaptive icon 生效；更舊裝置落回 mipmap 的 app_icon.png（那個仍是原底色，可接受）。 -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/launcher_background" />
+    <background android:drawable="@color/ai_launcher_background" />
     <foreground android:drawable="@mipmap/a_icon" />
     <monochrome android:drawable="@drawable/a_icon_f" />
 </adaptive-icon>
