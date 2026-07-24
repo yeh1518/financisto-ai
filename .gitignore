@@ -33,3 +33,6 @@ docs/experiments/on-device-llm-eval/testset.json
 docs/experiments/on-device-llm-eval/result_*.json
 docs/experiments/on-device-llm-eval/gemma_failures.json
 docs/experiments/on-device-llm-eval/q36_fail.json
+
+# 本地備份設定（個人基建，不進公開 repo）
+.backup-manifest
