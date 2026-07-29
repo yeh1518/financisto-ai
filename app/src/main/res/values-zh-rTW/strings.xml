@@ -1123,6 +1123,8 @@
   <string name="ai_voice_supplement_prompt">說出要補充或修正的部分</string>
   <string name="ai_voice_shortcut_short">說一句</string>
   <string name="ai_voice_shortcut_long">語音記帳</string>
+  <string name="ai_voice_widget_label">語音記帳</string>
+  <string name="ai_voice_widget_description">點一下直接開錄，說完就記一筆</string>
   <string name="ai_log_title">解析紀錄</string>
   <string name="ai_notification_template">AI 通知樣板解析</string>
   <string name="ai_notification_template_pick">選一則通知來產樣板</string>

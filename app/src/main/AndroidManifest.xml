@@ -100,6 +100,14 @@
 			<meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_4x1" />
 		</receiver>
 
+		<!-- 1x1 語音記帳 widget（點一下開錄）。沒有資料要刷新，故不收 UPDATE_WIDGET 廣播 -->
+		<receiver android:name=".ai.AiVoiceWidget" android:label="@string/ai_voice_widget_label" android:exported="true">
+			<intent-filter>
+			<action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+			</intent-filter>
+			<meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_1x1_voice" />
+		</receiver>
+
 		<receiver android:name=".activity.PackageReplaceReceiver" android:exported="true">
 			<intent-filter>
 				<action android:name="android.intent.action.BOOT_COMPLETED" />

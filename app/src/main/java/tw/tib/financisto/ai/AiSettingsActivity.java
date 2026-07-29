@@ -563,7 +563,9 @@ public class AiSettingsActivity extends ComponentActivity {
         ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "ai_voice_pinned")
                 .setShortLabel(getString(R.string.ai_voice_shortcut_short))
                 .setLongLabel(getString(R.string.ai_voice_shortcut_long))
-                .setIcon(Icon.createWithResource(this, R.drawable.ic_ai_mic_shortcut))
+                // 走 mipmap 的 adaptive 版（見 mipmap-anydpi-v26/ai_mic_shortcut.xml）：
+                // 非 adaptive 的捷徑圖示會被 launcher 縮一號，排在 app 圖示旁邊看起來偏小
+                .setIcon(Icon.createWithResource(this, R.mipmap.ai_mic_shortcut))
                 .setIntent(launch)
                 .build();
         try {

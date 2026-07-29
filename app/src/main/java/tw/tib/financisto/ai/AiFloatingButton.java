@@ -33,7 +33,6 @@ import tw.tib.financisto.activity.AbstractTransactionActivity;
  *
  * 行為依當前頁面而定（有界判斷，不逐頁盤點）：
  * <ul>
- *   <li>{@link AiInputActivity}：啟動麥克風。</li>
  *   <li>{@link AbstractTransactionActivity}（交易/轉帳編輯）：補充模式（就地套用，不離開）。</li>
  *   <li>其他一律：把辨識介面**疊在當前頁上面**開起來，當前頁原封不動留在下面——所以就算在
  *       某個編輯頁按下去，編輯內容不會丟失（記完那筆按返回就回到原頁）。</li>
@@ -49,9 +48,11 @@ public class AiFloatingButton implements Application.ActivityLifecycleCallbacks 
      * - PinActivity：解鎖前不該出現。
      * - AiSettingsActivity：這裡點浮動鈕會再開一個 AiInputActivity（dispatch 的 else 分支）→
      *   設定→鈕→錄音→設定… 無限套娃。設定頁改用自己的「示意用預覽鈕」（見該頁 setupFabSizeSeek）。
+     * - AiInputActivity / VoiceCaptureActivity：畫面正中央就是同一顆麥克風的大鈕，角落再疊一顆
+     *   小的只是重複（2026-07-29）。
      */
     private static final Set<String> EXCLUDED = new HashSet<>(Arrays.asList(
-            "PinActivity", "AiSettingsActivity"));
+            "PinActivity", "AiSettingsActivity", "AiInputActivity", "VoiceCaptureActivity"));
 
     // 拖曳位置存在 prefs（見 AiPreferences.getFabTransX/Y）＝跨 Activity 也跨重開沿用。
     // 不留 static 快取：prefs 本身就有記憶體快取，單一真相來源比較不會有人忘了同步。
@@ -247,9 +248,7 @@ public class AiFloatingButton implements Application.ActivityLifecycleCallbacks 
     }
 
     private void dispatch(Activity activity) {
-        if (activity instanceof AiInputActivity) {
-            ((AiInputActivity) activity).startVoiceFromFab();
-        } else if (activity instanceof AbstractTransactionActivity) {
+        if (activity instanceof AbstractTransactionActivity) {
             ((AbstractTransactionActivity) activity).launchAiSupplement();
         } else {
             // 疊在當前頁上面開辨識介面，不 finish 當前頁＝不丟失正在編輯的內容

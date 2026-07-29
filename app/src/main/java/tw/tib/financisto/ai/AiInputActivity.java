@@ -234,11 +234,6 @@ public class AiInputActivity extends ComponentActivity {
         });
     }
 
-    /** 給全 App 浮動鈕（AiFloatingButton）在本頁呼叫＝啟動麥克風。 */
-    public void startVoiceFromFab() {
-        startVoice();
-    }
-
     /**
      * 語音入口：雲端模式＝就地錄音（點麥克風開錄/完成，不疊視窗）；
      * 內建模式＝標準 Google 語音彈窗。

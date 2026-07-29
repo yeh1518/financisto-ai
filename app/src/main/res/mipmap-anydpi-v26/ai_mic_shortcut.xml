@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面捷徑 / widget 用的麥克風圖示（API 26+）。
+  用 adaptive-icon 而非單張 vector：launcher 對非 adaptive 的捷徑圖示會縮進安全區再貼上，
+  排在一排 app 圖示裡看起來就小一號；adaptive 才會跟其他 app 圖示一樣滿版（2026-07-29）。
+  底色沿用 app 圖示的紫（ai_launcher_background），一眼認得出是同一個 app。
+  API 25 以下走 mipmap-anydpi/ai_mic_shortcut.xml 的舊圖。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ai_launcher_background" />
+    <foreground android:drawable="@drawable/ic_ai_mic_shortcut_fg" />
+    <monochrome android:drawable="@drawable/ic_ai_mic_shortcut_fg" />
+</adaptive-icon>

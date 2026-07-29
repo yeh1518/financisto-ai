@@ -4,7 +4,7 @@
     <shortcut
         android:shortcutId="ai_voice"
         android:enabled="true"
-        android:icon="@drawable/ic_ai_mic_shortcut"
+        android:icon="@mipmap/ai_mic_shortcut"
         android:shortcutShortLabel="@string/ai_voice_shortcut_short"
         android:shortcutLongLabel="@string/ai_voice_shortcut_long">
         <intent

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 1x1 語音記帳 widget。resizeMode=none：拉大也只是把麥克風放大，沒有多的內容可放。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_1x1_voice"
+    android:minHeight="40dp"
+    android:minWidth="40dp"
+    android:resizeMode="none"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

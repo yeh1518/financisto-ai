@@ -1285,6 +1285,8 @@
     <string name="ai_voice_supplement_prompt">Say what to add or correct</string>
     <string name="ai_voice_shortcut_short">Say it</string>
     <string name="ai_voice_shortcut_long">Voice bookkeeping</string>
+    <string name="ai_voice_widget_label">Voice bookkeeping</string>
+    <string name="ai_voice_widget_description">Tap to start recording a transaction</string>
     <string name="ai_log_title">Parse log</string>
     <string name="ai_notification_template">AI notification template</string>
     <string name="ai_notification_template_pick">Pick a notification to make a template</string>
