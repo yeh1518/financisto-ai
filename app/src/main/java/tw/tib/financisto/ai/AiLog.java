@@ -50,14 +50,21 @@ public class AiLog {
      * @param formState  補充模式帶給模型的「目前表單已填內容」context（沒有就 null）
      * @param rawContent 模型回的 JSON 字串（成功才有）
      * @param error      失敗訊息（成功為 null）
+     * @param model      解析模型（LLM）
+     * @param stt        這句話**怎麼來的**：`typed`／`system`（內建語音）／`<provider>/<model>`
+     *                   （雲端辨識）／`direct:<provider>/<model>`（一次到位）／後綴 `+edited`
+     *                   ＝辨識完又手改過。沒有這欄的話，換過辨識引擎之後語料就混成一團、
+     *                   無法分層比較（2026-07-29 補；此日之前的紀錄沒有這欄，分析時要排除）。
      */
     public static void record(Context context, String utterance, boolean supplement,
-                              String formState, String rawContent, String error, String model) {
+                              String formState, String rawContent, String error,
+                              String model, String stt) {
         try {
             JSONObject o = new JSONObject();
             o.put("at", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
             o.put("said", utterance == null ? "" : utterance);
             if (model != null) o.put("model", model);
+            if (stt != null) o.put("stt", stt);
             if (supplement) o.put("mode", "supplement");
             if (formState != null && !formState.isEmpty()) o.put("form", formState);
             if (rawContent != null) o.put("got", rawContent);
@@ -121,6 +128,7 @@ public class AiLog {
                 JSONObject o = new JSONObject(lines.get(i));
                 sb.append(o.optString("at"));
                 if (o.has("model")) sb.append("  [").append(o.optString("model")).append(']');
+                if (o.has("stt")) sb.append("  [聽:").append(o.optString("stt")).append(']');
                 sb.append('\n');
                 sb.append("說：").append(o.optString("said")).append('\n');
                 if (o.has("mode")) sb.append("（補充模式）\n");

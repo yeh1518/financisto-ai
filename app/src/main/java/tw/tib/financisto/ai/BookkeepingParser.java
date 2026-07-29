@@ -149,6 +149,8 @@ public class BookkeepingParser {
     private final OkHttpClient client;
     /** 只為了寫 AiLog；null＝不記錄。 */
     private final Context logContext;
+    /** 輸入來源標籤，見 {@link #inputSource(String)}。 */
+    private String inputSource;
 
     public BookkeepingParser(AiPreferences prefs, EntityContextBuilder ctx) {
         this(prefs, ctx, null);
@@ -167,6 +169,15 @@ public class BookkeepingParser {
     public static class ParseException extends Exception {
         public ParseException(String message) { super(message); }
         public ParseException(String message, Throwable cause) { super(message, cause); }
+    }
+
+    /**
+     * 這段文字**怎麼來的**（typed／辨識引擎標籤／+edited），只為寫進 AiLog 的 `stt` 欄。
+     * 呼叫端才知道答案——parser 拿到的永遠只是一串字。沒設就不寫那一欄。
+     */
+    public BookkeepingParser inputSource(String source) {
+        this.inputSource = source;
+        return this;
     }
 
     public ParsedTransaction parse(String userText) throws ParseException {
@@ -217,6 +228,8 @@ public class BookkeepingParser {
      */
     public AudioParseResult parseAudio(File wavFile, boolean supplement, String formStateContext)
             throws ParseException {
+        // 一次到位＝音檔直送，來源不必問呼叫端：就是 direct 那顆模型自己聽的
+        if (inputSource == null) inputSource = prefs.getSttLabel();
         try {
             return parseAudioInternal(wavFile, supplement, formStateContext);
         } catch (ParseException e) {
@@ -358,7 +371,8 @@ public class BookkeepingParser {
 
     private void record(String userText, boolean supplement, String formStateContext, String rawContent, String error) {
         if (logContext != null) {
-            AiLog.record(logContext, userText, supplement, formStateContext, rawContent, error, prefs.getModel());
+            AiLog.record(logContext, userText, supplement, formStateContext, rawContent, error,
+                    prefs.getModel(), inputSource);
         }
     }
 

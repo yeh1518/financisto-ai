@@ -681,7 +681,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		}).start();
 	}
 
-	private void runAiSupplement(final String text) {
+	private void runAiSupplement(final String text, final String source) {
 		Toast.makeText(this, R.string.ai_parsing, Toast.LENGTH_SHORT).show();
 		final AiPreferences prefs = AiPreferences.load(this);
 		// 目前表單狀態要在 UI 執行緒讀（讀 selector/rateView），先算好再丟進背景解析
@@ -690,6 +690,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			try {
 				EntityContextBuilder ctx = EntityContextBuilder.build(db);
 				final ParsedTransaction t = new BookkeepingParser(prefs, ctx, getApplicationContext())
+						.inputSource(source)
 						.parse(text, true, formState);
 				runOnUiThread(() -> applyAiSupplement(t));
 			} catch (final Exception e) {
@@ -1086,7 +1087,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 				case AI_VOICE_REQUEST:
 					ArrayList<String> heard = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
 					if (heard != null && !heard.isEmpty()) {
-						runAiSupplement(heard.get(0));
+						// 這條路一定是內建 Google 語音彈窗（不看 prefs：勾雲端時走不到這裡）
+						runAiSupplement(heard.get(0), tw.tib.financisto.ai.AiPreferences.PROVIDER_SYSTEM);
 					}
 					break;
 				case AI_VOICE_CAPTURE_REQUEST: {
@@ -1094,7 +1096,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 					String text = data.getStringExtra(VoiceCaptureActivity.EXTRA_TEXT);
 					String wavPath = data.getStringExtra(VoiceCaptureActivity.EXTRA_WAV_PATH);
 					if (text != null) {
-						runAiSupplement(text);
+						runAiSupplement(text, AiPreferences.load(this).getSttLabel());
 					} else if (wavPath != null) {
 						runAiSupplementAudio(new java.io.File(wavPath));
 					}

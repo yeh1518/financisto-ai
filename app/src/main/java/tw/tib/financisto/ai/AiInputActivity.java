@@ -109,6 +109,14 @@ public class AiInputActivity extends ComponentActivity {
         }
     };
 
+    // --- 輸入來源追蹤（只為寫進 AiLog 的 stt 欄，見 AiLog.record）---
+    /** 框裡的字是哪個辨識引擎聽來的；null＝手打的。 */
+    private String voiceSource;
+    /** 辨識完又動手改過字＝這筆語料不是純辨識結果，分析時要分開看。 */
+    private boolean voiceTextEdited;
+    /** 程式自己填字（接辨識結果／清空）時不算「手改」。 */
+    private boolean settingTextInternally;
+
     private long defaultAccountId = -1;
     private long pendingDraftId = -1;
     /** 由桌面捷徑（ACTION_VOICE_INPUT）啟動＝可套用「完成後進 App」的收尾路由。 */
@@ -162,9 +170,21 @@ public class AiInputActivity extends ComponentActivity {
             }
         });
         findViewById(R.id.ai_input_clear).setOnClickListener(v -> {
+            settingTextInternally = true;
             inputText.setText("");
+            settingTextInternally = false;
+            voiceSource = null;             // 清空＝跟剛才那次辨識沒關係了
+            voiceTextEdited = false;
             statusText.setText("");
             inputText.requestFocus();
+        });
+        // 只認「人動的字」：程式接辨識結果／清空都走 settingTextInternally 旗標繞過
+        inputText.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
+            @Override public void onTextChanged(CharSequence s, int st, int b, int c) {}
+            @Override public void afterTextChanged(android.text.Editable s) {
+                if (!settingTextInternally) voiceTextEdited = true;
+            }
         });
 
         launchedFromShortcut = ACTION_VOICE_INPUT.equals(getIntent().getAction());
@@ -200,7 +220,9 @@ public class AiInputActivity extends ComponentActivity {
         executor.execute(() -> {
             try {
                 EntityContextBuilder ctx = EntityContextBuilder.build(db);
-                new BookkeepingParser(prefs, ctx, getApplicationContext()).parse(text);
+                // 標成 test：自動化灌進來的語料不該跟真實使用混在一起算
+                new BookkeepingParser(prefs, ctx, getApplicationContext())
+                        .inputSource("test").parse(text);
             } catch (Exception ignored) {}
         });
     }
@@ -445,8 +467,17 @@ public class AiInputActivity extends ComponentActivity {
         if (TextUtils.isEmpty(text)) return;
         String existing = inputText.getText().toString();
         String combined = TextUtils.isEmpty(existing) ? text : existing + " " + text;
+        voiceSource = AiPreferences.load(this).getSttLabel();
+        settingTextInternally = true;
         inputText.setText(combined);
+        settingTextInternally = false;
         inputText.setSelection(combined.length());
+    }
+
+    /** 送去解析的這串字是怎麼來的（寫進 AiLog 的 stt 欄）。 */
+    private String currentInputSource() {
+        if (voiceSource == null) return "typed";
+        return voiceTextEdited ? voiceSource + "+edited" : voiceSource;
     }
 
     @Override
@@ -491,6 +522,7 @@ public class AiInputActivity extends ComponentActivity {
 
     private void onParse() {
         final String text = inputText.getText().toString().trim();
+        final String source = currentInputSource();     // 要在丟進背景執行緒前先取
         if (TextUtils.isEmpty(text)) {
             Toast.makeText(this, R.string.ai_empty_input, Toast.LENGTH_SHORT).show();
             return;
@@ -508,7 +540,8 @@ public class AiInputActivity extends ComponentActivity {
         executor.execute(() -> {
             try {
                 EntityContextBuilder ctx = EntityContextBuilder.build(db);
-                BookkeepingParser parser = new BookkeepingParser(prefs, ctx, getApplicationContext());
+                BookkeepingParser parser = new BookkeepingParser(prefs, ctx, getApplicationContext())
+                        .inputSource(source);
                 ParsedTransaction result = parser.parse(text);
                 runOnUiThread(() -> {
                     setBusy(false);

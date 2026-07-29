@@ -209,6 +209,16 @@ public class AiPreferences {
 
     public String getSttApiKey() { return getKey(appContext, sttProvider); }
 
+    /**
+     * 辨識引擎標籤，寫進 AiLog 的 `stt` 欄（見 {@link AiLog#record}）。
+     * 語料要能按「哪個引擎聽出來的」分層，才比較得出辨識落差；混著看只會得到假結論。
+     */
+    public String getSttLabel() {
+        if (isDirectVoiceParse()) return "direct:" + getDirectProvider() + "/" + getDirectParseModel();
+        if (!isCloudStt()) return PROVIDER_SYSTEM;
+        return sttProvider + "/" + getSttModel();
+    }
+
     public boolean isCloudSttConfigured() {
         String k = getSttApiKey();
         return isCloudStt() && k != null && !k.isEmpty();
