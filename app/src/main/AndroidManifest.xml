@@ -208,8 +208,26 @@
 		  「not exported from uid」擋掉。捷徑走自訂 action（見 xml/shortcuts.xml），
 		  Activity 據此判斷要不要一進來就開錄。
 		-->
+		<!--
+		  桌面語音入口的中繼站（捷徑／widget 指這裡，不直接指語音頁——理由見該類 javadoc）。
+		  自己一個 task、不留歷史、不進 recents：保證每次按都重跑 onCreate。
+		-->
+		<activity android:name=".ai.VoiceEntryActivity"
+			android:exported="true"
+			android:excludeFromRecents="true"
+			android:noHistory="true"
+			android:taskAffinity=""
+			android:theme="@android:style/Theme.Translucent.NoTitleBar">
+			<intent-filter>
+				<action android:name="tw.tib.financisto.ai.action.VOICE_INPUT" />
+				<category android:name="android.intent.category.DEFAULT" />
+			</intent-filter>
+		</activity>
+
+		<!-- singleTop：捷徑用 CLEAR_TOP 收回本頁時走 onNewIntent（重新開錄），不重建畫面 -->
 		<activity android:name=".ai.AiInputActivity" android:label="@string/ai_bookkeeping"
 			android:exported="true"
+			android:launchMode="singleTop"
 			android:windowSoftInputMode="stateHidden|adjustResize">
 			<intent-filter>
 				<action android:name="tw.tib.financisto.ai.action.VOICE_INPUT" />

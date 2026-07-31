@@ -10,7 +10,7 @@
         <intent
             android:action="tw.tib.financisto.ai.action.VOICE_INPUT"
             android:targetPackage="tw.tib.financisto"
-            android:targetClass="tw.tib.financisto.ai.AiInputActivity" />
+            android:targetClass="tw.tib.financisto.ai.VoiceEntryActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="transaction"

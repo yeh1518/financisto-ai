@@ -30,9 +30,10 @@ public class AiVoiceWidget extends AppWidgetProvider {
 
     private static RemoteViews buildViews(Context context) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_1x1_voice);
-        Intent launch = new Intent(context, AiInputActivity.class)
+        // 指中繼站而非語音頁：直接指語音頁會拿到「上次離開時的畫面」，理由見 VoiceEntryActivity
+        Intent launch = new Intent(context, VoiceEntryActivity.class)
                 .setAction(AiInputActivity.ACTION_VOICE_INPUT)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         // FLAG_IMMUTABLE：API 31 起 PendingIntent 一定要指定可變性，這裡沒有要讓別人改 intent
         PendingIntent pending = PendingIntent.getActivity(context, 0, launch,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);

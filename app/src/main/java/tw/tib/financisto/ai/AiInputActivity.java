@@ -121,6 +121,8 @@ public class AiInputActivity extends ComponentActivity {
     private long pendingDraftId = -1;
     /** 由桌面捷徑（ACTION_VOICE_INPUT）啟動＝可套用「完成後進 App」的收尾路由。 */
     private boolean launchedFromShortcut = false;
+    /** 上面那條的返回鍵攔截；捷徑再次進來時要能改開關（見 onNewIntent）。 */
+    private OnBackPressedCallback shortcutBackCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -191,11 +193,12 @@ public class AiInputActivity extends ComponentActivity {
 
         // 捷徑啟動時攔返回鍵，才能把「返回＝回 App 主畫面」的收尾路由套上（見 finishAndRoute）。
         // 非捷徑（App 內啟動）不攔：預設 finish 就回到原本的呼叫畫面，本來就在 App 裡。
-        if (launchedFromShortcut) {
-            getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-                @Override public void handleOnBackPressed() { finishAndRoute(false); }
-            });
-        }
+        // 一律註冊、用 enabled 開關：本頁可能先由 App 內啟動、之後才被桌面捷徑收回來
+        // （onNewIntent），那時要能補開這個攔截。
+        shortcutBackCallback = new OnBackPressedCallback(launchedFromShortcut) {
+            @Override public void handleOnBackPressed() { finishAndRoute(false); }
+        };
+        getOnBackPressedDispatcher().addCallback(this, shortcutBackCallback);
 
         // 麥克風入口 / 桌面捷徑進來的：直接開語音彈窗
         boolean startVoice = getIntent().getBooleanExtra(START_VOICE_EXTRA, false) || launchedFromShortcut;
@@ -508,6 +511,37 @@ public class AiInputActivity extends ComponentActivity {
             autoSendSwitch.setOnCheckedChangeListener((CompoundButton b, boolean checked) ->
                     AiPreferences.saveAutoSend(this, checked));
         }
+    }
+
+    /**
+     * 桌面捷徑／widget 再次進來（VoiceEntryActivity 帶 CLEAR_TOP 收回本頁）時走這裡。
+     * 語意是「重新進入語音介面」——不是續接上一輪，所以把輸入框與狀態清乾淨再開錄，
+     * 跟剛從桌面點進來一模一樣。
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+
+        boolean fromShortcut = ACTION_VOICE_INPUT.equals(intent.getAction());
+        if (!fromShortcut && !intent.getBooleanExtra(START_VOICE_EXTRA, false)) return;
+
+        launchedFromShortcut = fromShortcut;
+        shortcutBackCallback.setEnabled(fromShortcut);
+        long acc = intent.getLongExtra(ACCOUNT_ID_EXTRA, -1);
+        if (acc > 0) defaultAccountId = acc;
+
+        if (recording) cancelRecording();      // 上一輪還在錄就先收掉，免得兩段疊在一起
+        settingTextInternally = true;
+        inputText.setText("");
+        settingTextInternally = false;
+        voiceSource = null;
+        voiceTextEdited = false;
+        statusText.setText("");
+        retryWav = null;
+        voiceRetryButton.setVisibility(View.GONE);
+
+        startVoice();
     }
 
     @Override

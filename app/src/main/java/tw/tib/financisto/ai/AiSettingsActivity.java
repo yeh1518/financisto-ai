@@ -558,8 +558,10 @@ public class AiSettingsActivity extends ComponentActivity {
             Toast.makeText(this, R.string.ai_pin_shortcut_unsupported, Toast.LENGTH_LONG).show();
             return;
         }
-        Intent launch = new Intent(this, AiInputActivity.class)
-                .setAction(AiInputActivity.ACTION_VOICE_INPUT);
+        // 指中繼站而非語音頁：直接指語音頁會拿到「上次離開時的畫面」，理由見 VoiceEntryActivity
+        Intent launch = new Intent(this, VoiceEntryActivity.class)
+                .setAction(AiInputActivity.ACTION_VOICE_INPUT)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "ai_voice_pinned")
                 .setShortLabel(getString(R.string.ai_voice_shortcut_short))
                 .setLongLabel(getString(R.string.ai_voice_shortcut_long))
