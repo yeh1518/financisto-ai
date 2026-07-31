@@ -32,9 +32,14 @@ public class AiLog {
 
     private static final String TAG = "AiLog";
     private static final String FILE_NAME = "ai_log.jsonl";
-    /** 超過就修剪，只留最後 MAX_ENTRIES 筆。個人用量下這夠追溯很久。 */
-    private static final int MAX_ENTRIES = 300;
-    private static final long TRIM_THRESHOLD_BYTES = 256 * 1024;
+    /**
+     * 超過就修剪，只留最後 MAX_ENTRIES 筆。
+     * 2026-07-31 從 300 筆／256KB 放寬到 1000 筆／1MB：偶發的解析錯誤事後才想追，
+     * 300 筆只撐得住一週多，回頭看時證據已經被捲掉了（一筆約 600 bytes，1000 筆 ≈ 600KB，
+     * 落在 app 私有目錄，這點空間換得回可追溯性）。
+     */
+    private static final int MAX_ENTRIES = 1000;
+    private static final long TRIM_THRESHOLD_BYTES = 1024 * 1024;
 
     private AiLog() {}
 

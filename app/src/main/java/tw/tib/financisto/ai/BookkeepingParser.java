@@ -17,6 +17,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.regex.Pattern;
+
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -281,7 +283,9 @@ public class BookkeepingParser {
             String transcript = data.isNull("transcript") ? "" : data.optString("transcript", "");
             record(transcript.isEmpty() ? "(語音直解，無轉寫)" : transcript,
                     supplement, formStateContext, content, null);
-            return new AudioParseResult(toParsedTransaction(data), transcript);
+            return new AudioParseResult(
+                    guardSupplementType(toParsedTransaction(data), transcript, supplement),
+                    transcript);
         } catch (JSONException e) {
             throw new ParseException("解析回應失敗：" + e.getMessage(), e);
         }
@@ -369,6 +373,30 @@ public class BookkeepingParser {
         return parseResponse(responseBody, userText, supplement, formStateContext);
     }
 
+    /**
+     * 補充模式的型別保險絲：句子裡沒有任何「要改型別」的說法時，丟掉模型回的
+     * transaction_type。
+     *
+     * SUPPLEMENT_RULE 已經明講「沒有明確要改型別的指示就維持 null」，但模型不一定守得住——
+     * 實測有一次在轉帳表單上只補講「玉山銀行信用卡」（純粹改帳戶），模型回 expense，
+     * 整張轉帳表單就被切成支出（2026-07-27）。這種錯不該靠 prompt 自覺，程式擋掉最實在。
+     *
+     * **balance 不擋**：「身上現金1235元」這種「帳戶＋金額」的盤點說法本來就沒有關鍵詞，
+     * 而那是現金盤點的常用講法（記完再補一句說明差額用途），擋掉會壞掉既有工作流。
+     */
+    private static final Pattern TYPE_CHANGE_HINT = Pattern.compile(
+            "轉帳|轉到|轉入|轉給|轉出|收入|進帳|入帳|增加|減少|退款|支出|花費|消費"
+            + "|餘額|剩下|剩|現在有|總共有|調整");
+
+    private static ParsedTransaction guardSupplementType(ParsedTransaction t, String userText,
+                                                         boolean supplement) {
+        if (!supplement || t == null || t.transactionType == null) return t;
+        if (ParsedTransaction.TYPE_BALANCE.equals(t.transactionType)) return t;
+        if (userText != null && TYPE_CHANGE_HINT.matcher(userText).find()) return t;
+        t.transactionType = null;
+        return t;
+    }
+
     private void record(String userText, boolean supplement, String formStateContext, String rawContent, String error) {
         if (logContext != null) {
             AiLog.record(logContext, userText, supplement, formStateContext, rawContent, error,
@@ -435,7 +463,7 @@ public class BookkeepingParser {
             String content = extractContent(responseBody);
             record(userText, supplement, formStateContext, content, null);
             JSONObject data = new JSONObject(content);
-            return toParsedTransaction(data);
+            return guardSupplementType(toParsedTransaction(data), userText, supplement);
         } catch (JSONException e) {
             throw new ParseException("解析回應失敗：" + e.getMessage(), e);
         }
