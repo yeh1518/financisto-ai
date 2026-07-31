@@ -13,7 +13,8 @@
 	xmlns:tools="http://schemas.android.com/tools"
 	package="tw.tib.financisto"
 	android:installLocation="internalOnly">
-    <!-- versionName/versionCode 由 build.gradle 自動產生（.ai 版），不在 manifest 寫死 -->
+    <!-- versionName/versionCode 由 build.gradle 自動產生（.ai 版），不在 manifest 寫死
+         （上游在此寫死 versionName/versionCode，合併時一律保留本 fork 的作法） -->
 
 
     <supports-screens

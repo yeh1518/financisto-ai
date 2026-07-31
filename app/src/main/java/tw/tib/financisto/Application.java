@@ -7,9 +7,13 @@ import androidx.multidex.MultiDexApplication;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
+
 public class Application extends MultiDexApplication {
     private static Application instance;
     private static ExecutorService executor;
+    // transaction ID -> copied timestamp millis
+    private static Long2LongOpenHashMap copiedUneditedTransactions;
 
     public static Application getInstance() {
         return instance;
@@ -19,6 +23,10 @@ public class Application extends MultiDexApplication {
         return executor;
     }
 
+    public static Long2LongOpenHashMap getCopiedUneditedTransactions() {
+        return copiedUneditedTransactions;
+    }
+
 
     @Override
     public void onCreate()
@@ -26,6 +34,7 @@ public class Application extends MultiDexApplication {
         super.onCreate();
         instance = this;
         executor = Executors.newCachedThreadPool();
+        copiedUneditedTransactions = new Long2LongOpenHashMap();
         // 全 App AI 語音浮動鈕（取代分散的三顆麥克風鈕）
         tw.tib.financisto.ai.AiFloatingButton.register(this);
         // 背景預熱 Keystore/加密偏好——首次進 AI 設定/讀 API key 不卡主執行緒
