@@ -783,6 +783,12 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		String type = t.transactionType;
 		if (type == null) return false;                    // 沒指定型別 → 不切
 
+		// 換整張表單是破壞性操作（拉起另一個 Activity／進出餘額模式），要求模型明確表態
+		// 「使用者這句話是在要求改型別」才動（見 ParsedTransaction.typeChange）。
+		// 擋的是「只補講一個帳戶名，模型順手回 expense 把轉帳表單切掉」那種自作主張；
+		// 純粹的收入↔支出方向不走這裡（同一張表單、就地翻符號，見 applyAiSupplementFields）。
+		if (!t.typeChange) return false;
+
 		// 餘額：補充模式講「剩下X／餘額X」→ 切到調整餘額模式。不能就地套——amount 是「新餘額」不是變動金額，
 		// 直接當交易金額灌進去會錯亂（使用者回報的舊問題）。
 		if (t.isBalance()) {

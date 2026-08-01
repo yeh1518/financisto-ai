@@ -17,8 +17,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.regex.Pattern;
-
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -43,12 +41,13 @@ public class BookkeepingParser {
             + "\"strict\":true,"
             + "\"schema\":{"
             +   "\"type\":\"object\",\"additionalProperties\":false,"
-            +   "\"required\":[\"transaction_type\",\"amount\",\"account\",\"to_account\",\"category\",\"project\",\"note\",\"date\",\"time\",\"splits\"],"
+            +   "\"required\":[\"transaction_type\",\"type_change_quote\",\"amount\",\"account\",\"to_account\",\"category\",\"project\",\"note\",\"date\",\"time\",\"splits\"],"
             +   "\"properties\":{"
             +     "\"date\":{\"type\":[\"string\",\"null\"]},"
             +     "\"time\":{\"type\":[\"string\",\"null\"]},"
             +     "\"transaction_type\":{\"type\":[\"string\",\"null\"],"
             +       "\"enum\":[\"expense\",\"income\",\"transfer\",\"balance\",null]},"
+            +     "\"type_change_quote\":{\"type\":[\"string\",\"null\"]},"
             +     "\"amount\":{\"type\":[\"number\",\"null\"]},"
             +     "\"account\":{\"$ref\":\"#/$defs/pick\"},"
             +     "\"to_account\":{\"$ref\":\"#/$defs/pick\"},"
@@ -99,6 +98,12 @@ public class BookkeepingParser {
             + "    例：「中信剩下300」→ transaction_type=balance, account=中信, amount=300。\n"
             + "    ⚠️ balance 的 amount 是「新的餘額」不是變動金額。\n"
             + "    對比：「中信花了300」是變動→expense；「中信剩下300」是結果→balance。\n"
+            + "- type_change_quote＝使用者原話中，**表達「要改這筆的型別或收支方向」的那一小段**，\n"
+            + "  **原文照抄**（逐字，不要改寫、不要補字）；沒有這種表達就填 null。\n"
+            + "  判準是語意不是用字：「其實是」「講錯了」「不是轉帳」「花了」「收200」「別人給我的」\n"
+            + "  都可以是這段話——不必出現「收入」「支出」這種書面詞。\n"
+            + "  只是補金額／帳戶／分類／備註＝null。例：轉帳表單上只講「玉山銀行信用卡」（純粹改帳戶）\n"
+            + "  → null。非補充模式一律 null。\n"
             + "- to_account 只有 transfer 才填，其他型別一律 null。\n"
             + "- 帳戶的 hint 欄＝該帳戶的口語別名／辨識提示。使用者的話是語音轉來的，人名這類專有\n"
             + "  名詞常被轉成同音錯字（例：「宥廷」→「有停」）。比對帳戶時把 name 與 hint 都納入，\n"
@@ -283,9 +288,7 @@ public class BookkeepingParser {
             String transcript = data.isNull("transcript") ? "" : data.optString("transcript", "");
             record(transcript.isEmpty() ? "(語音直解，無轉寫)" : transcript,
                     supplement, formStateContext, content, null);
-            return new AudioParseResult(
-                    guardSupplementType(toParsedTransaction(data), transcript, supplement),
-                    transcript);
+            return new AudioParseResult(toParsedTransaction(data, transcript), transcript);
         } catch (JSONException e) {
             throw new ParseException("解析回應失敗：" + e.getMessage(), e);
         }
@@ -373,30 +376,6 @@ public class BookkeepingParser {
         return parseResponse(responseBody, userText, supplement, formStateContext);
     }
 
-    /**
-     * 補充模式的型別保險絲：句子裡沒有任何「要改型別」的說法時，丟掉模型回的
-     * transaction_type。
-     *
-     * SUPPLEMENT_RULE 已經明講「沒有明確要改型別的指示就維持 null」，但模型不一定守得住——
-     * 實測有一次在轉帳表單上只補講「玉山銀行信用卡」（純粹改帳戶），模型回 expense，
-     * 整張轉帳表單就被切成支出（2026-07-27）。這種錯不該靠 prompt 自覺，程式擋掉最實在。
-     *
-     * **balance 不擋**：「身上現金1235元」這種「帳戶＋金額」的盤點說法本來就沒有關鍵詞，
-     * 而那是現金盤點的常用講法（記完再補一句說明差額用途），擋掉會壞掉既有工作流。
-     */
-    private static final Pattern TYPE_CHANGE_HINT = Pattern.compile(
-            "轉帳|轉到|轉入|轉給|轉出|收入|進帳|入帳|增加|減少|退款|支出|花費|消費"
-            + "|餘額|剩下|剩|現在有|總共有|調整");
-
-    private static ParsedTransaction guardSupplementType(ParsedTransaction t, String userText,
-                                                         boolean supplement) {
-        if (!supplement || t == null || t.transactionType == null) return t;
-        if (ParsedTransaction.TYPE_BALANCE.equals(t.transactionType)) return t;
-        if (userText != null && TYPE_CHANGE_HINT.matcher(userText).find()) return t;
-        t.transactionType = null;
-        return t;
-    }
-
     private void record(String userText, boolean supplement, String formStateContext, String rawContent, String error) {
         if (logContext != null) {
             AiLog.record(logContext, userText, supplement, formStateContext, rawContent, error,
@@ -416,6 +395,10 @@ public class BookkeepingParser {
             + "沒有明確要改型別的指示就維持 null，不要自己臆測。⚠️ 此模式下「拿不準填 expense」的\n"
             + "預設規則**不適用**：部分修正（「金額改成500」「分類改餐飲」「備註加XX」）transaction_type\n"
             + "一律 null——填了 expense 會把使用者正在編的轉帳表單整個切掉。\n"
+            + "**回了 transaction_type 就要一併給 type_change_quote**（指出是哪句話讓你這樣判斷，\n"
+            + "原文照抄）；沒改型別時 transaction_type=null 且 type_change_quote=null。\n"
+            + "呼叫端會**回頭比對這段話是否真的出現在使用者原話裡**，再決定要不要換整張表單\n"
+            + "（轉帳↔一般交易↔調整餘額），所以不能自己編一段。\n"
             + "若使用者要求把這筆拆成多個分類（如「拆成房租3000水電2000」），就在 splits 回報各份，其餘欄位維持 null。\n"
             + "\n下方附【目前表單已填內容】＝這筆交易現在的樣子。據此判斷這句話的意圖：\n"
             + "(a) 在現有交易上「再補一個品項＋金額」（目前是單一分類「美妝316」，這句說「還有270是咖啡」\n"
@@ -463,7 +446,7 @@ public class BookkeepingParser {
             String content = extractContent(responseBody);
             record(userText, supplement, formStateContext, content, null);
             JSONObject data = new JSONObject(content);
-            return guardSupplementType(toParsedTransaction(data), userText, supplement);
+            return toParsedTransaction(data, userText);
         } catch (JSONException e) {
             throw new ParseException("解析回應失敗：" + e.getMessage(), e);
         }
@@ -487,9 +470,10 @@ public class BookkeepingParser {
         return content;
     }
 
-    private ParsedTransaction toParsedTransaction(JSONObject data) {
+    private ParsedTransaction toParsedTransaction(JSONObject data, String userText) {
         ParsedTransaction t = new ParsedTransaction();
         t.transactionType = data.isNull("transaction_type") ? null : data.optString("transaction_type", null);
+        t.typeChange = resolveTypeChange(data, t, userText);
         t.amount = data.isNull("amount") ? null : data.optDouble("amount");
         t.note = data.isNull("note") ? null : emptyToNull(data.optString("note", null));
         t.date = data.isNull("date") ? null : emptyToNull(data.optString("date", null));
@@ -501,6 +485,33 @@ public class BookkeepingParser {
         t.project = readPick(data.optJSONObject("project"), ctx.validProjectIds);
         t.splits = readSplits(data.optJSONArray("splits"));
         return t;
+    }
+
+    /**
+     * 「這句話是不是真的在要求改型別」——用模型指出的原話片段（type_change_quote）判斷，
+     * 而且**回頭驗那段話真的出現在使用者原句裡**才算數。
+     *
+     * 為什麼不用關鍵字比對：試過，太死。只有講出「收入／支出／轉帳」這種書面詞才會中，
+     * 「講錯了其實是花了200」「幫人家買晚餐收200」這種意思到了但用詞不同的一律漏掉
+     * （2026-08-01 實測）。反過來若放寬關鍵字，又擋不住模型自作主張。
+     * 讓模型指出證據、程式驗證證據，兩邊各做自己擅長的事：判斷語意 vs 確認沒瞎編。
+     *
+     * 比對前把空白與標點去掉——語音轉出來的標點本來就不穩，不該因為一個逗號就判定造假。
+     * 模型沒回這欄（沒吃 schema 的 provider）就退回舊行為＝有回型別就當要改。
+     */
+    private static boolean resolveTypeChange(JSONObject data, ParsedTransaction t, String userText) {
+        if (t.transactionType == null) return false;
+        if (!data.has("type_change_quote")) return true;          // 舊行為
+        if (data.isNull("type_change_quote")) return false;
+        String quote = squeeze(data.optString("type_change_quote", ""));
+        if (quote.isEmpty()) return false;
+        return squeeze(userText).contains(quote);
+    }
+
+    /** 去掉空白與常見標點，讓「原文照抄」的比對不會被標點差異卡住。 */
+    private static String squeeze(String s) {
+        if (s == null) return "";
+        return s.replaceAll("[\\s，,。.、；;：:！!？?（）()「」\"'~-]", "");
     }
 
     /** 讀 splits 陣列：每份的 category 一律經清單驗證，金額不明的份直接略過（湊不成有效分割）。 */
