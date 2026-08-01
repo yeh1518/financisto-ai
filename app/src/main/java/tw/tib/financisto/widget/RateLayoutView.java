@@ -172,6 +172,15 @@ public class RateLayoutView implements RateNodeOwner {
         amountInputTo.setIncome();
     }
 
+    /**
+     * 金額欄目前是收入還是支出（＝收支切換鈕的狀態）。
+     * 給「只改金額、不改方向」的路徑沿用現有符號用（見 AbstractTransactionActivity 補充模式）；
+     * 不看金額數值——金額為 0 時數值判斷不出方向。
+     */
+    public boolean isIncomeSelected() {
+        return !amountInputFrom.isExpense();
+    }
+
     public void setExpense() {
         amountInputFrom.setExpense();
         amountInputTo.setExpense();

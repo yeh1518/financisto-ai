@@ -968,10 +968,23 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			noteText.setText(t.note);
 		}
 		if (t.amount != null) {
-			// 正負號沿用畫面上現有的收入/支出狀態（AmountInput.setAmount 內部取絕對值）
 			Currency c = rateView.getCurrencyFrom();
 			int scale = c != null ? c.getScale() : 2;
-			rateView.setFromAmount(Math.round(Math.abs(t.amount) * Math.pow(10, scale)));
+			long minor = Math.round(Math.abs(t.amount) * Math.pow(10, scale));
+			if (isBalanceAdjustMode()) {
+				// 餘額模式的金額欄＝「新餘額」不是變動額，符號另有規則
+				// （見 TransactionActivity 的 NEW_BALANCE 預填），這裡維持原樣不動
+				rateView.setFromAmount(minor);
+			} else {
+				// AmountInput.setAmount **是用參數的正負號決定收入/支出的**（內部只把數字部分
+				// 取絕對值），所以傳絕對值會把整張表單翻成收入——補充模式只要句子帶金額就中招
+				// （2026-08-01 實測：支出表單上補「559元午餐吃拿坡裡披薩」→ 變成 +559 收入；
+				// 不帶金額的補充則不會，正是「有時有有時沒有」的來源）。
+				// 明講收入才用正號；沒講型別就沿用畫面現在的方向。
+				boolean income = t.isIncome()
+						|| (t.transactionType == null && rateView.isIncomeSelected());
+				rateView.setFromAmount(income ? minor : -minor);
+			}
 		}
 		Long spoken = t.resolveDateTimeMillis();
 		if (spoken != null) {
