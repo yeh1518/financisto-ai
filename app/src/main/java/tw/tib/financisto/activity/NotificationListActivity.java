@@ -181,8 +181,12 @@ public class NotificationListActivity extends AppCompatActivity {
                 getString(R.string.ai_notif_action_parse),
                 getString(R.string.ai_notif_action_reapply),
         };
+        // 標題用「那則通知的標題」而非通用問句：對話框蓋住列表後，同一家銀行的好幾則
+        // 長得很像，你會忘記剛剛點的是哪一則；三個動作本身已經夠自解釋
+        CharSequence title = android.text.TextUtils.isEmpty(n.title)
+                ? getString(R.string.ai_notif_action_title) : n.title;
         new AlertDialog.Builder(this)
-                .setTitle(R.string.ai_notif_action_title)
+                .setTitle(title)
                 .setItems(items, (d, which) -> {
                     switch (which) {
                         case 0: generateTemplate(n); break;

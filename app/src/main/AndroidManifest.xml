@@ -350,7 +350,10 @@
 		<activity android:name=".activity.ScheduledListActivity" android:label="@string/scheduled_transactions"
 			android:theme="@style/AppThemeCompat" />
 
+		<!-- exported：桌面捷徑「樣板」由 launcher（別的 uid）啟動，不 export 會被擋掉
+		     ——與交易/轉帳那兩個捷徑目標一致（它們本來就有） -->
 		<activity android:name=".activity.SelectTemplateActivity" android:label="@string/transaction_templates"
+			android:exported="true"
 			android:theme="@style/AppDialogCompat" android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout|keyboardHidden"/>
 
 		<activity android:name=".activity.CsvExportActivity" android:label="@string/csv_export"

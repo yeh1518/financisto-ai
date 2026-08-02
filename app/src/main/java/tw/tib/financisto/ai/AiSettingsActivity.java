@@ -562,7 +562,7 @@ public class AiSettingsActivity extends ComponentActivity {
         Intent launch = new Intent(this, VoiceEntryActivity.class)
                 .setAction(AiInputActivity.ACTION_VOICE_INPUT)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "ai_voice_pinned")
+        ShortcutInfo shortcut = new ShortcutInfo.Builder(this, VoiceEntryActivity.PINNED_SHORTCUT_ID)
                 .setShortLabel(getString(R.string.ai_voice_shortcut_short))
                 .setLongLabel(getString(R.string.ai_voice_shortcut_long))
                 // 走 mipmap 的 adaptive 版（見 mipmap-anydpi-v26/ai_mic_shortcut.xml）：

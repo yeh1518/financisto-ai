@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      ⚠️ targetPackage 必須是**本 fork 的 applicationId**＝`tw.tib.financisto.ai`
+      （debug/release 都在 build.gradle 加了 `.ai` 尾綴，好與商店版並存）。
+      這裡不能寫 `tw.tib.financisto`——那是商店版的 id，長按 app 圖示叫出來的捷徑會
+      指到別的 app（沒裝就整個沒反應）。res/xml 吃不到 manifest placeholder，只能寫死；
+      哪天拿掉 applicationIdSuffix，這四個地方要跟著改。
+    -->
     <!-- 排第一個：長按 app 圖示時最好按到，也是拖到桌面的首選 -->
     <shortcut
         android:shortcutId="ai_voice"
@@ -9,7 +16,7 @@
         android:shortcutLongLabel="@string/ai_voice_shortcut_long">
         <intent
             android:action="tw.tib.financisto.ai.action.VOICE_INPUT"
-            android:targetPackage="tw.tib.financisto"
+            android:targetPackage="tw.tib.financisto.ai"
             android:targetClass="tw.tib.financisto.ai.VoiceEntryActivity" />
     </shortcut>
     <shortcut
@@ -20,7 +27,7 @@
         android:shortcutLongLabel="@string/transaction_title">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetPackage="tw.tib.financisto"
+            android:targetPackage="tw.tib.financisto.ai"
             android:targetClass="tw.tib.financisto.activity.TransactionActivity" />
     </shortcut>
     <shortcut
@@ -31,7 +38,7 @@
         android:shortcutLongLabel="@string/transfer_title">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetPackage="tw.tib.financisto"
+            android:targetPackage="tw.tib.financisto.ai"
             android:targetClass="tw.tib.financisto.activity.TransferActivity" />
     </shortcut>
     <shortcut
@@ -42,7 +49,7 @@
         android:shortcutLongLabel="@string/new_from_template">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetPackage="tw.tib.financisto"
+            android:targetPackage="tw.tib.financisto.ai"
             android:targetClass="tw.tib.financisto.activity.SelectTemplateActivity" />
     </shortcut>
 </shortcuts>

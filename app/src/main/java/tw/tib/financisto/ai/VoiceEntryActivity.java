@@ -20,6 +20,49 @@ import androidx.activity.ComponentActivity;
  */
 public class VoiceEntryActivity extends ComponentActivity {
 
+    /** 釘在桌面的語音捷徑 id（AiSettingsActivity 建立、下面的修補用同一個）。 */
+    public static final String PINNED_SHORTCUT_ID = "ai_voice_pinned";
+
+    /**
+     * 把**已經釘在桌面**的舊語音捷徑改指到本頁。
+     *
+     * 釘選捷徑的 intent 是 launcher 在釘的當下存起來的，之後改 app 的程式不會動到它——
+     * 所以 2026-08-01 把入口換成本中繼站之後，早就釘在桌面的那顆仍走舊路（直接指語音頁），
+     * 於是照樣拿到「上次離開時的畫面」。使用者只會看到「修了但沒用」，而且不會想到要重釘。
+     * `updateShortcuts` 可以就地改寫自家已釘選的捷徑，開 app 時順手修掉。
+     *
+     * 沒釘過就什麼都不做（不要無中生有一顆）。API 25 以下沒有 ShortcutManager，直接跳過。
+     */
+    public static void repairPinnedShortcut(android.content.Context context) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N_MR1) return;
+        try {
+            android.content.pm.ShortcutManager sm =
+                    context.getSystemService(android.content.pm.ShortcutManager.class);
+            if (sm == null) return;
+            boolean pinned = false;
+            for (android.content.pm.ShortcutInfo s : sm.getPinnedShortcuts()) {
+                if (PINNED_SHORTCUT_ID.equals(s.getId())) { pinned = true; break; }
+            }
+            if (!pinned) return;
+
+            Intent launch = new Intent(context, VoiceEntryActivity.class)
+                    .setAction(AiInputActivity.ACTION_VOICE_INPUT)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            sm.updateShortcuts(java.util.Collections.singletonList(
+                    new android.content.pm.ShortcutInfo.Builder(context, PINNED_SHORTCUT_ID)
+                            .setShortLabel(context.getString(
+                                    tw.tib.financisto.R.string.ai_voice_shortcut_short))
+                            .setLongLabel(context.getString(
+                                    tw.tib.financisto.R.string.ai_voice_shortcut_long))
+                            .setIcon(android.graphics.drawable.Icon.createWithResource(context,
+                                    tw.tib.financisto.R.mipmap.ai_mic_shortcut))
+                            .setIntent(launch)
+                            .build()));
+        } catch (Exception ignored) {
+            // launcher 不支援或系統擋下都不是致命問題：使用者仍可自己刪掉重釘
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

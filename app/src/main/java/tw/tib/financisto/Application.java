@@ -39,6 +39,8 @@ public class Application extends MultiDexApplication {
         tw.tib.financisto.ai.AiFloatingButton.register(this);
         // 背景預熱 Keystore/加密偏好——首次進 AI 設定/讀 API key 不卡主執行緒
         tw.tib.financisto.ai.AiPreferences.warmUpSecure(this);
+        // 舊版釘在桌面的語音捷徑仍指著舊入口（launcher 快取 intent），開 app 時就地修掉
+        tw.tib.financisto.ai.VoiceEntryActivity.repairPinnedShortcut(this);
 
         if (BuildConfig.DEBUG) {
             StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
