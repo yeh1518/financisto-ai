@@ -40,7 +40,6 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 import tw.tib.financisto.R;
-import tw.tib.financisto.activity.NotificationListActivity;
 
 /**
  * AI 設定頁（2026-07-23 改為全選單式，Gary 定案）。
@@ -104,11 +103,6 @@ public class AiSettingsActivity extends ComponentActivity {
         findViewById(R.id.ai_fab_size_row).setOnClickListener(v -> showFabSizeDialog());
         findViewById(R.id.ai_shortcut_behavior_row).setOnClickListener(v -> pickShortcutBehavior());
         findViewById(R.id.ai_pin_shortcut_row).setOnClickListener(v -> pinVoiceShortcut());
-        findViewById(R.id.ai_notification_template_row).setOnClickListener(v -> {
-            Intent intent = new Intent(this, NotificationListActivity.class);
-            intent.putExtra(NotificationListActivity.EXTRA_PICK_FOR_TEMPLATE, true);
-            startActivity(intent);
-        });
         findViewById(R.id.ai_help_row).setOnClickListener(v -> AiIntroDialog.show(this));
         findViewById(R.id.ai_log_row).setOnClickListener(v ->
                 startActivity(new Intent(this, AiLogActivity.class)));
