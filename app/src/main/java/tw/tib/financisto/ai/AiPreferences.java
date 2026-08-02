@@ -275,8 +275,9 @@ public class AiPreferences {
     }
 
     /** 辨識完是否直接送解析（畫面上的開關；預設否＝停在文字讓使用者接著講/手動送）。 */
+    /** 預設開（2026-08-02）：講完就是要記帳，停在文字框等你再按一次是多一步。 */
     public static boolean isAutoSend(Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(KEY_AUTO_SEND, false);
+        return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(KEY_AUTO_SEND, true);
     }
 
     public static void saveAutoSend(Context context, boolean autoSend) {

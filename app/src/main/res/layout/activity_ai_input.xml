@@ -23,7 +23,8 @@
             android:textSize="14sp"
             android:paddingBottom="8dp" />
 
-        <!-- 輸入框 + 一鍵清空（X）：清空比逐字刪快，接著重講也方便 -->
+        <!-- 輸入框 + 一鍵清空（X）+ 送出解析（→）：清空比逐字刪快，接著重講也方便；
+             送出鈕貼著輸入框，因為它處理的就是框裡那段字（原本擺在畫面最下排，離得太遠） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -49,6 +50,15 @@
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_ai_cancel"
                 android:contentDescription="@string/ai_input_clear_desc" />
+
+            <ImageButton
+                android:id="@+id/ai_parse_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_ai_send"
+                android:contentDescription="@string/ai_parse" />
         </LinearLayout>
 
         <LinearLayout
@@ -124,47 +134,28 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- 辨識完直接送解析 vs 停在文字讓使用者接著講/手動送（記在 prefs）。
-             textOn/Off 清空 + switchMinWidth：縮窄 Holo Switch（理由見 activity_ai_settings.xml） -->
-        <Switch
-            android:id="@+id/ai_auto_send"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:switchMinWidth="52dp"
-            android:text="@string/ai_auto_send"
-            android:textOff=""
-            android:textOn=""
-            android:thumbTextPadding="10dp" />
-
-        <!-- 語音直解模式：開關無意義 → 隱藏開關、改顯示這行純說明（見 refreshAutoSendSwitch） -->
-        <TextView
-            android:id="@+id/ai_direct_hint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:text="@string/ai_direct_autosend_note"
-            android:visibility="gone" />
-
+        <!-- 底排＝入口列，靠兩邊放、中間留白給之後的功能（掃圖記帳等）接進來。
+             「辨識完直接送解析」的開關搬到 AI 設定的辨識方式下面了（那裡才是它的脈絡） -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
             <Button
-                android:id="@+id/ai_parse_button"
-                android:layout_width="0dp"
+                android:id="@+id/ai_notification_button"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/ai_parse" />
+                android:text="@string/ai_notification_button" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
 
             <Button
                 android:id="@+id/ai_settings_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
                 android:text="@string/ai_settings" />
         </LinearLayout>
 

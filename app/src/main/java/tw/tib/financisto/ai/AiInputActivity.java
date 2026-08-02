@@ -7,11 +7,9 @@ import android.speech.RecognizerIntent;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -45,7 +43,7 @@ import java.util.List;
  * 中斷、再按繼續」時蓋掉前文，索性回歸標準（2026-07-16 定案）。
  *
  * 每按一次麥克風＝一段辨識，回來的文字**接在輸入框現有內容後面**（游標移到最後），
- * 所以接著講會自然累加、永不覆蓋。是否辨識完直接送解析由畫面上的開關決定（記在 prefs）。
+ * 所以接著講會自然累加、永不覆蓋。是否辨識完直接送解析由 AI 設定的「辨識完之後」決定（記在 prefs，預設直接送）。
  *
  * 送解析後：一句話 → OpenAI 解析（背景執行緒）→ 寫一筆 draft template → 用 duplicate
  * prefill 拉起原生 {@link TransactionActivity}（繼承全部驗證/存檔）→ 回來刪 draft。
@@ -78,11 +76,9 @@ public class AiInputActivity extends ComponentActivity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private EditText inputText;
-    private Button parseButton;
+    private ImageButton parseButton;
     private ProgressBar progress;
     private TextView statusText;
-    private Switch autoSendSwitch;
-    private TextView directHint;   // 語音直解模式：取代開關的純說明文字
 
     // --- 雲端模式就地錄音狀態（內建模式用不到這些） ---
     private ImageButton voiceButton;
@@ -147,14 +143,14 @@ public class AiInputActivity extends ComponentActivity {
         parseButton = findViewById(R.id.ai_parse_button);
         progress = findViewById(R.id.ai_progress);
         statusText = findViewById(R.id.ai_status);
-        autoSendSwitch = findViewById(R.id.ai_auto_send);
-        directHint = findViewById(R.id.ai_direct_hint);
-
-        refreshAutoSendSwitch(AiPreferences.load(this));
-
         parseButton.setOnClickListener(v -> onParse());
         findViewById(R.id.ai_settings_button).setOnClickListener(v ->
                 startActivity(new Intent(this, AiSettingsActivity.class)));
+        findViewById(R.id.ai_notification_button).setOnClickListener(v -> {
+            Intent i = new Intent(this, tw.tib.financisto.activity.NotificationListActivity.class);
+            i.putExtra(tw.tib.financisto.activity.NotificationListActivity.EXTRA_PICK_FOR_TEMPLATE, true);
+            startActivity(i);
+        });
         voiceButton = findViewById(R.id.ai_voice_button);
         voiceLabel = findViewById(R.id.ai_voice_label);
         voiceCancelButton = findViewById(R.id.ai_voice_cancel);
@@ -507,27 +503,6 @@ public class AiInputActivity extends ComponentActivity {
         AiPreferences prefs = AiPreferences.load(this);
         if (!prefs.isConfigured()) {
             statusText.setText(R.string.ai_not_configured);
-        }
-        refreshAutoSendSwitch(prefs);   // 從設定改了辨識方式回來要即時反映
-    }
-
-    /**
-     * 語音直解模式下「辨識完直接送出」開關無意義（音檔直解一律錄完就解析）→ **隱藏開關**、
-     * 改顯示純說明文字，且**不動 ai_auto_send** 存值；兩段式（辨識→解析）藏說明、顯示開關、
-     * 恢復可切並讀回原本的 ai_auto_send 值。
-     */
-    private void refreshAutoSendSwitch(AiPreferences prefs) {
-        autoSendSwitch.setOnCheckedChangeListener(null);   // 先卸監聽，setChecked 才不會誤寫 pref
-        if (prefs.isDirectVoiceParse()) {
-            autoSendSwitch.setVisibility(View.GONE);
-            directHint.setVisibility(View.VISIBLE);
-        } else {
-            directHint.setVisibility(View.GONE);
-            autoSendSwitch.setVisibility(View.VISIBLE);
-            autoSendSwitch.setText(R.string.ai_auto_send);
-            autoSendSwitch.setChecked(AiPreferences.isAutoSend(this));
-            autoSendSwitch.setOnCheckedChangeListener((CompoundButton b, boolean checked) ->
-                    AiPreferences.saveAutoSend(this, checked));
         }
     }
 

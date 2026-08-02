@@ -145,6 +145,27 @@
                 android:layout_height="wrap_content" />
         </LinearLayout>
 
+        <!-- 緊接在辨識方式下面：它講的是「辨識完之後怎麼接」，屬於同一件事的下一步。
+             一次到位模式沒有這個選擇（音檔直接進解析），那時值改顯示說明字 -->
+        <LinearLayout
+            android:id="@+id/ai_auto_send_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_auto_send_title" />
+
+            <TextView
+                android:id="@+id/ai_auto_send_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
         <!-- ================= AI 解析 ================= -->
         <TextView
             style="@style/AiSectionHeader"

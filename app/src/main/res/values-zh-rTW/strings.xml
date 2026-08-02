@@ -1175,6 +1175,11 @@
   <string name="ai_type_switch_cancelled">已取消切換型別</string>
   <string name="ai_input_clear_desc">清空文字</string>
   <string name="ai_auto_send">辨識完直接送出解析</string>
+  <string name="ai_auto_send_title">辨識完之後</string>
+  <string name="ai_notification_button">通知解析</string>
+  <string name="ai_auto_send_on">直接送出解析</string>
+  <string name="ai_auto_send_off">停在文字框，我自己送</string>
+  <string name="ai_auto_send_direct">一次到位模式一律直接解析</string>
   <string name="ai_pin_shortcut">加語音捷徑到桌面</string>
   <string name="ai_pin_shortcut_unsupported">此桌面不支援釘選捷徑</string>
   <string name="ai_shortcut_enters_app">捷徑完成後進入 App（而非回桌面）</string>

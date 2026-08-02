@@ -64,7 +64,7 @@ public class AiSettingsActivity extends ComponentActivity {
 
     // 合併列：sttProviderValue／llmProviderValue 各顯示「provider \ model」
     private TextView sttProviderValue, llmProviderValue;
-    private TextView fabSizeValue, shortcutBehaviorValue;
+    private TextView fabSizeValue, shortcutBehaviorValue, autoSendValue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,11 +94,13 @@ public class AiSettingsActivity extends ComponentActivity {
         llmProviderValue = findViewById(R.id.ai_llm_provider_value);
         fabSizeValue = findViewById(R.id.ai_fab_size_value);
         shortcutBehaviorValue = findViewById(R.id.ai_shortcut_behavior_value);
+        autoSendValue = findViewById(R.id.ai_auto_send_value);
 
         // 合併列：點一下＝先選辨識方式／服務，再接著選模型（見 pickStt／pickLlm）
         findViewById(R.id.ai_stt_provider_row).setOnClickListener(v -> pickStt());
         findViewById(R.id.ai_llm_provider_row).setOnClickListener(v -> pickLlm());
 
+        findViewById(R.id.ai_auto_send_row).setOnClickListener(v -> pickAutoSend());
         findViewById(R.id.ai_fab_size_row).setOnClickListener(v -> showFabSizeDialog());
         findViewById(R.id.ai_shortcut_behavior_row).setOnClickListener(v -> pickShortcutBehavior());
         findViewById(R.id.ai_pin_shortcut_row).setOnClickListener(v -> pinVoiceShortcut());
@@ -120,6 +122,11 @@ public class AiSettingsActivity extends ComponentActivity {
         sttProviderValue.setText(sttCombinedValue());
         llmProviderValue.setText(llmCombinedValue());
 
+        // 一次到位＝音檔直送解析，沒有「辨識完要不要送」這個選擇，值改顯示說明
+        autoSendValue.setText(AiPreferences.load(this).isDirectVoiceParse()
+                ? getString(R.string.ai_auto_send_direct)
+                : getString(AiPreferences.isAutoSend(this)
+                        ? R.string.ai_auto_send_on : R.string.ai_auto_send_off));
         fabSizeValue.setText(getString(R.string.ai_fab_size, AiPreferences.getFabSizeDp(this)));
         shortcutBehaviorValue.setText(AiPreferences.isShortcutEntersApp(this)
                 ? getString(R.string.ai_shortcut_behavior_app)
@@ -226,6 +233,22 @@ public class AiSettingsActivity extends ComponentActivity {
             }
             persistSelections();
             pickModel(false);
+        });
+    }
+
+    /** 辨識完之後：直接送解析 vs 停在文字框。一次到位模式沒得選，只說明。 */
+    private void pickAutoSend() {
+        if (AiPreferences.load(this).isDirectVoiceParse()) {
+            Toast.makeText(this, R.string.ai_auto_send_direct, Toast.LENGTH_LONG).show();
+            return;
+        }
+        List<String> names = new ArrayList<>();
+        names.add(getString(R.string.ai_auto_send_off));
+        names.add(getString(R.string.ai_auto_send_on));
+        int cur = AiPreferences.isAutoSend(this) ? 1 : 0;
+        showChoice(R.string.ai_auto_send_title, names, cur, which -> {
+            AiPreferences.saveAutoSend(this, which == 1);
+            refreshAllValues();
         });
     }
 

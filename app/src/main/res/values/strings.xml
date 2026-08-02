@@ -1338,6 +1338,11 @@
     <string name="ai_type_switch_cancelled">Type switch cancelled</string>
     <string name="ai_input_clear_desc">Clear text</string>
     <string name="ai_auto_send">Send to parse right after recognition</string>
+    <string name="ai_auto_send_title">After recognition</string>
+    <string name="ai_notification_button">Notifications</string>
+    <string name="ai_auto_send_on">Send to parse right away</string>
+    <string name="ai_auto_send_off">Stop at the text box, I\'ll send it</string>
+    <string name="ai_auto_send_direct">Direct mode always parses right away</string>
     <string name="ai_pin_shortcut">Add voice shortcut to home screen</string>
     <string name="ai_pin_shortcut_unsupported">This launcher can\'t pin shortcuts</string>
     <string name="ai_shortcut_enters_app">Shortcut enters the app when done (not home)</string>
