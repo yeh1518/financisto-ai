@@ -57,6 +57,13 @@ public class AiInputActivity extends ComponentActivity {
     /** true = 一進畫面就直接開語音辨識（點麥克風圖示的入口用）。 */
     public static final String START_VOICE_EXTRA = "startVoice";
     /**
+     * 帶一段現成文字進來（目前只有「通知直接記一筆」用）：填進輸入框並直接送解析，
+     * 走的是與語音完全相同的後半段（解析 → draft → 預填原生交易頁 → 使用者確認）。
+     */
+    public static final String TEXT_EXTRA = "text";
+    /** 搭配 {@link #TEXT_EXTRA}：這段文字的來源標籤，寫進 AiLog 的 stt 欄。 */
+    public static final String TEXT_SOURCE_EXTRA = "textSource";
+    /**
      * 桌面捷徑用的 action（見 xml/shortcuts.xml 與設定頁的「加語音捷徑到桌面」）。
      * 走 action 而非 extra：shortcuts.xml 的 &lt;intent&gt; 不支援自訂 extra，
      * 而 app 內部啟動一律用不帶 action 的 explicit intent，兩者天然分得開。
@@ -199,6 +206,17 @@ public class AiInputActivity extends ComponentActivity {
             @Override public void handleOnBackPressed() { finishAndRoute(false); }
         };
         getOnBackPressedDispatcher().addCallback(this, shortcutBackCallback);
+
+        // 帶現成文字進來（通知直接記一筆）：填進框裡直接送解析，不碰麥克風
+        String presetText = getIntent().getStringExtra(TEXT_EXTRA);
+        if (savedInstanceState == null && !TextUtils.isEmpty(presetText)) {
+            settingTextInternally = true;
+            inputText.setText(presetText);
+            settingTextInternally = false;
+            voiceSource = getIntent().getStringExtra(TEXT_SOURCE_EXTRA);
+            onParse();
+            return;                     // 已經在解析了，不要再走下面的語音入口
+        }
 
         // 麥克風入口 / 桌面捷徑進來的：直接開語音彈窗
         boolean startVoice = getIntent().getBooleanExtra(START_VOICE_EXTRA, false) || launchedFromShortcut;
@@ -522,6 +540,19 @@ public class AiInputActivity extends ComponentActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+
+        // 帶現成文字進來的（通知直接記一筆）：singleTop 下若剛好重用到本頁，也要照樣解析，
+        // 不能默默什麼都不做
+        String presetText = intent.getStringExtra(TEXT_EXTRA);
+        if (!TextUtils.isEmpty(presetText)) {
+            settingTextInternally = true;
+            inputText.setText(presetText);
+            settingTextInternally = false;
+            voiceSource = intent.getStringExtra(TEXT_SOURCE_EXTRA);
+            voiceTextEdited = false;
+            onParse();
+            return;
+        }
 
         boolean fromShortcut = ACTION_VOICE_INPUT.equals(intent.getAction());
         if (!fromShortcut && !intent.getBooleanExtra(START_VOICE_EXTRA, false)) return;

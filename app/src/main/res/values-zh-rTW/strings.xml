@@ -1132,6 +1132,15 @@
   <string name="ai_notification_template_pick">選一則通知來產樣板</string>
   <string name="ai_notification_template_generating">正在產生樣板…</string>
   <string name="ai_notification_template_failed">樣板產生失敗：%1$s</string>
+  <string name="ai_notif_action_title">這則通知要怎麼處理</string>
+  <string name="ai_notif_action_generate">用 AI 產樣板\n以後同類通知自動記帳，這一則也會順手記起來</string>
+  <string name="ai_notif_action_parse">用 AI 只記這一筆\n一次性，不建立樣板</string>
+  <string name="ai_notif_action_reapply">用現有樣板記這筆\n重跑一次比對，也可用來確認樣板真的有效</string>
+  <string name="ai_notif_reapply_confirm">要用現有樣板把這則通知記成一筆交易嗎？\n\n重複執行會記成兩筆。</string>
+  <string name="ai_notif_reapply_done">已記一筆：%1$s</string>
+  <string name="ai_notif_reapply_none">沒有樣板比中這則通知——它目前不會被自動記帳</string>
+  <string name="ai_notif_template_saved_recorded">樣板已存，並依它把這則通知記起來了：%1$s</string>
+  <string name="ai_notif_template_saved_no_match">樣板已存，但它比不中這則通知，所以沒有記帳。請檢查樣板內容。</string>
   <string name="ai_api_key_missing">AI 解析尚未設定——請先到 AI 設定填 API key</string>
   <string name="ai_keys_hint">Gemini 有免費額度，個人記帳夠用（詳見說明）</string>
   <string name="ai_provider_gemini">Google AI（Gemini）</string>

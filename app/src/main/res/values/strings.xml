@@ -1295,6 +1295,15 @@
     <string name="ai_notification_template_pick">Pick a notification to make a template</string>
     <string name="ai_notification_template_generating">Generating template…</string>
     <string name="ai_notification_template_failed">Template generation failed: %1$s</string>
+    <string name="ai_notif_action_title">What to do with this notification</string>
+    <string name="ai_notif_action_generate">Make a template with AI\nAuto-records notifications like this from now on — and records this one too</string>
+    <string name="ai_notif_action_parse">Record just this one with AI\nOne-off; no template is created</string>
+    <string name="ai_notif_action_reapply">Record it with an existing template\nRuns the match again — also tells you whether the template works</string>
+    <string name="ai_notif_reapply_confirm">Record this notification as a transaction using the existing template?\n\nRunning it again will create a second transaction.</string>
+    <string name="ai_notif_reapply_done">Recorded: %1$s</string>
+    <string name="ai_notif_reapply_none">No template matched — this notification would not be recorded automatically</string>
+    <string name="ai_notif_template_saved_recorded">Template saved, and this notification was recorded with it: %1$s</string>
+    <string name="ai_notif_template_saved_no_match">Template saved, but it does not match this notification, so nothing was recorded. Check the template.</string>
     <string name="ai_api_key_missing">AI parsing not configured — set an API key in AI settings first</string>
     <string name="ai_keys_hint">Gemini has a free tier that\'s enough for personal use (see Help)</string>
     <string name="ai_provider_gemini">Google AI (Gemini)</string>

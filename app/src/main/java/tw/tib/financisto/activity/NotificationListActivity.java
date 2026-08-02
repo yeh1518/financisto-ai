@@ -6,6 +6,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -33,8 +34,13 @@ import tw.tib.financisto.ai.EntityContextBuilder;
 import tw.tib.financisto.ai.NotificationJournal;
 import tw.tib.financisto.ai.TemplateGenerator;
 import tw.tib.financisto.db.DatabaseAdapter;
+import tw.tib.financisto.model.Account;
+import tw.tib.financisto.model.Transaction;
 import tw.tib.financisto.service.NotificationCache;
 import tw.tib.financisto.service.NotificationListener;
+import tw.tib.financisto.service.SmsTransactionProcessor;
+import tw.tib.financisto.utils.MyPreferences;
+import tw.tib.financisto.utils.Utils;
 
 public class NotificationListActivity extends AppCompatActivity {
 
@@ -44,8 +50,12 @@ public class NotificationListActivity extends AppCompatActivity {
      */
     public static final String EXTRA_PICK_FOR_TEMPLATE = "PICK_FOR_TEMPLATE";
 
+    private static final int REQ_TEMPLATE_EDIT = 4001;
+
     private ListView list;
     private boolean pickMode;
+    /** 產樣板時觸發的那則通知；使用者把樣板存起來後要回頭把它記成一筆（見 onActivityResult）。 */
+    private NotificationListener.ParsedNotification pendingReapply;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -92,7 +102,7 @@ public class NotificationListActivity extends AppCompatActivity {
             NotificationViewHolder holder = (NotificationViewHolder) view.getTag();
 
             if (pickMode) {
-                generateTemplate(holder.notification);
+                showActionDialog(holder.notification);
                 return;
             }
 
@@ -103,6 +113,26 @@ public class NotificationListActivity extends AppCompatActivity {
 
             Toast.makeText(this, R.string.notification_copied, Toast.LENGTH_SHORT).show();
         });
+    }
+
+    /**
+     * 樣板編輯器存檔回來 → 立刻拿新樣板把「觸發它的那則通知」記成一筆。
+     *
+     * 這補的是一個從一開始就在的漏洞：產樣板當下樣板還不存在，所以那則通知**永遠不會**
+     * 被自動入帳，等於每次設樣板都會漏掉當下那一筆。順帶當成樣板的實地驗證——比不中就
+     * 當場說，而不是等下個月刷卡才發現樣板是壞的。
+     * 取消（RESULT_CANCELED）就什麼都不做。
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_TEMPLATE_EDIT) {
+            NotificationListener.ParsedNotification n = pendingReapply;
+            pendingReapply = null;
+            if (resultCode == RESULT_OK && n != null) {
+                reapplyTemplate(n, true);
+            }
+        }
     }
 
     private static final int MENU_ACCESS_SETTINGS = 1;
@@ -141,6 +171,102 @@ public class NotificationListActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * 點一則通知的三條路：產樣板（長期）／直接記這筆（一次性）／套現有樣板（含驗證用途）。
+     * 三者的差別是「要不要留下規則」與「誰來解析」，所以擺在同一個選單裡讓人當場選。
+     */
+    private void showActionDialog(NotificationListener.ParsedNotification n) {
+        CharSequence[] items = {
+                getString(R.string.ai_notif_action_generate),
+                getString(R.string.ai_notif_action_parse),
+                getString(R.string.ai_notif_action_reapply),
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.ai_notif_action_title)
+                .setItems(items, (d, which) -> {
+                    switch (which) {
+                        case 0: generateTemplate(n); break;
+                        case 1: parseDirectly(n); break;
+                        case 2: confirmReapply(n); break;
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /**
+     * 一次性：把通知內文送進既有的一句話解析管線（AiInputActivity 帶 TEXT_EXTRA），
+     * 解析完照樣預填原生交易頁讓使用者過目——與語音記帳共用同一條後半段，不另寫流程。
+     */
+    private void parseDirectly(NotificationListener.ParsedNotification n) {
+        Intent i = new Intent(this, tw.tib.financisto.ai.AiInputActivity.class);
+        i.putExtra(tw.tib.financisto.ai.AiInputActivity.TEXT_EXTRA, n.body);
+        i.putExtra(tw.tib.financisto.ai.AiInputActivity.TEXT_SOURCE_EXTRA, "notification");
+        startActivity(i);
+    }
+
+    /** 手動套樣板前先確認：這條路會**真的建立一筆交易**，連按兩次就是兩筆。 */
+    private void confirmReapply(NotificationListener.ParsedNotification n) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.ai_notification_template)
+                .setMessage(R.string.ai_notif_reapply_confirm)
+                .setPositiveButton(android.R.string.ok, (d, w) -> reapplyTemplate(n, false))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /**
+     * 拿現有樣板把這則通知記成一筆交易——直接呼叫**原生引擎**
+     * {@link SmsTransactionProcessor#createTransactionBySms}，比對規則、金額解析、狀態
+     * （預設「擱置」）都與背景自動入帳完全一致，不另寫一套。
+     *
+     * @param afterSave true＝剛存完樣板自動接著跑的（訊息不同：要講「樣板存了但比不中」）
+     */
+    private void reapplyTemplate(NotificationListener.ParsedNotification n, boolean afterSave) {
+        final DatabaseAdapter db = new DatabaseAdapter(this);
+        tw.tib.financisto.Application.getExecutor().execute(() -> {
+            Transaction t = null;
+            try {
+                t = new SmsTransactionProcessor(db).createTransactionBySms(
+                        this, n.title, n.body,
+                        MyPreferences.getSmsTransactionStatus(),
+                        MyPreferences.shouldSaveSmsToTransactionNote());
+            } catch (Exception e) {
+                Log.e("NotificationList", "套用樣板失敗", e);
+            }
+            final Transaction created = t;
+            runOnUiThread(() -> {
+                if (created != null) {
+                    AccountWidget.updateWidgets(this);
+                    String desc = describe(db, created);
+                    Toast.makeText(this, getString(afterSave
+                                    ? R.string.ai_notif_template_saved_recorded
+                                    : R.string.ai_notif_reapply_done, desc),
+                            Toast.LENGTH_LONG).show();
+                } else {
+                    new AlertDialog.Builder(this)
+                            .setTitle(R.string.ai_notification_template)
+                            .setMessage(afterSave
+                                    ? R.string.ai_notif_template_saved_no_match
+                                    : R.string.ai_notif_reapply_none)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show();
+                }
+            });
+        });
+    }
+
+    /** 「帳戶 金額」一行，給結果 toast 用（看得出記到哪、記了多少就夠）。 */
+    private static String describe(DatabaseAdapter db, Transaction t) {
+        try {
+            Account a = db.getAccount(t.fromAccountId);
+            if (a != null) {
+                return a.title + " " + Utils.amountToString(a.currency, t.fromAmount);
+            }
+        } catch (Exception ignored) {}
+        return String.valueOf(t.fromAmount);
+    }
+
     /** 丟 LLM 產樣板（背景執行緒），成功就帶著預填值開原生樣板編輯器。 */
     private void generateTemplate(NotificationListener.ParsedNotification n) {
         AiPreferences prefs = AiPreferences.load(this);
@@ -169,7 +295,10 @@ public class NotificationListActivity extends AppCompatActivity {
                         intent.putExtra(SmsTemplateActivity.EXTRA_PREFILL_CATEGORY_ID, (long) t.categoryId);
                     }
                     intent.putExtra(SmsTemplateActivity.EXTRA_PREFILL_IS_INCOME, t.isIncome);
-                    startActivity(intent);
+                    // 存完要回頭把「這一則」記起來（見 onActivityResult）：產樣板的當下，
+                    // 觸發它的那則通知本身是不會被自動入帳的——樣板是存檔後才存在
+                    pendingReapply = n;
+                    startActivityForResult(intent, REQ_TEMPLATE_EDIT);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
