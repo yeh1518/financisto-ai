@@ -50,10 +50,13 @@
                 android:layout_marginStart="4dp"
                 android:orientation="vertical">
 
+                <!-- 清空是次要動作：圖示縮到 18dp，但外框仍留 40dp 的可點區域 -->
                 <ImageButton
                     android:id="@+id/ai_input_clear"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:padding="11dp"
+                    android:scaleType="fitCenter"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/ic_ai_cancel"
                     android:contentDescription="@string/ai_input_clear_desc" />
@@ -63,10 +66,13 @@
                     android:layout_height="0dp"
                     android:layout_weight="1" />
 
+                <!-- 送出是這一區的主要動作：圖示放到 32dp，比清空明顯大一階 -->
                 <ImageButton
                     android:id="@+id/ai_parse_button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/ic_ai_send"
                     android:contentDescription="@string/ai_parse" />
