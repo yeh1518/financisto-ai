@@ -1318,6 +1318,9 @@
     <string name="ai_fab_size_title">Voice button size</string>
     <string name="ai_shortcut_behavior_title">After home-screen shortcut</string>
     <string name="ai_shortcut_behavior_home">Back to home screen</string>
+    <string name="ai_pending_button_title">"Pending only" button in blotter</string>
+    <string name="ai_pending_button_on">Shown (next to the filter button)</string>
+    <string name="ai_pending_button_off">Hidden</string>
     <string name="ai_shortcut_behavior_app">Open the matching app screen</string>
     <string name="ai_notification_template_summary">Pick a notification and let AI build an auto-entry template</string>
     <string name="ai_intro_title">About AI bookkeeping</string>

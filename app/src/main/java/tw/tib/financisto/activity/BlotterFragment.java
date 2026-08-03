@@ -70,11 +70,13 @@ import tw.tib.financisto.filter.Criterion;
 import tw.tib.financisto.filter.DateTimeCriterion;
 import tw.tib.financisto.filter.WhereFilter;
 import tw.tib.financisto.db.DatabaseAdapter;
+import tw.tib.financisto.ai.AiPreferences;
 import tw.tib.financisto.model.Account;
 import tw.tib.financisto.model.AccountType;
 import tw.tib.financisto.model.Budget;
 import tw.tib.financisto.model.Transaction;
 import tw.tib.financisto.model.TransactionAttribute;
+import tw.tib.financisto.model.TransactionStatus;
 import tw.tib.financisto.rates.ExchangeRate;
 import tw.tib.financisto.utils.IntegrityCheckRunningBalance;
 import tw.tib.financisto.utils.MenuItemInfo;
@@ -111,6 +113,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     protected ProgressBar progressBar;
 
     protected ImageButton bFilter;
+    protected ImageButton bPending;
     protected ImageButton bTransfer;
     protected ImageButton bTemplate;
     protected ImageButton bSearch;
@@ -298,6 +301,13 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 intent.putExtra(BlotterFilterActivity.IS_ACCOUNT_FILTER, isAccountBlotter && blotterFilter.getAccountId() > 0);
                 startActivityForResult(intent, FILTER_REQUEST);
             });
+        }
+
+        // 只看擱置：自動記進來的交易是擱置狀態，這顆把「篩出來逐筆過目」變成一次點擊。
+        // 開關在 AI 設定（它服務的是自動記帳的收尾，不是原生記帳的偏好）。
+        bPending = view.findViewById(R.id.bPending);
+        if (bPending != null) {
+            bPending.setOnClickListener(v -> togglePendingFilter());
         }
 
         totalText = view.findViewById(R.id.total);
@@ -1168,6 +1178,46 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
 
     protected void updateFilterImage() {
         FilterState.updateFilterColor(getContext(), blotterFilter, bFilter);
+        updatePendingButton();
+    }
+
+    /** 目前的篩選是不是「剛好只篩擱置」——只有這種情況才算這顆鈕是開著的。 */
+    private boolean isPendingOnlyFilter() {
+        Criterion c = blotterFilter.get(BlotterFilter.STATUS);
+        if (c == null) return false;
+        String[] values = c.getValues();
+        return values != null && values.length == 1
+                && TransactionStatus.PN.name().equals(values[0]);
+    }
+
+    /**
+     * 切換「只看擱置」。開＝把狀態篩選設成單一 PN；關＝移除狀態篩選（不動其他條件，
+     * 所以它跟一般篩選可以疊著用：篩了某帳戶再按這顆，是「該帳戶的擱置」）。
+     */
+    private void togglePendingFilter() {
+        if (isPendingOnlyFilter()) {
+            blotterFilter.remove(BlotterFilter.STATUS);
+        } else {
+            blotterFilter.put(Criterion.in(BlotterFilter.STATUS, TransactionStatus.PN.name()));
+        }
+        recreateCursor();
+        applyFilter();
+        saveFilter();
+    }
+
+    /**
+     * 顯示與否照 AI 設定（在 applyFilter 走，所以從設定頁回來會跟著更新）；
+     * 顏色沿用 bFilter 的語言：灰＝關、藍＝開。用同一個圖示換色而不是換圖示——
+     * 換成「未對帳」的圖示會讀成「篩未對帳」，那是另一個動作。
+     */
+    private void updatePendingButton() {
+        if (bPending == null || getContext() == null) return;
+        boolean show = AiPreferences.isShowPendingFilterButton(getContext());
+        bPending.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (!show) return;
+        int color = getResources().getColor(isPendingOnlyFilter()
+                ? R.color.holo_blue_dark : R.color.bottom_bar_tint);
+        bPending.setColorFilter(color);
     }
 
     @Override
@@ -1211,6 +1261,8 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     public void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        // 從 AI 設定頁改完開關回來要立刻反映（顯示與否只由那個設定決定）
+        updatePendingButton();
         if (lastTxId != BEFORE_INITIAL_LOAD) {
             Application.getExecutor().execute(() -> {
                 long t1 = System.nanoTime();

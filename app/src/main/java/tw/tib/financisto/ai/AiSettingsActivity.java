@@ -63,7 +63,7 @@ public class AiSettingsActivity extends ComponentActivity {
 
     // 合併列：sttProviderValue／llmProviderValue 各顯示「provider \ model」
     private TextView sttProviderValue, llmProviderValue;
-    private TextView fabSizeValue, shortcutBehaviorValue, autoSendValue;
+    private TextView fabSizeValue, shortcutBehaviorValue, autoSendValue, pendingButtonValue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,6 +94,7 @@ public class AiSettingsActivity extends ComponentActivity {
         fabSizeValue = findViewById(R.id.ai_fab_size_value);
         shortcutBehaviorValue = findViewById(R.id.ai_shortcut_behavior_value);
         autoSendValue = findViewById(R.id.ai_auto_send_value);
+        pendingButtonValue = findViewById(R.id.ai_pending_button_value);
 
         // 合併列：點一下＝先選辨識方式／服務，再接著選模型（見 pickStt／pickLlm）
         findViewById(R.id.ai_stt_provider_row).setOnClickListener(v -> pickStt());
@@ -103,6 +104,7 @@ public class AiSettingsActivity extends ComponentActivity {
         findViewById(R.id.ai_fab_size_row).setOnClickListener(v -> showFabSizeDialog());
         findViewById(R.id.ai_shortcut_behavior_row).setOnClickListener(v -> pickShortcutBehavior());
         findViewById(R.id.ai_pin_shortcut_row).setOnClickListener(v -> pinVoiceShortcut());
+        findViewById(R.id.ai_pending_button_row).setOnClickListener(v -> pickPendingButton());
         findViewById(R.id.ai_help_row).setOnClickListener(v -> AiIntroDialog.show(this));
         findViewById(R.id.ai_log_row).setOnClickListener(v ->
                 startActivity(new Intent(this, AiLogActivity.class)));
@@ -125,6 +127,8 @@ public class AiSettingsActivity extends ComponentActivity {
         shortcutBehaviorValue.setText(AiPreferences.isShortcutEntersApp(this)
                 ? getString(R.string.ai_shortcut_behavior_app)
                 : getString(R.string.ai_shortcut_behavior_home));
+        pendingButtonValue.setText(getString(AiPreferences.isShowPendingFilterButton(this)
+                ? R.string.ai_pending_button_on : R.string.ai_pending_button_off));
     }
 
     /** 辨識方式列的值：「辨識方式 \ 模型」；內建無模型只顯示辨識方式。 */
@@ -242,6 +246,18 @@ public class AiSettingsActivity extends ComponentActivity {
         int cur = AiPreferences.isAutoSend(this) ? 1 : 0;
         showChoice(R.string.ai_auto_send_title, names, cur, which -> {
             AiPreferences.saveAutoSend(this, which == 1);
+            refreshAllValues();
+        });
+    }
+
+    /** 交易列表底排要不要放「只看擱置」的切換鈕。 */
+    private void pickPendingButton() {
+        List<String> names = new ArrayList<>();
+        names.add(getString(R.string.ai_pending_button_off));
+        names.add(getString(R.string.ai_pending_button_on));
+        int cur = AiPreferences.isShowPendingFilterButton(this) ? 1 : 0;
+        showChoice(R.string.ai_pending_button_title, names, cur, which -> {
+            AiPreferences.saveShowPendingFilterButton(this, which == 1);
             refreshAllValues();
         });
     }

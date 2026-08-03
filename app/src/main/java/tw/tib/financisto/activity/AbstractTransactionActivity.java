@@ -116,6 +116,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 
 	protected Calendar dateTime;
 	protected ImageButton status;
+	/** 這次編輯中使用者有沒有自己挑過狀態；有的話 save() 不做擱置→未對帳的自動升級。 */
+	private boolean statusPickedByUser;
 	protected Button dateText;
 	protected Button timeText;
 
@@ -449,6 +451,12 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	private long save() {
 		if (onOKClicked()) {
 			boolean isNew = transaction.id == -1;
+			// 擱置＝「還沒過目」（自動記帳寫進來的預設狀態）。人打開它按了儲存，
+			// 就是過目了——不管內容有沒有改——所以升成未對帳，不必再手動改狀態。
+			// 但使用者自己在狀態選單挑過（含刻意挑「擱置」）就尊重他，不覆蓋。
+			if (!isNew && !statusPickedByUser && transaction.status == TransactionStatus.PN) {
+				transaction.status = TransactionStatus.UR;
+			}
 			long id = db.insertOrUpdate(transaction, getAttributes());
 			if (isNew) {
 				MyPreferences.setLastAccount(transaction.fromAccountId);
@@ -569,6 +577,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		locationSelector.onSelectedPos(id, selectedPos);
 		switch (id) {
 			case R.id.status:
+				// 記下「狀態是人挑的」——save() 的擱置→未對帳自動升級要避開這種情況
+				statusPickedByUser = true;
 				selectStatus(statuses[selectedPos]);
 				break;
 		}

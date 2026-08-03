@@ -146,6 +146,15 @@
 					style="@style/BottomBarButton"
 					android:src="@drawable/actionbar_filter" />
 
+				<!-- 只看擱置：自動記進來的交易是擱置狀態，這顆是「篩出來逐筆過目」的捷徑。
+				     沿用 bFilter 的視覺語言（同一個圖示，灰＝關、藍＝開），
+				     顯示與否由 AI 設定控制，預設開；初始 gone，由 BlotterFragment 決定。 -->
+				<ImageButton
+					android:id="@+id/bPending"
+					style="@style/BottomBarButton"
+					android:src="@drawable/transaction_status_pending_3"
+					android:visibility="gone" />
+
 				<ImageButton
 					android:id="@+id/bToday"
 					style="@style/BottomBarButton"

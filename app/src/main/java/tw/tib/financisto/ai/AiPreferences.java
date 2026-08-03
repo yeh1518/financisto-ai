@@ -59,6 +59,7 @@ public class AiPreferences {
     public static final String KEY_AUTO_SEND = "ai_auto_send";
     public static final String KEY_INTRO_SHOWN = "ai_intro_shown";
     public static final String KEY_SHORTCUT_ENTERS_APP = "ai_shortcut_enters_app";
+    public static final String KEY_SHOW_PENDING_FILTER_BUTTON = "ai_show_pending_filter_button";
     public static final String KEY_FAB_SIZE_DP = "ai_fab_size_dp";
     public static final String KEY_FAB_TRANS_X = "ai_fab_trans_x";
     public static final String KEY_FAB_TRANS_Y = "ai_fab_trans_y";
@@ -297,6 +298,21 @@ public class AiPreferences {
     public static void saveShortcutEntersApp(Context context, boolean entersApp) {
         PreferenceManager.getDefaultSharedPreferences(context).edit()
                 .putBoolean(KEY_SHORTCUT_ENTERS_APP, entersApp).apply();
+    }
+
+    /**
+     * 交易列表底排要不要顯示「只看擱置」的切換鈕。放在 AI 設定而非原生設定頁，
+     * 是因為它服務的是 AI／樣板自動記帳的收尾流程（自動記進來的交易是擱置，
+     * 篩出來逐筆過目），不是原生記帳本身的偏好。
+     */
+    public static boolean isShowPendingFilterButton(Context context) {
+        return PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(KEY_SHOW_PENDING_FILTER_BUTTON, true);
+    }
+
+    public static void saveShowPendingFilterButton(Context context, boolean show) {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putBoolean(KEY_SHOW_PENDING_FILTER_BUTTON, show).apply();
     }
 
     /** 浮動語音鈕大小（dp），夾在 [FAB_SIZE_MIN, FAB_SIZE_MAX]。 */

@@ -260,6 +260,27 @@
 <!-- 「AI 通知樣板解析」原本在這裡；已改由 AI 記帳主畫面底排的「通知解析」進入
              （日常操作，不是設定），這裡不再重複一個入口 -->
 
+        <!-- 交易列表底排的「只看擱置」鈕。放這裡而不是原生設定頁：它服務的是
+             AI／樣板自動記帳的收尾（自動記進來的是擱置，篩出來逐筆過目）。 -->
+        <LinearLayout
+            android:id="@+id/ai_pending_button_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_pending_button_title" />
+
+            <TextView
+                android:id="@+id/ai_pending_button_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
         <LinearLayout
             android:id="@+id/ai_help_row"
             style="@style/AiClickableRow"
