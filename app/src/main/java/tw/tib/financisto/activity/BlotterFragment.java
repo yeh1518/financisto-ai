@@ -1206,18 +1206,23 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     }
 
     /**
-     * 顯示與否照 AI 設定（在 applyFilter 走，所以從設定頁回來會跟著更新）；
-     * 顏色沿用 bFilter 的語言：灰＝關、藍＝開。用同一個圖示換色而不是換圖示——
-     * 換成「未對帳」的圖示會讀成「篩未對帳」，那是另一個動作。
+     * 顯示與否照 AI 設定（在 applyFilter 走，所以從設定頁回來會跟著更新）。
+     *
+     * 開＝拿掉濾色，露出圖檔原本的橘色驚嘆號——也就是「擱置」在這個 app 裡本來的
+     * 長相（清單、編輯頁的狀態圖示都是它）；關＝跟其他底排按鈕一樣的灰。
+     * 用同一個圖示改變飽和度而不是換圖示：換成「未對帳」的圖示會讀成「篩未對帳」，
+     * 那是另一個動作，而不是這個動作的關閉態。
      */
     private void updatePendingButton() {
         if (bPending == null || getContext() == null) return;
         boolean show = AiPreferences.isShowPendingFilterButton(getContext());
         bPending.setVisibility(show ? View.VISIBLE : View.GONE);
         if (!show) return;
-        int color = getResources().getColor(isPendingOnlyFilter()
-                ? R.color.holo_blue_dark : R.color.bottom_bar_tint);
-        bPending.setColorFilter(color);
+        if (isPendingOnlyFilter()) {
+            bPending.clearColorFilter();
+        } else {
+            bPending.setColorFilter(getResources().getColor(R.color.bottom_bar_tint));
+        }
     }
 
     @Override
