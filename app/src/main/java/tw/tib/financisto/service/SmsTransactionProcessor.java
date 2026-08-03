@@ -366,7 +366,11 @@ public class SmsTransactionProcessor {
         PROJECT("<:R:>", "(\\S+?)", "{{r}}"),
         TEXT("<:T:>", "(.*?)", "{{t}}"),
         GREEDY_TEXT("<:U:>", "(.*)", "{{u}}"),
-        TRANSFER_TO_ACCOUNT_NAME("<:X:>", "(\\w+?)", "{{x}}");
+        // 轉帳對象帳戶名。原本是 (\w+?)——Java 的 \w 是 ASCII-only（未開
+        // UNICODE_CHARACTER_CLASS），對中文帳戶名 100% 比不中，等於這個佔位符在中文帳本
+        // 裡不存在。改成與 ACCOUNT_NAME / PAYEE / PROJECT 一致的 (\S+?)；\S 是 \w 的超集，
+        // 既有的 ASCII 樣板行為不變。
+        TRANSFER_TO_ACCOUNT_NAME("<:X:>", "(\\S+?)", "{{x}}");
 
         public String code;
         public String regexp;
