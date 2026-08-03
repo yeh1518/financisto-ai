@@ -25,6 +25,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -336,10 +337,15 @@ public class NotificationListActivity extends AppCompatActivity {
                                 new NotificationListener.ParsedNotification();
                         n.title = e.title;
                         n.body = e.body;
+                        n.postTime = e.at;
                         list.add(n);
                     }
                 }
             }
+            // 統一按時間新→舊。沒有這行的話前半段是 NotificationCache 那個 HashMap 的
+            // 桶順序（實質亂序、且新增一則就可能整串重排），後半段才是日誌的時間序——
+            // 看起來像壞掉的排序，實際上是「兩段來源直接接起來、從沒排過」。
+            Collections.sort(list, (a, b) -> Long.compare(b.postTime, a.postTime));
             inflater = LayoutInflater.from(context);
         }
 
