@@ -366,10 +366,12 @@ public class SmsTransactionProcessor {
         PROJECT("<:R:>", "(\\S+?)", "{{r}}"),
         TEXT("<:T:>", "(.*?)", "{{t}}"),
         GREEDY_TEXT("<:U:>", "(.*)", "{{u}}"),
-        // 轉帳對象帳戶名。原本是 (\w+?)——Java 的 \w 是 ASCII-only（未開
-        // UNICODE_CHARACTER_CLASS），對中文帳戶名 100% 比不中，等於這個佔位符在中文帳本
-        // 裡不存在。改成與 ACCOUNT_NAME / PAYEE / PROJECT 一致的 (\S+?)；\S 是 \w 的超集，
-        // 既有的 ASCII 樣板行為不變。
+        // 轉帳對象帳戶名。原本是 (\w+?)，對帳戶名含標點（`-`、`()`）的會**整條樣板比不中**
+        // ——標點不是 word character，所以交易根本不會產生。與語言無關：`Visa-Gold` 一樣壞。
+        // （2026-08-04 更正：原本寫「中文 100% 比不中」是錯的。那是拿桌面 JDK 驗的結果；
+        //   Android 的 regex 是 ICU 實作、字元類別永遠是 Unicode，中文本身沒問題。
+        //   模擬器實測見 androidTest 的 PlaceholderCaptureTest，上游 PR #133。）
+        // 改成與 ACCOUNT_NAME / PAYEE / PROJECT 一致的 (\S+?)；\S 是 \w 的超集，既有樣板不受影響。
         TRANSFER_TO_ACCOUNT_NAME("<:X:>", "(\\S+?)", "{{x}}");
 
         public String code;

@@ -12,6 +12,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -85,11 +86,16 @@ public class NotificationListener extends NotificationListenerService {
                         PackageManager.DONT_KILL_APP);
             } catch (Exception ignored) {}
         }
-        try {
-            requestRebind(cn);
-            Log.d(TAG, "requestRebind sent");
-        } catch (Exception e) {
-            Log.e(TAG, "requestRebind failed", e);
+        // requestRebind 是 API 24 才有的；minSdk 23，Android 6 上直接呼叫會 NoSuchMethodError
+        // ——而那是 Error 不是 Exception，catch 不到，掛在 Application.onCreate 等於開不了 app。
+        // API 23 上就只靠上面的元件 toggle（實測有效的本來也是那半）。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                requestRebind(cn);
+                Log.d(TAG, "requestRebind sent");
+            } catch (Exception e) {
+                Log.e(TAG, "requestRebind failed", e);
+            }
         }
     }
 
