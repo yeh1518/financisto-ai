@@ -11,6 +11,7 @@ import android.app.Notification;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -50,13 +51,42 @@ public class NotificationListener extends NotificationListenerService {
     /**
      * 請系統重新綁定 listener。Android 有個長年怪癖：APK 更新（或某些系統狀況）後
      * listener 會被解綁、且**權限還顯示已授予**，但通知完全收不到，得手動關開一次
-     * 通知存取權才復活。官方解法就是 requestRebind——在 APK 更新後（PackageReplaceReceiver）
-     * 與開啟通知列表時各叫一次自癒；沒授權或已綁定時是 no-op，多叫無害。
+     * 通知存取權才復活。
+     *
+     * <p>2026-08-04 加強：原本只叫 {@code requestRebind}，但那個 API 眾所周知不可靠
+     * ——Gary 實機一天內更新四版 APK，每次都得手動關開權限才活。改成先把元件
+     * <b>停用再啟用</b>（等同「關開一次」但不需要人去設定頁），再 requestRebind。
+     * 元件的 enabled 狀態與授權是兩回事：授權存在 {@code Settings.Secure}
+     * 的 enabled_notification_listeners（以元件名為鍵），toggle enabled 不會動到它，
+     * 所以權限不會掉。
+     *
+     * <p>沒授權時直接跳過（沒授權時做什麼都沒用，反而可能把元件留在停用狀態）；
+     * 已綁好時整串是 no-op，多叫無害——所以掛在 Application 啟動、APK 更新、
+     * 開啟通知列表三處，開一次 app 就自動修好。
      */
     public static void requestRebindIfGranted(Context context) {
         if (!isAccessGranted(context)) return;
+        ComponentName cn = new ComponentName(context, NotificationListener.class);
         try {
-            requestRebind(new ComponentName(context, NotificationListener.class));
+            PackageManager pm = context.getPackageManager();
+            pm.setComponentEnabledSetting(cn,
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP);
+            pm.setComponentEnabledSetting(cn,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP);
+            Log.d(TAG, "listener component toggled off/on");
+        } catch (Exception e) {
+            // 失敗也要把元件掰回啟用，不能讓它卡在停用狀態
+            Log.e(TAG, "toggle component failed", e);
+            try {
+                context.getPackageManager().setComponentEnabledSetting(cn,
+                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                        PackageManager.DONT_KILL_APP);
+            } catch (Exception ignored) {}
+        }
+        try {
+            requestRebind(cn);
             Log.d(TAG, "requestRebind sent");
         } catch (Exception e) {
             Log.e(TAG, "requestRebind failed", e);
