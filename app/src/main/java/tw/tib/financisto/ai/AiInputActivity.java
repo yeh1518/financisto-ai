@@ -491,10 +491,18 @@ public class AiInputActivity extends ComponentActivity {
         inputText.setSelection(combined.length());
     }
 
-    /** 送去解析的這串字是怎麼來的（寫進 AiLog 的 stt 欄）。 */
+    /**
+     * 送去解析的這串字是怎麼來的（寫進 AiLog 的 stt 欄）。
+     *
+     * ⚠️ 這個方法只在**文字解析**路徑（onParse）用。音檔直解模式下框裡放的是模型回報的
+     * 轉寫，使用者按「解析」重送＝走文字路徑、不是直解，但 voiceSource 仍是 direct:xxx
+     * 標籤——不補標的話 log 裡兩者長得一模一樣，只能靠有沒有 transcript 欄分辨，
+     * 拿 log 比較辨識引擎品質時會把重送的成績算進直解（2026-08-05 實例）。
+     */
     private String currentInputSource() {
         if (voiceSource == null) return "typed";
-        return voiceTextEdited ? voiceSource + "+edited" : voiceSource;
+        String source = voiceTextEdited ? voiceSource + "+edited" : voiceSource;
+        return source.startsWith("direct:") ? source + "+resent" : source;
     }
 
     @Override
