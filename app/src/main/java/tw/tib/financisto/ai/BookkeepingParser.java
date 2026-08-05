@@ -111,6 +111,14 @@ public class BookkeepingParser {
             + "- 帳戶**優先選名稱完全相符**的那個。清單裡常有同名母帳戶與帶後綴的變體（如「富邦信用卡」\n"
             + "  與「富邦信用卡-老婆」）：使用者只講「富邦信用卡」就選那個**乾淨無後綴**的，帶後綴的變體\n"
             + "  放 alternatives；只有使用者明講後綴（講到「老婆」等）才選變體。不要自作主張挑更specific 的。\n"
+            + "- ⚠️ **帳戶名本身就是一般語詞時**（如「借款」「股票」「存款」「家中現金」「虛寶買賣」\n"
+            + "  「伊甸暫付款」）**，它在清單裡就是帳戶，不要因為它聽起來像描述就丟進 note**。\n"
+            + "  判準：這個詞對得上帳戶清單的 name 或 hint → 填 account / to_account；對不上才輪到 note。\n"
+            + "  **你填進 note 的字不該和某個帳戶的 name 相同**——若相同，代表你把它放錯邊了。\n"
+            + "  例：「借款轉中信9000」→ account=借款（不是 note=\"借款\"）、to_account=中信、note=null。\n"
+            + "- transfer 的 account（轉出帳戶）**不因為那個帳戶「不像銀行」就放棄**：清單裡每一個都是\n"
+            + "  合法的轉出/轉入帳戶，包含 ASSET / OTHER 這類代墊、信封袋、借款、儲值額度帳戶。\n"
+            + "  轉出帳戶對不上時要再回頭掃一次清單，別直接填 null。\n"
             + "- balance / transfer 的 category：使用者**講出這筆的用途/分類時照填**，只報結果沒講用途才 null。\n"
             + "  balance 例：「街口剩下895，飲食買炸春捲」→ category=飲食（對到分類清單）、note=買炸春捲\n"
             + "  （分類詞進了 category，note 就剝掉它，只留品項描述）；「中信剩下300」沒講用途 → category=null。\n"
@@ -226,7 +234,9 @@ public class BookkeepingParser {
     private static final String AUDIO_RULE =
             "\n【語音輸入】使用者的輸入是一段語音。先逐字聽寫，再依上述規則解析。\n"
             + "transcript 欄填完整逐字轉寫（繁體中文、台灣用語；剝掉語助詞但不改內容、不摘要）。\n"
-            + "解析一律以你聽寫出的內容為準；聽不清楚的字依讀音給最可能的字。\n";
+            + "解析一律以你聽寫出的內容為準；聽不清楚的字依讀音給最可能的字。\n"
+            + "⚠️ 聽寫完要**當成文字輸入重新處理一次**：把轉寫裡的每個詞逐一拿去比對帳戶／分類清單，\n"
+            + "比對完才填欄位。不要因為忙著聽寫就跳過清單比對、把對得上帳戶的詞當成描述丟進 note。\n";
 
     /**
      * 一次到位：WAV 音檔直接進解析 prompt（chat/completions 的 input_audio + structured
@@ -237,12 +247,76 @@ public class BookkeepingParser {
             throws ParseException {
         // 一次到位＝音檔直送，來源不必問呼叫端：就是 direct 那顆模型自己聽的
         if (inputSource == null) inputSource = prefs.getSttLabel();
+        AudioParseResult r;
         try {
-            return parseAudioInternal(wavFile, supplement, formStateContext);
+            r = parseAudioInternal(wavFile, supplement, formStateContext);
         } catch (ParseException e) {
             record("(語音直解失敗，無轉寫)", supplement, formStateContext, null, e.getMessage());
             throw e;
         }
+        return retryAsTextIfIncomplete(r, supplement, formStateContext);
+    }
+
+    /**
+     * 音檔直解漏了關鍵欄位時，拿它自己聽出來的轉寫**再跑一次純文字解析**，只補空槽。
+     *
+     * 為什麼要這一趟：同一句話，音檔直解要一邊聽寫一邊比對清單，注意力被分掉，會把對得上
+     * 帳戶清單的詞當成描述丟進 note；同一段轉寫走文字解析就對得出來（2026-08-05 實測，
+     * 「借款轉中信9000」直解 account=null/note=借款、重送 account=26）。使用者原本就是
+     * 手動「回上一頁再送一次」在補這件事，這裡只是把它自動化。
+     *
+     * 代價＝不完整時多一次文字呼叫（約 +1~2 秒）；happy path 一次來回不變。
+     * 補救失敗（沒設 LLM key、網路斷）就沉默沿用原結果——多跑一次不該反而把整筆擋掉。
+     */
+    private AudioParseResult retryAsTextIfIncomplete(AudioParseResult r, boolean supplement,
+                                                     String formStateContext) {
+        // 補充模式本來就只回「這句講到的欄位」，大量 null 是正常的，不能當成不完整
+        if (supplement) return r;
+        if (r.transcript == null || r.transcript.trim().isEmpty()) return r;
+        if (!isIncomplete(r.transaction)) return r;
+
+        String base = inputSource;
+        try {
+            inputSource = (base == null ? "" : base) + "+retry";
+            ParsedTransaction second = parseInternal(r.transcript, false, formStateContext);
+            return new AudioParseResult(fillEmptySlots(r.transaction, second), r.transcript);
+        } catch (ParseException e) {
+            return r;
+        } finally {
+            inputSource = base;
+        }
+    }
+
+    /** 缺了會讓表單「填不完整、使用者得自己補」的欄位＝值得再問一次。 */
+    private static boolean isIncomplete(ParsedTransaction t) {
+        if (t.amount == null && !t.hasSplits()) return true;
+        if (t.isTransfer() && !t.toAccount.resolved()) return true;
+        return !t.account.resolved();
+    }
+
+    /**
+     * 以直解結果為底，**只把空的槽**用重試結果補上；直解已經填好的一律不動
+     * （直解聽得到語氣與停頓，不該被純文字的第二意見蓋掉）。
+     */
+    private static ParsedTransaction fillEmptySlots(ParsedTransaction base, ParsedTransaction extra) {
+        // 「帳戶詞掉進 note」是這個失敗模式的招牌（account=null 而 note="借款"）。
+        // 重試補上帳戶時，note 也改用重試的版本，免得帳戶名留在備註裡。
+        boolean accountFilled = !base.account.resolved() && extra.account.resolved();
+
+        if (base.transactionType == null) {
+            base.transactionType = extra.transactionType;
+            base.typeChange = extra.typeChange;
+        }
+        if (base.amount == null) base.amount = extra.amount;
+        if (base.date == null) base.date = extra.date;
+        if (base.time == null) base.time = extra.time;
+        if (base.note == null || accountFilled) base.note = extra.note;
+        if (!base.account.resolved()) base.account = extra.account;
+        if (!base.toAccount.resolved()) base.toAccount = extra.toAccount;
+        if (!base.category.resolved()) base.category = extra.category;
+        if (!base.project.resolved()) base.project = extra.project;
+        if (!base.hasSplits()) base.splits = extra.splits;
+        return base;
     }
 
     private AudioParseResult parseAudioInternal(File wavFile, boolean supplement, String formStateContext)
