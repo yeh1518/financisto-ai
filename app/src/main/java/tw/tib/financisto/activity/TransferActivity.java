@@ -43,6 +43,12 @@ public class TransferActivity extends AbstractTransactionActivity {
 
 	private boolean isShowCategoryInTransfer;
 
+	/**
+	 * 有金額、但轉出帳戶還沒定下來時暫存的金額（AI 只解析出轉入帳戶的情況）。
+	 * 先用轉入帳戶的幣別把數字顯示出來，等使用者挑完轉出帳戶再依真正的幣別重填一次。
+	 */
+	private long pendingFromAmount;
+
 	public TransferActivity() {
 	}
 
@@ -139,6 +145,18 @@ public class TransferActivity extends AbstractTransactionActivity {
 			rateView.selectCurrencyTo(toAccount.currency);
 			rateView.setToAmount(transaction.toAmount);
 			selectedAccountToId = transaction.toAccountId;
+		}
+		// 轉出帳戶不明時，金額原本會跟著一起消失——setFromAmount 只寫在上面 fromAccountId>0
+		// 的分支裡，而 currencyFrom 沒設又會讓「轉入金額」欄被 checkNeedRate 藏起來，
+		// 兩個金額欄同時看不到值（AI 解析出金額卻沒對到轉出帳戶時必現）。
+		// 先借轉入帳戶的幣別當顯示基準把數字放進去，使用者挑完轉出帳戶再重填（見 selectAccount）。
+		if (transaction.fromAccountId <= 0 && transaction.fromAmount != 0) {
+			Currency c = rateView.getCurrencyTo();
+			if (c != null) {
+				rateView.selectCurrencyFrom(c);
+			}
+			rateView.setFromAmount(transaction.fromAmount);
+			pendingFromAmount = transaction.fromAmount;
 		}
 		selectPayee(transaction.payeeId);
 	}
@@ -247,6 +265,14 @@ public class TransferActivity extends AbstractTransactionActivity {
 			selectAccount(account, accountFromText, accountFromBalanceText, accountFromLimitText, selectLast);
 			selectedAccountFromId = accountId;
 			rateView.selectCurrencyFrom(account.currency);
+			// 剛才是用轉入幣別暫顯的金額：現在有真正的轉出幣別了，依它重填一次（scale 可能不同）。
+			// 使用者已經自己改過金額就不要蓋掉——值對不上就當作被改過。
+			if (pendingFromAmount != 0) {
+				if (rateView.getFromAmount() == pendingFromAmount) {
+					rateView.setFromAmount(pendingFromAmount);
+				}
+				pendingFromAmount = 0;
+			}
 		}
 		return account;
 	}
