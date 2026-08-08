@@ -106,6 +106,13 @@ android {
             returnDefaultValues = true
         }
     }
+
+    testBuildType "debug"
+    sourceSets {
+        androidTest {
+            java.srcDirs += ['/src/androidTest/java']
+        }
+    }
 }
 
 final SUPPORT_LIB_VER = '27.0.2'
@@ -144,7 +151,7 @@ dependencies {
     // AI 一句話記帳：加密儲存 API key（master key 落在 Android Keystore）
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 
-    implementation 'androidx.activity:activity:1.8.2'
+    implementation 'androidx.activity:activity:1.13.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.biometric:biometric:1.1.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'

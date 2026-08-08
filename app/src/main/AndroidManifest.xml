@@ -49,15 +49,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 	<uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
-    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />
 	<!-- AI 一句話記帳語音走標準 RecognizerIntent（由 Google app 代錄），app 本身不需
 	     RECORD_AUDIO。2026-07-16 從自控 SpeechRecognizer 回歸標準元件後移除該權限。 -->
+	<!-- GCM 權限（C2D_MESSAGE）已隨上游 1277850 移除——本來就沒在用。
+	     連帶解掉我們原本為了 debug(.ai) 與商店版同名衝突而做的 ${applicationId} 展開。 -->
 
-	<!-- 用 ${applicationId} 而非寫死：自訂 permission 名稱是「全域唯一」的，
-	     寫死會讓 debug(.ai) 與商店版同名衝突 → INSTALL_FAILED_DUPLICATE_PERMISSION。
-	     release 的 applicationId 就是 tw.tib.financisto，展開後與原本完全相同。 -->
-	<permission android:name="${applicationId}.permission.C2D_MESSAGE" android:protectionLevel="signature" />
-    <uses-permission android:name="${applicationId}.permission.C2D_MESSAGE"/>
 
 
     <application

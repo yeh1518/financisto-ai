@@ -42,3 +42,6 @@ docs/experiments/on-device-llm-eval/q36_fail.json
 keystore.properties
 *.jks
 *.keystore
+
+# 上游新增
+CLAUDE.local.md

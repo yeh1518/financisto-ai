@@ -342,9 +342,10 @@ public class NotificationListActivity extends AppCompatActivity {
                     }
                 }
             }
-            // 統一按時間新→舊。沒有這行的話前半段是 NotificationCache 那個 HashMap 的
-            // 桶順序（實質亂序、且新增一則就可能整串重排），後半段才是日誌的時間序——
-            // 看起來像壞掉的排序，實際上是「兩段來源直接接起來、從沒排過」。
+            // The cache is a HashMap, so its iteration order is bucket order: the list
+            // comes out in no meaningful order and can reshuffle when a notification is
+            // added. Show newest first instead. (This fork also merges the journal above,
+            // so sorting covers both sources.)
             Collections.sort(list, (a, b) -> Long.compare(b.postTime, a.postTime));
             inflater = LayoutInflater.from(context);
         }

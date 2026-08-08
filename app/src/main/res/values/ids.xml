@@ -13,6 +13,8 @@
 	<item name="account_clear" type="id" />
 	<item name="account_from" type="id" />
 	<item name="account_to" type="id" />
+	<item name="amount_input_from" type="id" />
+	<item name="amount_input_to" type="id" />
 	<item name="category" type="id" />
 	<item name="category_clear" type="id" />
 	<item name="category_add" type="id" />
@@ -65,6 +67,7 @@
 	<item name="is_included_into_reports" type="id" />
 	<item name="sort_order" type="id" />
 	<item name="sort_order_clear" type="id" />
+	<item name="reorder_accounts" type="id" />
 	<item name="budget_mode" type="id" />
 	<item name="recurrence_pattern" type="id" />
 	<item name="recurrence_period" type="id" />
@@ -78,6 +81,8 @@
 	<item name="status_clear" type="id" />
 	<item name="transfer" type="id" />
 	<item name="transfer_clear" type="id" />
+	<item name="take_photo" type="id" />
+	<item name="select_from_album" type="id" />
 	<item name="attach_picture" type="id" />
 	<item name="delete_picture" type="id" />
 	<item name="negative_opening_amount" type="id" />
@@ -104,4 +109,11 @@
 	<item name="remove_sms_template" type="id" />
 	<item name="electronic_payment_type" type="id" />
 	<item name="attached_picture" type="id" />
+	<item name="income_expense" type="id" />
+	<item name="income_expense_clear" type="id" />
+	<item name="account_list_tab" type="id" />
+	<item name="blotter_tab" type="id" />
+	<item name="budgets_tab" type="id" />
+	<item name="reports_tab" type="id" />
+	<item name="menu_tab" type="id" />
 </resources>

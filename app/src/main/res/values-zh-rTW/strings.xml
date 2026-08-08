@@ -67,6 +67,7 @@
   <string name="select_project">請選擇專案…</string>
   <string name="warning">警告</string>
   <string name="no_accounts">您必須從建立新帳戶開始，請點擊下面綠色的 \'+\' 按鈕…</string>
+  <string name="accounts_filtered">目前有過濾條件且所有帳戶都被過濾隱藏。\n按此以清除過濾條件。</string>
   <string name="no_budgets">無預算</string>
   <string name="loading">載入中…</string>
   <string name="no_transactions">無交易</string>
@@ -546,7 +547,8 @@
   <string name="enable_widget">啟用小工具</string>
   <string name="enable_widget_summary">在小工具顯示帳戶總額</string>
   <string name="attach_picture">附加照片</string>
-  <string name="new_picture">選取照片</string>
+  <string name="new_picture">拍照/選取照片</string>
+  <string name="delete_picture_confirm">確認移除並刪除照片檔案?</string>
   <string name="credits">信用額度</string>
   <string name="sort_by_title">根據標題排序</string>
   <string name="sort_all_by_title">全部根據標題排序</string>

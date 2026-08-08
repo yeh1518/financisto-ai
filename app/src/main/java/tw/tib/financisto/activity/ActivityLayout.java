@@ -333,15 +333,25 @@ public class ActivityLayout {
 		plusImageView.setVisibility(View.VISIBLE);
 	}
 
-	public View addPictureNodeMinus(Context context, LinearLayout layout, int id, int minusId, int labelId, int defaultLabelResId) {
+	public View addPictureNodeMinus(Context context, LinearLayout layout, int id, int cameraId, int albumId, int minusId, int labelId, int defaultLabelResId) {
 		PictureBuilder b = inflater.new PictureBuilder(layout);
-		return b.withPicture(context, null).withButtonId(minusId, listener).withId(id, listener)
+		return b.withPicture(context, null)
+				.withCameraButtonId(cameraId, listener)
+				.withAlbumButtonId(albumId, listener)
+				.withButtonId(minusId, listener)
+				.withId(id, listener)
 				.withLabel(labelId).withData(defaultLabelResId).create();
 	}
 
 	public View addEditNode(LinearLayout layout, int labelId, View view) {
 		EditBuilder b = inflater.new EditBuilder(layout, view);
 		return b.withLabel(labelId).create();
+	}
+
+	public View addEditNodeWithButton(LinearLayout layout, int labelId, int buttonId,
+									  View.OnClickListener onClickListener, EditText editText) {
+		EditButtonBuilder b = inflater.new EditButtonBuilder(layout, editText);
+		return b.withButtonId(buttonId, onClickListener).withLabel(labelId).create();
 	}
 
 	public View addColorEditNode(LinearLayout layout, int labelId, int buttonId, View.OnClickListener onClickListener, EditText editText) {

@@ -217,7 +217,7 @@ public class NotificationListener extends NotificationListenerService {
         public String title;
         public String text;
         public String body;
-        /** 通知發出的時刻（毫秒）——列表要靠它排序，見 NotificationListActivity 的適配器。 */
+        /** When the notification was posted; used to order the notification list. */
         public long postTime;
     }
 

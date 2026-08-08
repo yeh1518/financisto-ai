@@ -150,6 +150,24 @@ public class NodeInflater {
 		}
 	}
 
+	public class EditButtonBuilder extends Builder {
+		public EditButtonBuilder(LinearLayout layout, View view) {
+			super(layout, R.layout.select_entry_edit_button);
+			RelativeLayout relativeLayout = v.findViewById(R.id.layout);
+			RelativeLayout.LayoutParams layoutParams = new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+			layoutParams.addRule(RelativeLayout.ALIGN_LEFT, R.id.label);
+			layoutParams.addRule(RelativeLayout.BELOW, R.id.label);
+			relativeLayout.addView(view, layoutParams);
+		}
+
+		public EditButtonBuilder withButtonId(int buttonId, OnClickListener listener) {
+			ImageButton button = v.findViewById(R.id.edit_button);
+			button.setId(buttonId);
+			button.setOnClickListener(listener);
+			return this;
+		}
+	}
+
 	public class ListBuilder extends Builder {
 
 		public ListBuilder(LinearLayout layout, int layoutId) {
@@ -263,11 +281,18 @@ public class NodeInflater {
 			super(layout, R.layout.select_entry_picture);
 		}
 
-		@Override
-		public ListBuilder withButtonId(int buttonId, OnClickListener listener) {
-			ImageView plusImageView = v.findViewById(R.id.plus_minus);
-			plusImageView.setVisibility(VISIBLE);
-			return super.withButtonId(buttonId, listener);
+		public PictureBuilder withCameraButtonId(int buttonId, OnClickListener listener) {
+			ImageView cameraButton = v.findViewById(R.id.camera);
+			cameraButton.setId(buttonId);
+			cameraButton.setOnClickListener(listener);
+			return this;
+		}
+
+		public PictureBuilder withAlbumButtonId(int buttonId, OnClickListener listener) {
+			ImageView albumButton = v.findViewById(R.id.album);
+			albumButton.setId(buttonId);
+			albumButton.setOnClickListener(listener);
+			return this;
 		}
 
 		public PictureBuilder withPicture(final Context context, String pictureFileName) {
