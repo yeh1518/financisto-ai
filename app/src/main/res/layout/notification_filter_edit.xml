@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingTop="8dp">
+
+    <!-- 「增加過濾」時顯示觸發它的那則通知：要從裡面挑字當關鍵字，看不到原文就沒得挑 -->
+    <TextView
+        android:id="@+id/filter_sample"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:textIsSelectable="true"
+        android:maxLines="8"
+        android:scrollbars="vertical"
+        android:paddingBottom="8dp"
+        android:textSize="13sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/ai_notif_filter_hint"
+        android:textSize="13sp"
+        android:paddingBottom="4dp" />
+
+    <EditText
+        android:id="@+id/filter_keywords"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minLines="5"
+        android:maxLines="14"
+        android:gravity="top"
+        android:inputType="textMultiLine|textNoSuggestions"
+        android:fontFamily="monospace"
+        android:hint="@string/ai_notif_filter_placeholder" />
+</LinearLayout>

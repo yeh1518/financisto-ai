@@ -58,6 +58,9 @@ public class NotificationJournal {
     public static void record(Context context, String pkg, String title, String body) {
         if (title == null || title.isEmpty() || body == null || body.isEmpty()) return;
         if (!HAS_DIGIT.matcher(body).find()) return;
+        // 使用者的排除清單擋掉的不必留。「含數字」那關對限時動態這種東西沒用
+        // （「和另外 2 人」照樣有數字），雜訊會把真正的銀行通知擠出這 100 筆額度。
+        if (NotificationFilter.matches(context, title, body)) return;
         try {
             List<Entry> entries = read(context);
             for (Entry e : entries) {
