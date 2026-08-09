@@ -1,5 +1,7 @@
 package tw.tib.financisto.ai;
 
+import android.content.Context;
+
 import java.math.BigDecimal;
 import java.util.concurrent.TimeUnit;
 
@@ -71,6 +73,12 @@ public class TemplateGenerator {
             + "  {{*}} 任意略過的變動文字（日期、時間、序號等不需要的部分）\n"
             + "- 內文開頭是「標題 + 空格」的前綴（app 比對時會這樣組），樣板也要涵蓋它：\n"
             + "  標題固定就照抄，標題會變就用 {{*}} 開頭。\n"
+            + "- {{e}}／{{t}}／{{c}}／{{r}}／{{x}} 這幾個**後面一定要接固定文字當結束標記**，\n"
+            + "  不可以直接接 {{*}}，也不可以放在樣板最後——那樣只會抓到一個字元。\n"
+            + "  例：商家後面接的是換行與「授權碼：」，就寫 商店名稱：{{e}}\\n授權碼：{{*}}。\n"
+            + "  找不到合適的結束標記，就整段用 {{*}} 略過、不要用這些佔位符。\n"
+            + "- 固定文字要**逐字照抄樣本**，包括全形空白（例如「卡　　號」中間是兩個全形空格）、\n"
+            + "  換行與只有空白的空行。抄歪一個字整條樣板就比不中。\n"
             + "- 日期時間用 {{*}} 略過（app 用收到通知的當下時間記帳，不需要抽日期）。\n"
             + "- 金額前後的幣別符號（NT$、$、元）是固定文字，留在樣板裡，不要包進 {{p}}。\n"
             + "- 寧可多用 {{*}} 保守涵蓋會變的部分，不要把可能變動的數字/文字寫死。\n"
@@ -86,11 +94,14 @@ public class TemplateGenerator {
             + "  app 會用它驗證樣板。\n"
             + "- confidence：你對樣板品質的把握 0~1。\n";
 
+    private final Context context;
     private final AiPreferences prefs;
     private final EntityContextBuilder ctx;
     private final OkHttpClient client;
 
-    public TemplateGenerator(AiPreferences prefs, EntityContextBuilder ctx) {
+    /** @param context 只用來寫 {@link AiLog}（每次嘗試都留痕跡）；null＝不記錄。 */
+    public TemplateGenerator(Context context, AiPreferences prefs, EntityContextBuilder ctx) {
+        this.context = context;
         this.prefs = prefs;
         this.ctx = ctx;
         this.client = new OkHttpClient.Builder()
@@ -125,13 +136,44 @@ public class TemplateGenerator {
      */
     public GeneratedTemplate generate(String title, String body) throws GenerateException {
         String retryHint = null;
-        for (int attempt = 0; attempt < 2; attempt++) {
-            GeneratedTemplate t = callModel(title, body, retryHint);
+        GeneratedTemplate last = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            GeneratedTemplate t;
+            try {
+                t = callModel(title, body, retryHint);
+            } catch (GenerateException e) {
+                // 呼叫失敗（網路／HTTP／回應格式）也要留紀錄，否則事後分不出
+                // 「模型寫不好」與「根本沒問到模型」
+                log(body, attempt, null, null, e.getMessage());
+                throw e;
+            }
+            last = t;
             String problem = validate(t, body);
+            log(body, attempt, t.template, describe(t), problem);
             if (problem == null) return t;
             retryHint = problem;
         }
-        throw new GenerateException("產出的樣板驗證失敗：" + retryHint);
+        // 訊息帶上最後那條樣板：對話框是使用者唯一看得到的東西，只講「驗證失敗」
+        // 沒辦法判斷是模型抄歪了哪一段
+        throw new GenerateException("產出的樣板驗證失敗：" + retryHint
+                + "\n\n最後產出的樣板：\n" + (last == null ? "(無)" : last.template));
+    }
+
+    /** 產樣板規則的指紋，寫進紀錄的 pv 欄（同 {@link BookkeepingParser#PROMPT_VERSION} 的用意）。 */
+    static final String PROMPT_VERSION = AiLog.fingerprint(SYSTEM_PROMPT);
+
+    private void log(String body, int attempt, String template, String fields, String problem) {
+        if (context != null) {
+            AiLog.recordTemplate(context, body, attempt, template, fields, problem,
+                    prefs.getModel(), PROMPT_VERSION);
+        }
+    }
+
+    /** 樣板以外的欄位摘要，寫進 AiLog——帳戶對不對得上是這個功能最常出錯的地方。 */
+    private static String describe(GeneratedTemplate t) {
+        return "account_id=" + t.accountId + " category_id=" + t.categoryId
+                + " is_income=" + t.isIncome + " sample_amount=" + t.sampleAmount
+                + " confidence=" + t.confidence;
     }
 
     /**
@@ -152,6 +194,15 @@ public class TemplateGenerator {
         if (price == null || !sameAmount(price, sampleAmount)) {
             return "樣板從樣本抽出的金額「" + price + "」不等於樣本金額「" + sampleAmount + "」";
         }
+        // 1.5 非貪婪捕捉的退化：{{e}} 這類是 (\S+?)，後面若直接接 {{*}}（.*?）或就是樣板
+        // 結尾，regex 求最短匹配 → 只抓得到一個字元（Nintendo 抓成 N）。比對照樣「成功」，
+        // 所以前一關擋不住，得單獨檢查。2026-08-09 實地踩到。
+        String degenerate = findDegenerateCapture(t.template);
+        if (degenerate != null) {
+            return "佔位符 " + degenerate + " 後面直接接 {{*}} 或就是樣板結尾，這樣只會抓到一個字元。"
+                    + "請在它後面補上樣本中緊接著的固定文字當結束標記（例如換行後的下一個欄位名）；"
+                    + "找不到合適的結束標記就不要用這個佔位符。";
+        }
         // 2. 金額變異測試：換一個位數/格式都不同的金額，樣板仍須吃得下（防過擬合）。
         // 只換「獨立出現」的金額——前後不能貼著數字/逗點/小數點，否則「88」會把
         // 卡號末四碼「8842」也換爛，好樣板被誤殺（單元測試實抓）。
@@ -166,6 +217,20 @@ public class TemplateGenerator {
                 return "金額換成 " + MUTATED_AMOUNT + " 後樣板比不中——金額部分可能被寫死，"
                         + "請確認 {{p}} 位置且不要把位數寫死";
             }
+        }
+        return null;
+    }
+
+    /** 非貪婪捕捉且需要「後面的固定文字」當結束標記的佔位符。{{u}} 是貪婪的，不在此列。 */
+    private static final String[] NEEDS_ANCHOR = {"{{c}}", "{{e}}", "{{r}}", "{{t}}", "{{x}}"};
+
+    /** @return 退化的那個佔位符，沒有就 null。 */
+    static String findDegenerateCapture(String template) {
+        for (String ph : NEEDS_ANCHOR) {
+            int i = template.indexOf(ph);
+            if (i < 0) continue;
+            String rest = template.substring(i + ph.length());
+            if (rest.isEmpty() || rest.startsWith("{{*}}")) return ph;
         }
         return null;
     }

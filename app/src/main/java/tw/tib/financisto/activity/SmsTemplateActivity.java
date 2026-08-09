@@ -171,6 +171,17 @@ public class SmsTemplateActivity extends AbstractActivity {
             @Override
             public void afterTextChanged(Editable s) {}
         });
+        // 換帳戶會改變「解不解得出帳戶」的結論，所以也要重驗一次
+        accountSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                validateExampleAndHighlight(templateTxt.getText().toString(),
+                        exampleTxt.getText().toString());
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
     }
 
     private void initCategorySelector() {
@@ -380,8 +391,41 @@ public class SmsTemplateActivity extends AbstractActivity {
                     }
                     sb.append("\n");
                 }
+                appendAccountCheck(sb,
+                        matches[SmsTransactionProcessor.Placeholder.ACCOUNT.ordinal()],
+                        matches[SmsTransactionProcessor.Placeholder.ACCOUNT_NAME.ordinal()]);
                 parseResult.setText(sb);
             }
+        }
+    }
+
+    /**
+     * 比中不等於會記帳：{@link SmsTransactionProcessor} 還要求「解得出帳戶」，解不出就整筆丟掉。
+     * 這裡把同一套解法照跑一遍講給人聽——原本編輯器只驗比不比中，於是亮綠燈存檔、
+     * 實際永遠不會記帳，而且失敗訊息還說是「比不中」（2026-08-09 踩到）。
+     */
+    private void appendAccountCheck(StringBuilder sb, String accountDigits, String accountName) {
+        long resolved = 0;
+        if (accountName != null) {
+            resolved = db.getEntityIdByTitle(Account.class, accountName);
+        }
+        if (resolved <= 0) {
+            resolved = accountSpinner.getSelectedItemId();
+        }
+        if (resolved <= 0 && accountDigits != null) {
+            java.util.List<Long> byNumber = db.findAccountsByNumber(accountDigits);
+            if (!byNumber.isEmpty()) {
+                resolved = byNumber.get(0);
+            }
+        }
+        if (resolved > 0) {
+            Account a = db.getAccount(resolved);
+            sb.append(getString(R.string.sms_tpl_account_ok,
+                    a == null ? String.valueOf(resolved) : a.title));
+        } else if (accountDigits != null) {
+            sb.append(getString(R.string.sms_tpl_account_missing, accountDigits));
+        } else {
+            sb.append(getString(R.string.sms_tpl_account_missing_no_digits));
         }
     }
 }

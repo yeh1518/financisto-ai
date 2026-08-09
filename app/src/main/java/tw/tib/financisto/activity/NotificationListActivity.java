@@ -13,6 +13,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -27,11 +28,14 @@ import androidx.core.view.WindowInsetsCompat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 import tw.tib.financisto.R;
 import tw.tib.financisto.ai.AiPreferences;
 import tw.tib.financisto.ai.EntityContextBuilder;
+import tw.tib.financisto.ai.NotificationFilter;
 import tw.tib.financisto.ai.NotificationJournal;
 import tw.tib.financisto.ai.TemplateGenerator;
 import tw.tib.financisto.db.DatabaseAdapter;
@@ -138,6 +142,7 @@ public class NotificationListActivity extends AppCompatActivity {
 
     private static final int MENU_ACCESS_SETTINGS = 1;
     private static final int MENU_TEMPLATE_LIST = 2;
+    private static final int MENU_FILTER = 3;
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -146,6 +151,7 @@ public class NotificationListActivity extends AppCompatActivity {
         if (pickMode) {
             // AI 設定入口進來的順路：直通樣板列表，不必繞回實體選單
             menu.add(Menu.NONE, MENU_TEMPLATE_LIST, 1, R.string.sms_templates);
+            menu.add(Menu.NONE, MENU_FILTER, 2, R.string.ai_notif_filter);
         }
         return true;
     }
@@ -159,8 +165,55 @@ public class NotificationListActivity extends AppCompatActivity {
             case MENU_TEMPLATE_LIST:
                 startActivity(new Intent(this, SmsDragListActivity.class));
                 return true;
+            case MENU_FILTER:
+                showFilterEditor(null);
+                return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    /**
+     * 關鍵字排除清單的編輯器：一行一個，純文字整段編輯。
+     *
+     * 從選單進來＝單純看/改清單；從某則通知的「增加過濾」進來（{@code from} 非 null）
+     * 則把那則通知附在上面當參考、並在清單末尾預先加一行建議關鍵字並選取起來——
+     * 要的動作是「刪掉尾巴留下發送者」，選取狀態讓人直接開始改，不必自己先打字。
+     */
+    private void showFilterEditor(NotificationListener.ParsedNotification from) {
+        View view = LayoutInflater.from(this).inflate(R.layout.notification_filter_edit, null);
+        TextView sample = view.findViewById(R.id.filter_sample);
+        EditText input = view.findViewById(R.id.filter_keywords);
+
+        String raw = NotificationFilter.loadRaw(this);
+        if (from == null) {
+            input.setText(raw);
+            input.setSelection(input.getText().length());
+        } else {
+            sample.setVisibility(View.VISIBLE);
+            sample.setText(from.title + "\n" + from.body);
+            String suggestion = NotificationFilter.suggestKeyword(from.title, from.body);
+            String prefix = raw.isEmpty() || raw.endsWith("\n") ? raw : raw + "\n";
+            input.setText(prefix + suggestion);
+            input.setSelection(prefix.length(), prefix.length() + suggestion.length());
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.ai_notif_filter)
+                .setView(view)
+                .setPositiveButton(R.string.ai_notif_filter_save, (d, w) -> {
+                    NotificationFilter.saveRaw(this, input.getText().toString());
+                    reloadList();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** 關鍵字改完要當場看到結果，否則不知道剛剛那條到底有沒有擋到東西。 */
+    private void reloadList() {
+        list.setAdapter(new NotificationListAdapter(this, pickMode));
+        int hidden = NotificationListAdapter.lastHiddenCount;
+        Toast.makeText(this, getString(R.string.ai_notif_filter_applied, hidden),
+                Toast.LENGTH_SHORT).show();
     }
 
     private void openNotificationAccessSettings() {
@@ -181,6 +234,7 @@ public class NotificationListActivity extends AppCompatActivity {
                 getString(R.string.ai_notif_action_generate),
                 getString(R.string.ai_notif_action_parse),
                 getString(R.string.ai_notif_action_reapply),
+                getString(R.string.ai_notif_action_filter),
         };
         // 標題用「那則通知的標題」而非通用問句：對話框蓋住列表後，同一家銀行的好幾則
         // 長得很像，你會忘記剛剛點的是哪一則；三個動作本身已經夠自解釋
@@ -193,6 +247,7 @@ public class NotificationListActivity extends AppCompatActivity {
                         case 0: generateTemplate(n); break;
                         case 1: parseDirectly(n); break;
                         case 2: confirmReapply(n); break;
+                        case 3: showFilterEditor(n); break;
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)
@@ -230,20 +285,20 @@ public class NotificationListActivity extends AppCompatActivity {
     private void reapplyTemplate(NotificationListener.ParsedNotification n, boolean afterSave) {
         final DatabaseAdapter db = new DatabaseAdapter(this);
         tw.tib.financisto.Application.getExecutor().execute(() -> {
-            Transaction t = null;
+            SmsTransactionProcessor.Result r = new SmsTransactionProcessor.Result();
             try {
-                t = new SmsTransactionProcessor(db).createTransactionBySms(
+                r = new SmsTransactionProcessor(db).process(
                         this, n.title, n.body,
                         MyPreferences.getSmsTransactionStatus(),
                         MyPreferences.shouldSaveSmsToTransactionNote());
             } catch (Exception e) {
                 Log.e("NotificationList", "套用樣板失敗", e);
             }
-            final Transaction created = t;
+            final SmsTransactionProcessor.Result result = r;
             runOnUiThread(() -> {
-                if (created != null) {
+                if (result.transaction != null) {
                     AccountWidget.updateWidgets(this);
-                    String desc = describe(db, created);
+                    String desc = describe(db, result.transaction);
                     Toast.makeText(this, getString(afterSave
                                     ? R.string.ai_notif_template_saved_recorded
                                     : R.string.ai_notif_reapply_done, desc),
@@ -251,14 +306,27 @@ public class NotificationListActivity extends AppCompatActivity {
                 } else {
                     new AlertDialog.Builder(this)
                             .setTitle(R.string.ai_notification_template)
-                            .setMessage(afterSave
-                                    ? R.string.ai_notif_template_saved_no_match
-                                    : R.string.ai_notif_reapply_none)
+                            .setMessage(explainNoTransaction(result, afterSave))
                             .setPositiveButton(android.R.string.ok, null)
                             .show();
                 }
             });
         });
+    }
+
+    /**
+     * 沒記成一筆的時候要講對是哪一種：「比不中」跟「比中了但對不到帳戶」指向完全不同的
+     * 修法（改樣板 vs 去帳戶填卡號末四碼），原本兩者共用「比不中」那句話，把人帶去錯的地方。
+     */
+    private String explainNoTransaction(SmsTransactionProcessor.Result r, boolean afterSave) {
+        if (!r.matched) {
+            return getString(afterSave
+                    ? R.string.ai_notif_template_saved_no_match
+                    : R.string.ai_notif_reapply_none);
+        }
+        return r.accountDigits == null
+                ? getString(R.string.ai_notif_no_account_no_digits)
+                : getString(R.string.ai_notif_no_account, r.accountDigits);
     }
 
     /** 「帳戶 金額」一行，給結果 toast 用（看得出記到哪、記了多少就夠）。 */
@@ -285,7 +353,7 @@ public class NotificationListActivity extends AppCompatActivity {
         tw.tib.financisto.Application.getExecutor().execute(() -> {
             try {
                 EntityContextBuilder ctx = EntityContextBuilder.build(db);
-                TemplateGenerator generator = new TemplateGenerator(prefs, ctx);
+                TemplateGenerator generator = new TemplateGenerator(this, prefs, ctx);
                 TemplateGenerator.GeneratedTemplate t = generator.generate(n.title, n.body);
                 runOnUiThread(() -> {
                     progress.dismiss();
@@ -320,6 +388,9 @@ public class NotificationListActivity extends AppCompatActivity {
     }
 
     static class NotificationListAdapter extends BaseAdapter {
+        /** 上一次建構時擋掉幾則——只為了改完關鍵字能當場回報「擋掉了幾則」。 */
+        static int lastHiddenCount;
+
         private final ArrayList<NotificationListener.ParsedNotification> list;
         private final LayoutInflater inflater;
 
@@ -340,6 +411,23 @@ public class NotificationListActivity extends AppCompatActivity {
                         n.postTime = e.at;
                         list.add(n);
                     }
+                }
+            }
+            // 關鍵字排除（只在挑選模式；實體選單那個入口是拿來複製通知內容的，不該少東西）。
+            // 在顯示這一層過濾＝改掉關鍵字，被擋的東西就回來了；日誌那邊的過濾是為了不佔
+            // 100 筆的額度，兩者目的不同、都要有。
+            lastHiddenCount = 0;
+            if (includeJournal) {
+                List<String> keywords =
+                        NotificationFilter.keywords(NotificationFilter.loadRaw(context));
+                if (!keywords.isEmpty()) {
+                    int before = list.size();
+                    for (Iterator<NotificationListener.ParsedNotification> it = list.iterator();
+                         it.hasNext(); ) {
+                        NotificationListener.ParsedNotification n = it.next();
+                        if (NotificationFilter.matches(keywords, n.title, n.body)) it.remove();
+                    }
+                    lastHiddenCount = before - list.size();
                 }
             }
             // The cache is a HashMap, so its iteration order is bucket order: the list

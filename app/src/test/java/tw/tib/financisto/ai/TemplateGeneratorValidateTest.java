@@ -1,5 +1,6 @@
 package tw.tib.financisto.ai;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -72,6 +73,55 @@ public class TemplateGeneratorValidateTest {
         assertNull(TemplateGenerator.validate(template(
                 "台新銀行 台新銀行 您尾號{{a}}之信用卡於{{*}}消費NT${{p}}，{{e}}，感謝您的惠顧",
                 "88"), body));
+    }
+
+    /** 台新式通知的「商家在最後、後面沒有固定文字」版本，用來測 {{e}} 的結束標記規則。 */
+    private static final String TAIL_BODY =
+            "台新銀行 台新銀行 您尾號8842之信用卡於07/22 12:34消費NT$1,250，全聯福利中心";
+
+    @Test
+    public void payeeFollowedByAnyPlaceholderFails() {
+        // {{e}} 後面直接接 {{*}}：regex 求最短匹配，「全聯福利中心」只會抓到「全」。
+        // 比對本身照樣成功，所以這關必須獨立擋
+        String problem = TemplateGenerator.validate(template(
+                "台新銀行 台新銀行 您尾號{{a}}之信用卡於{{*}}消費NT${{p}}，{{e}}{{*}}",
+                "1,250"), BODY);
+        assertNotNull(problem);
+        assertTrue(problem.contains("{{e}}"));
+    }
+
+    @Test
+    public void payeeAtEndOfTemplateFails() {
+        String problem = TemplateGenerator.validate(template(
+                "台新銀行 台新銀行 您尾號{{a}}之信用卡於{{*}}消費NT${{p}}，{{e}}",
+                "1,250"), TAIL_BODY);
+        assertNotNull(problem);
+        assertTrue(problem.contains("{{e}}"));
+    }
+
+    @Test
+    public void payeeAnchoredByLiteralTextPasses() {
+        // 有結束標記（「，感謝您的惠顧」）就抓得到完整商家名
+        assertNull(TemplateGenerator.validate(template(
+                "台新銀行 台新銀行 您尾號{{a}}之信用卡於{{*}}消費NT${{p}}，{{e}}，感謝您的惠顧",
+                "1,250"), BODY));
+    }
+
+    @Test
+    public void anyPlaceholderAtEndIsFine() {
+        // {{*}} 本身不捕捉，擺在結尾沒問題——規則只針對會捕捉的那幾個
+        assertNull(TemplateGenerator.validate(template(
+                "台新銀行 台新銀行 您尾號{{a}}之信用卡於{{*}}消費NT${{p}}，{{*}}",
+                "1,250"), BODY));
+    }
+
+    @Test
+    public void degenerateCaptureDetectedForEachPlaceholder() {
+        for (String ph : new String[]{"{{c}}", "{{e}}", "{{r}}", "{{t}}", "{{x}}"}) {
+            assertEquals(ph, TemplateGenerator.findDegenerateCapture("固定{{p}}文字" + ph));
+            assertEquals(ph, TemplateGenerator.findDegenerateCapture("固定{{p}}文字" + ph + "{{*}}"));
+            assertNull(TemplateGenerator.findDegenerateCapture("固定{{p}}文字" + ph + "結尾標記"));
+        }
     }
 
     @Test

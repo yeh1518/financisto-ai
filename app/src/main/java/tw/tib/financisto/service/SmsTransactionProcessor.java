@@ -37,17 +37,39 @@ public class SmsTransactionProcessor {
     }
 
     /**
+     * 一次比對的結果。「沒有樣板比中」與「比中了卻沒記成一筆」是兩回事，處置也不同
+     * （前者要改樣板，後者八成是對不到帳戶），但兩者都只是「回 null」——
+     * UI 因此把後者講成「比不中」，把人指向錯的地方。2026-08-09 實地踩到後拆開。
+     */
+    public static class Result {
+        /** 記成的交易；null＝沒記成。 */
+        public Transaction transaction;
+        /** 有樣板比中內文（不論最後有沒有記成一筆）。 */
+        public boolean matched;
+        /** matched 但沒記成時：比中的樣板從內文抽到的卡號末四碼（沒抽到就 null）。 */
+        public String accountDigits;
+    }
+
+    /**
      * Parses sms and adds new transaction if it matches any sms template
      * @return new transaction or null if not matched/parsed
      */
     public Transaction createTransactionBySms(Context context, String addr, String fullSmsBody, TransactionStatus status, boolean updateNote) {
+        return process(context, addr, fullSmsBody, status, updateNote).transaction;
+    }
+
+    /** 同 {@link #createTransactionBySms}，但回報「為什麼沒記成」——給要對人解釋的 UI 用。 */
+    public Result process(Context context, String addr, String fullSmsBody, TransactionStatus status, boolean updateNote) {
+        Result res = new Result();
         List<SmsTemplate> addrTemplates = db.getSmsTemplatesByNumber(addr);
         for (final SmsTemplate template : addrTemplates) {
             String[] match = findTemplateMatches(template.template, fullSmsBody);
             if (match != null) {
                 Log.d(TAG, format("Found template \"%s\" with matches \"%s\"", template, Arrays.toString(match)));
+                res.matched = true;
 
                 String account = match[ACCOUNT.ordinal()];
+                if (res.accountDigits == null) res.accountDigits = account;
                 String account_name = match[ACCOUNT_NAME.ordinal()];
                 String transfer_to_account_name = match[TRANSFER_TO_ACCOUNT_NAME.ordinal()];
                 String parsedPrice = match[PRICE.ordinal()];
@@ -75,14 +97,21 @@ public class SmsTransactionProcessor {
                 }
                 try {
                     BigDecimal price = toBigDecimal(parsedPrice);
-                    return createNewTransaction(context, addr, fullSmsBody, template, currencyText, price, account, account_name,
+                    Transaction t = createNewTransaction(context, addr, fullSmsBody, template, currencyText, price, account, account_name,
                             transfer_to_account_name, payeeText, projectText, note, timestampMillisText, status);
+                    if (t != null) {
+                        res.transaction = t;
+                        return res;
+                    }
+                    // 比中卻建不成（多半是對不到帳戶）時**繼續試下一條樣板**：原本這裡直接
+                    // return，於是同一個標題下第一條比中的樣板會把後面的全擋掉——舊的壞樣板
+                    // 讓新存的好樣板永遠沒機會跑，是實際踩過的坑
                 } catch (Exception e) {
                     Log.e(TAG, format("Failed to parse price value: \"%s\"", parsedPrice), e);
                 }
             }
         }
-        return null;
+        return res;
     }
 
     /**
@@ -172,17 +201,21 @@ public class SmsTransactionProcessor {
         if (transferToAccountId == 0 && smsTemplate.toAccountId != -1) {
             transferToAccountId = smsTemplate.toAccountId;
         }
-        Payee payee = null;
-        Project project = null;
-        if (payeeText != null) {
-            payee = db.findOrInsertEntityByTitle(Payee.class, payeeText);
-        }
-        if (projectText != null) {
-            project = db.findOrInsertEntityByTitle(Project.class, projectText);
-        }
-        Log.d(TAG, format("payee=%s project=%s template.payeeId=%s template.projectId=%s",
-                payee, project, smsTemplate.payeeId, smsTemplate.projectId));
         if (price.compareTo(ZERO) > 0 && accountId > 0) {
+            // 收款人／專案是「找不到就新建」，所以必須等確定要記帳了才做：擺在帳戶檢查
+            // 之前的話，每一則比中但記不成的通知都會在收款人表塞一筆垃圾（{{e}} 抓歪時
+            // 更明顯——Nintendo 抓成 N 也照樣建出一個叫「N」的收款人）
+            Payee payee = null;
+            Project project = null;
+            if (payeeText != null) {
+                payee = db.findOrInsertEntityByTitle(Payee.class, payeeText);
+            }
+            if (projectText != null) {
+                project = db.findOrInsertEntityByTitle(Project.class, projectText);
+            }
+            Log.d(TAG, format("payee=%s project=%s template.payeeId=%s template.projectId=%s",
+                    payee, project, smsTemplate.payeeId, smsTemplate.projectId));
+
             res = new Transaction();
             res.isTemplate = 0;
             res.fromAccountId = accountId;
