@@ -1120,6 +1120,9 @@
     <string name="tpl_parse_result">Example notification process result</string>
     <string name="tpl_parse_not_found">(Not found)</string>
     <string name="tpl_failed_to_parse">(Failed to parse \'%s\' as decimal)</string>
+    <string name="sms_tpl_account_ok">✓ Will be recorded to: %1$s</string>
+    <string name="sms_tpl_account_missing">⚠ No account resolved — a match alone records nothing. No account is registered with digits \"%1$s\", and none is selected above. Fill in the account\'s \"Card number\" field, or pick an account above.</string>
+    <string name="sms_tpl_account_missing_no_digits">⚠ No account resolved — a match alone records nothing. Pick an account above.</string>
     <string name="pref_tpl">Notification Template</string>
     <string name="pref_tpl_transaction_status_title">Transaction Status</string>
     <string name="pref_tpl_transaction_status">Status of transaction created from template: %s</string>
@@ -1308,6 +1311,14 @@
     <string name="ai_notif_reapply_none">No template matched — this notification would not be recorded automatically</string>
     <string name="ai_notif_template_saved_recorded">Template saved, and this notification was recorded with it: %1$s</string>
     <string name="ai_notif_template_saved_no_match">Template saved, but it does not match this notification, so nothing was recorded. Check the template.</string>
+    <string name="ai_notif_action_filter">Add filter</string>
+    <string name="ai_notif_filter">Filter keywords</string>
+    <string name="ai_notif_filter_hint">One keyword per line; a notification is hidden when its title or body contains any of them (case-insensitive). Lines starting with # are comments.</string>
+    <string name="ai_notif_filter_placeholder">e.g.\nstory\nlast chance\n# hide sync status notifications\nSyncing:</string>
+    <string name="ai_notif_filter_save">Save</string>
+    <string name="ai_notif_filter_applied">Applied — %1$d hidden this time</string>
+    <string name="ai_notif_no_account">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe message contains card digits \"%1$s\", no account is registered with them, and the template itself sets no account.\n\nFix: put the last four digits into the account\'s \"Card number\" field (comma-separate several cards sharing one account, e.g. 1706,8842), or set an account on the template.</string>
+    <string name="ai_notif_no_account_no_digits">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe template sets no account and no card digits were captured from the message. Set an account on the template.</string>
     <string name="ai_api_key_missing">AI parsing not configured — set an API key in AI settings first</string>
     <string name="ai_keys_hint">Gemini has a free tier that\'s enough for personal use (see Help)</string>
     <string name="ai_provider_gemini">Google AI (Gemini)</string>
@@ -1340,6 +1351,9 @@
     <string name="ai_log_share">Share</string>
     <string name="ai_log_clear">Clear</string>
     <string name="ai_log_empty">No records yet</string>
+    <string name="ai_log_export">To backup folder</string>
+    <string name="ai_log_exported">Written to the backup folder as %1$s</string>
+    <string name="ai_log_export_failed">Export failed: %1$s</string>
     <string name="ai_voice_nothing">Didn\'t catch that — tap the mic to try again</string>
     <string name="ai_transfer_need_to_account">Transfer needs a destination account — say which account to transfer to</string>
     <string name="ai_type_switch_cancelled">Type switch cancelled</string>

@@ -12,6 +12,7 @@ import androidx.work.WorkerParameters;
 import java.util.Calendar;
 import java.util.Date;
 
+import tw.tib.financisto.ai.AiLog;
 import tw.tib.financisto.backup.DatabaseExport;
 import tw.tib.financisto.db.DatabaseAdapter;
 import tw.tib.financisto.export.Export;
@@ -47,6 +48,14 @@ public class AutoBackupWorker extends Worker {
             DatabaseExport export = new DatabaseExport(context, db.db(), true);
             Uri backupFileUri = export.export();
             boolean successful = true;
+            // 解析紀錄跟著每日備份一起送出去：手機端只留 1000 筆會被捲掉，而電腦端要靠它
+            // 累積語料做回歸比對。失敗不影響備份本身——備份是資料，紀錄只是研究素材。
+            try {
+                AiLog.exportToBackupFolder(context);
+            } catch (Exception e) {
+                Log.e(TAG, "Unable to export AI log alongside backup", e);
+                log.append("Unable to export AI log\n").append(e);
+            }
             if (MyPreferences.isDropboxUploadAutoBackups()) {
                 try {
                     Export.uploadBackupFileToDropbox(context, backupFileUri);

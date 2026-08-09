@@ -34,6 +34,12 @@ public class EntityContextBuilder {
     public final Set<Long> validProjectIds = new HashSet<>();
     /** account id -> 幣別 scale（金額換算 minor units 用）。 */
     public final Map<Long, Integer> accountScale = new HashMap<>();
+    /**
+     * 帳戶名稱 -> id。給「模型把帳戶名填進備註」的程式檢查用
+     * （見 {@link BookkeepingParser#applyAccountNamedInNote}）——那是字串比對，
+     * 程式做得比模型穩，不必再靠 prompt 交代。
+     */
+    public final Map<String, Long> accountsByName = new HashMap<>();
 
     public static EntityContextBuilder build(DatabaseAdapter db) {
         EntityContextBuilder ctx = new EntityContextBuilder();
@@ -45,6 +51,9 @@ public class EntityContextBuilder {
             ctx.validAccountIds.add(a.id);
             int scale = (a.currency != null) ? a.currency.getScale() : 2;
             ctx.accountScale.put(a.id, scale);
+            if (a.title != null && !a.title.trim().isEmpty()) {
+                ctx.accountsByName.put(a.title.trim(), a.id);
+            }
             try {
                 JSONObject o = new JSONObject();
                 o.put("id", a.id);

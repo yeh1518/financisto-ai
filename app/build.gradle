@@ -16,6 +16,23 @@ apply plugin: 'com.android.application'
 // Release 簽章：讀 gitignored 的 keystore.properties（真正的金鑰/密碼在 myinfra secrets）。
 // 檔案不存在時（別人 clone、或沒有金鑰的機器）releaseSigning 為 null → release 退回 debug 簽章，
 // 仍 build 得出來（只是不是可散佈的穩定簽章）。
+/** 建置當下的 commit 短 hash；不在 git 樹裡（下載 zip、CI 淺 clone）就回 unknown。 */
+def gitSha() {
+    try {
+        def out = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-parse', '--short', 'HEAD'
+            standardOutput = out
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+        }
+        def sha = out.toString().trim()
+        return sha.isEmpty() ? 'unknown' : sha
+    } catch (Exception ignored) {
+        return 'unknown'
+    }
+}
+
 def keystorePropsFile = rootProject.file('keystore.properties')
 def releaseSigningReady = keystorePropsFile.exists()
 def keystoreProps = new Properties()
@@ -40,6 +57,11 @@ android {
         def verCode = (int) ((System.currentTimeMillis() - verEpochMs) / 60000L)
         versionCode verCode
         versionName new Date().format('yyyy-MM-dd.HHmm')
+
+        // 建置當下的 commit：解析紀錄每一筆都會帶著它，之後才回答得出「這筆是哪一版
+        // prompt / 哪一版解析程式跑出來的」。取不到（非 git 樹、無 git）就填 unknown，
+        // 別讓建置因為這個掛掉。
+        buildConfigField "String", "GIT_SHA", "\"${gitSha()}\""
 
         multiDexEnabled = true
 

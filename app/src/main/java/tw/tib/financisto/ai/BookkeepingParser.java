@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -104,7 +105,6 @@ public class BookkeepingParser {
             + "  都可以是這段話——不必出現「收入」「支出」這種書面詞。\n"
             + "  只是補金額／帳戶／分類／備註＝null。例：轉帳表單上只講「玉山銀行信用卡」（純粹改帳戶）\n"
             + "  → null。非補充模式一律 null。\n"
-            + "- to_account 只有 transfer 才填，其他型別一律 null。\n"
             + "- 帳戶的 hint 欄＝該帳戶的口語別名／辨識提示。使用者的話是語音轉來的，人名這類專有\n"
             + "  名詞常被轉成同音錯字（例：「宥廷」→「有停」）。比對帳戶時把 name 與 hint 都納入，\n"
             + "  且**以讀音相近為準**：聽起來對得上就算對上，字面不同不是理由。\n"
@@ -112,10 +112,8 @@ public class BookkeepingParser {
             + "  與「富邦信用卡-老婆」）：使用者只講「富邦信用卡」就選那個**乾淨無後綴**的，帶後綴的變體\n"
             + "  放 alternatives；只有使用者明講後綴（講到「老婆」等）才選變體。不要自作主張挑更specific 的。\n"
             + "- ⚠️ **帳戶名本身就是一般語詞時**（如「借款」「股票」「存款」「家中現金」「虛寶買賣」\n"
-            + "  「伊甸暫付款」）**，它在清單裡就是帳戶，不要因為它聽起來像描述就丟進 note**。\n"
-            + "  判準：這個詞對得上帳戶清單的 name 或 hint → 填 account / to_account；對不上才輪到 note。\n"
-            + "  **你填進 note 的字不該和某個帳戶的 name 相同**——若相同，代表你把它放錯邊了。\n"
-            + "  例：「借款轉中信9000」→ account=借款（不是 note=\"借款\"）、to_account=中信、note=null。\n"
+            + "  「伊甸暫付款」）**，它在清單裡就是帳戶**：任何一個詞都先拿去比對帳戶清單的 name\n"
+            + "  與 hint，對不上才輪到 note。例：「借款轉中信9000」→ account=借款、to_account=中信。\n"
             + "- transfer 的 account（轉出帳戶）**不因為那個帳戶「不像銀行」就放棄**：清單裡每一個都是\n"
             + "  合法的轉出/轉入帳戶，包含 ASSET / OTHER 這類代墊、信封袋、借款、儲值額度帳戶。\n"
             + "  轉出帳戶對不上時要再回頭掃一次清單，別直接填 null。\n"
@@ -140,9 +138,8 @@ public class BookkeepingParser {
             + "    （清單沒有這個分類，是有意義的描述，就算分類選成「食材」也要寫）。\n"
             + "  * 反例：使用者只講「食材」而清單裡就有「食材」這個分類 → 那是在指定分類，note=null。\n"
             + "  * 判準：這段文字有沒有對到清單裡的名稱？沒有、且有意義 → 寫；是連接詞/語氣詞/贅字 → 丟。\n"
-            + "- project（專案）：**少用欄位，只在使用者明確講到、且對得上專案清單裡的 name 時才填，否則一律 null**。\n"
-            + "  判準同 note＝有沒有對到清單裡的專案名稱；不要因為語境「像」某專案就自己塞，也不要用常識推斷。\n"
-            + "  例：清單有專案「日本旅遊」→「日本旅遊的午餐300」project=日本旅遊；「午餐300」project=null。\n"
+            + "- project（專案）：**極少用**。只在使用者講的詞對得上專案清單的 name 時才填，其餘一律 null\n"
+            + "  （不要用語境或常識推斷）。\n"
             + "- splits（分割）：**一筆付款要拆成多個分類**時才用，把每一份放進 splits 陣列。\n"
             + "  觸發＝使用者在同一筆裡列出多個「分類＋金額」，如「好市多1500，食物1000、日用品500」、\n"
             + "  「這筆5000，房租3000、水電2000」。每份填 category（對到分類清單）、amount（該份金額，主單位）、\n"
@@ -150,14 +147,9 @@ public class BookkeepingParser {
             + "  有 splits 時：頂層 category 填 null（父交易走分割）、頂層 amount 填總額或 null 皆可（app 以各份加總為準）。\n"
             + "  **一般只有單一分類的記帳，splits 一律空陣列 []，不要硬拆**。transfer / balance 不使用 splits（splits=[]）。\n"
             + "  例：「全家60」→ splits=[]。「好市多刷1500其中食物1000日用品500」→ splits=[{食物,1000},{日用品,500}]。\n"
-            + "- date / time：**只在使用者明確講到時才填，沒講一律 null**（沒講＝用記帳當下的時間，不要自己猜）。\n"
-            + "  * date 格式 `YYYY-MM-DD`。相對日期要依【現在時間】換算：今天 / 昨天 / 前天 / 上週三 / 上個月5號 /\n"
-            + "    7月5日 / 這禮拜一 都算「明確講到日期」。\n"
-            + "  * time 格式 `HH:MM`（24 小時制）。「早上八點」→08:00、「下午三點半」→15:30、「晚上七點」→19:00、\n"
-            + "    「中午」→12:00。只講「早上／晚上」這種沒有具體鐘點的**不算**講到時間，time 填 null。\n"
-            + "  * 只講日期沒講時間＝time 填 null（呼叫端會用當下時刻）；兩者都沒講就兩個都 null。\n"
-            + "  * 例：「昨天買菜300」→ date=昨天的日期, time=null。「早上八點半買早餐50」→ date=null, time=08:30。\n"
-            + "    「7月5號下午三點繳學費」→ date=2026-07-05, time=15:00。「買菜300」→ date=null, time=null。\n";
+            + "- date（`YYYY-MM-DD`）/ time（`HH:MM` 24 小時制）：**只在明確講到時才填，沒講一律 null**\n"
+            + "  （沒講＝用記帳當下的時間，不要自己猜）。相對日期依【現在時間】換算（昨天／上週三／7月5日）。\n"
+            + "  只講「早上／晚上」沒有具體鐘點**不算**講到時間；兩者各自獨立判斷。\n";
 
     private final AiPreferences prefs;
     private final EntityContextBuilder ctx;
@@ -453,7 +445,7 @@ public class BookkeepingParser {
     private void record(String userText, boolean supplement, String formStateContext, String rawContent, String error) {
         if (logContext != null) {
             AiLog.record(logContext, userText, supplement, formStateContext, rawContent, error,
-                    prefs.getModel(), inputSource);
+                    prefs.getModel(), inputSource, PROMPT_VERSION);
         }
     }
 
@@ -482,6 +474,16 @@ public class BookkeepingParser {
             + "(c) 只是修正某個既有欄位（金額/分類/帳戶/備註/型別…）＝只回被改的那一欄，splits 留空、其餘 null。\n"
             + "判準：這句話在「補上另一個品項＋金額」就走分割(a/b)；在「改掉原本某個值」就走修正(c)。\n"
             + "沒有【目前表單已填內容】區塊時，比照一般補充模式處理。\n";
+
+    /**
+     * 規則文字的指紋，寫進每一筆紀錄的 pv 欄。
+     *
+     * 涵蓋三段規則的**全部**（不分這次走的是哪一種模式），所以同一個建置內是常數：
+     * 要回答的問題是「這批語料是哪一版規則跑出來的」，模式差異另有 stt / mode 欄可分。
+     * 刻意不含帳戶/分類清單與【現在時間】——那些是資料、天天在變，混進來版本就失去意義。
+     */
+    static final String PROMPT_VERSION =
+            AiLog.fingerprint(SYSTEM_PROMPT + AUDIO_RULE + SUPPLEMENT_RULE);
 
     /** 相對日期（昨天／上週三）要換算就得先知道「現在」——每次呼叫都現算，不能寫死。 */
     private static String nowContext() {
@@ -558,7 +560,57 @@ public class BookkeepingParser {
         t.category = readPick(data.optJSONObject("category"), ctx.validCategoryIds);
         t.project = readPick(data.optJSONObject("project"), ctx.validProjectIds);
         t.splits = readSplits(data.optJSONArray("splits"));
+
+        clearToAccountUnlessTransfer(t);
+        applyAccountNamedInNote(t, ctx.accountsByName, userText);
         return t;
+    }
+
+    /**
+     * 不是轉帳就不該有轉入帳戶。
+     *
+     * 這件事沒有任何判斷成分，一個 if 就能保證，本來卻是 prompt 裡的一條規則——
+     * 規則寫在 prompt 就得跟其他十幾條搶模型的注意力，而且沒人驗它有沒有被遵守。
+     *
+     * type 為 null 時不動：補充模式的 null＝「型別不變」，這時使用者可能正在補轉入帳戶。
+     */
+    static void clearToAccountUnlessTransfer(ParsedTransaction t) {
+        if (t.transactionType != null
+                && !ParsedTransaction.TYPE_TRANSFER.equals(t.transactionType)) {
+            t.toAccount = new ParsedTransaction.Pick();
+        }
+    }
+
+    /**
+     * 備註整段就是某個帳戶的名字時，把它放回帳戶欄。
+     *
+     * 這是實地反覆出現的失敗形狀：「借款轉中信9000」解成 account=null / note="借款"，
+     * 「玉山信用卡2383」更糟——note="玉山信用卡" 而帳戶挑了中信信用卡。prompt 裡寫過
+     * 「你填進 note 的字不該和某個帳戶的 name 相同」，模型照樣犯：判斷一個字串等不等於
+     * 清單裡某個名字是程式的強項、模型的弱項，本來就不該託付給它。
+     *
+     * 敢覆蓋模型已經挑好的帳戶，是因為有原句佐證——**那個名字要真的出現在使用者說的話裡**
+     * 才動（同 {@link #resolveTypeChange} 的原則：模型指出證據、程式驗證證據）。
+     * 名字不在原句裡就只把備註清掉，不碰帳戶：那是模型自己生的字，沒有份量。
+     *
+     * @param userText 使用者原句（語音就是轉寫）；null＝沒有佐證可驗，只清備註
+     */
+    static void applyAccountNamedInNote(ParsedTransaction t, Map<String, Long> accountsByName,
+                                        String userText) {
+        if (t.note == null || accountsByName == null) return;
+        Long named = accountsByName.get(t.note.trim());
+        if (named == null) return;
+        // 轉帳時備註若是轉入帳戶的名字，那只是重複，不能拿去蓋轉出帳戶
+        boolean isToAccount = t.toAccount.resolved() && named.equals(t.toAccount.id);
+        if (!isToAccount && userText != null
+                && squeeze(userText).contains(squeeze(t.note))
+                && !named.equals(t.account.id)) {
+            ParsedTransaction.Pick p = new ParsedTransaction.Pick();
+            p.id = named;
+            p.confidence = 1;   // 名稱完全相符且原句佐證得到，比模型的猜測可信
+            t.account = p;
+        }
+        t.note = null;
     }
 
     /**

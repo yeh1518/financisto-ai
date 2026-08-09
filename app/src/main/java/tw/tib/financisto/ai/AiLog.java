@@ -1,10 +1,15 @@
 package tw.tib.financisto.ai;
 
 import android.content.Context;
+import android.net.Uri;
+import android.provider.DocumentsContract;
 import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import tw.tib.financisto.BuildConfig;
+import tw.tib.financisto.export.Export;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -13,6 +18,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.io.OutputStream;
+import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -32,6 +39,8 @@ public class AiLog {
 
     private static final String TAG = "AiLog";
     private static final String FILE_NAME = "ai_log.jsonl";
+    /** 匯出到備份資料夾用的檔名（固定，每次覆蓋）。電腦端的 ingest 認這個名字。 */
+    public static final String EXPORT_FILE_NAME = "ai-log.jsonl";
     /**
      * 超過就修剪，只留最後 MAX_ENTRIES 筆。
      * 2026-07-31 從 300 筆／256KB 放寬到 1000 筆／1MB：偶發的解析錯誤事後才想追，
@@ -63,11 +72,12 @@ public class AiLog {
      */
     public static void record(Context context, String utterance, boolean supplement,
                               String formState, String rawContent, String error,
-                              String model, String stt) {
+                              String model, String stt, String promptVersion) {
         try {
             JSONObject o = new JSONObject();
             o.put("at", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
             o.put("said", utterance == null ? "" : utterance);
+            stampVersion(o, promptVersion);
             if (model != null) o.put("model", model);
             if (stt != null) o.put("stt", stt);
             if (supplement) o.put("mode", "supplement");
@@ -77,6 +87,71 @@ public class AiLog {
             append(context, o.toString());
         } catch (JSONException e) {
             Log.e(TAG, "組紀錄失敗", e);
+        }
+    }
+
+    /**
+     * 記一次「產樣板」（{@link TemplateGenerator}）。**每一次嘗試各記一筆**，含被驗證打回的那次。
+     *
+     * 為什麼與 {@link #record} 分開：兩者要留的東西不一樣。解析要留的是原句與模型回的 JSON；
+     * 產樣板要留的是**模型寫出來的那條樣板**與**確定性驗證為什麼把它打回**——沒有這兩樣，
+     * 事後只剩使用者轉述的一句「驗證失敗」，根本判斷不出是模型把固定文字抄歪了、還是驗證太嚴。
+     * （2026-08-09 補：在此之前產樣板完全不留痕跡，一則通知產不出樣板的原因無法事後追。）
+     *
+     * @param notification 送進模型的通知內文（含 title 前綴，＝驗證回測用的同一份）
+     * @param attempt      第幾次嘗試，從 1 起算
+     * @param template     模型產出的樣板（呼叫模型就失敗時為 null）
+     * @param fields       樣板的其他欄位摘要（帳戶／分類／收支／樣本金額／把握度）
+     * @param error        這次為什麼不算數（驗證問題或呼叫失敗）；null＝通過
+     */
+    public static void recordTemplate(Context context, String notification, int attempt,
+                                      String template, String fields, String error, String model,
+                                      String promptVersion) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("at", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
+            o.put("kind", "template");
+            o.put("said", notification == null ? "" : notification);
+            o.put("attempt", attempt);
+            stampVersion(o, promptVersion);
+            if (model != null) o.put("model", model);
+            if (template != null) o.put("got", template);
+            if (fields != null) o.put("fields", fields);
+            if (error != null) o.put("error", error);
+            append(context, o.toString());
+        } catch (JSONException e) {
+            Log.e(TAG, "組樣板紀錄失敗", e);
+        }
+    }
+
+    /**
+     * 每一筆都蓋上「這是哪一版跑出來的」：
+     * <ul>
+     *   <li>{@code pv}＝當次實際送出的 prompt 指紋（不含帳戶/分類清單——那是資料不是規則，
+     *       Gary 新增一個帳戶不該讓版本跳號）。改 prompt 一個字就會變。</li>
+     *   <li>{@code av}＝建置時間，{@code sha}＝建置當下的 commit（解析程式那半的版本）。</li>
+     * </ul>
+     * 沒有這三欄，語料只能證明「模型某天答錯了」，無法回答「換掉那條規則之後有沒有變好」。
+     */
+    private static void stampVersion(JSONObject o, String promptVersion) throws JSONException {
+        if (promptVersion != null) o.put("pv", promptVersion);
+        o.put("av", BuildConfig.VERSION_NAME);
+        o.put("sha", BuildConfig.GIT_SHA);
+    }
+
+    /**
+     * prompt 指紋：SHA-1 前 8 碼。取 hash 而不是流水號，是因為流水號要靠人記得改——
+     * 改了 prompt 忘了改號碼，語料就整批標錯，比沒有版本還糟。
+     */
+    public static String fingerprint(String prompt) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            byte[] d = md.digest(prompt.getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 4; i++) sb.append(String.format("%02x", d[i]));
+            return sb.toString();
+        } catch (Exception e) {
+            return "nohash";
         }
     }
 
@@ -133,6 +208,16 @@ public class AiLog {
                 JSONObject o = new JSONObject(lines.get(i));
                 sb.append(o.optString("at"));
                 if (o.has("model")) sb.append("  [").append(o.optString("model")).append(']');
+                if ("template".equals(o.optString("kind"))) {
+                    sb.append("  [產樣板 第").append(o.optInt("attempt", 1)).append("次]\n");
+                    sb.append("通知：").append(o.optString("said")).append('\n');
+                    if (o.has("got")) sb.append("樣板：").append(o.optString("got")).append('\n');
+                    if (o.has("fields")) sb.append("欄位：").append(o.optString("fields")).append('\n');
+                    sb.append(o.has("error")
+                            ? "失敗：" + o.optString("error") + "\n" : "驗證通過\n");
+                    sb.append('\n');
+                    continue;
+                }
                 if (o.has("stt")) sb.append("  [聽:").append(o.optString("stt")).append(']');
                 sb.append('\n');
                 sb.append("說：").append(o.optString("said")).append('\n');
@@ -149,6 +234,63 @@ public class AiLog {
             sb.append('\n');
         }
         return sb.toString();
+    }
+
+    /**
+     * 匯出到「備份資料夾」——與每日 .backup 同一個 SAF 目錄，因此走同一條 Syncthing 通道
+     * 自動落到電腦上，不必再手動分享。
+     *
+     * 為什麼寫 JSONL 原始格式而不是畫面上那份人看的排版：電腦端要拿它當語料累積與回歸比對，
+     * 人看的排版得靠 regex 反解、多一個欄位就可能解錯。人看的那份留給畫面與分享鈕。
+     *
+     * 固定檔名覆蓋（不是每天一個新檔）：手機這邊只負責提供「最新全量」，累積與去重是電腦端
+     * 的事——手機端的紀錄本來就有 {@value #MAX_ENTRIES} 筆上限，留幾份舊檔也補不回被捲掉的。
+     *
+     * @return 寫出去的檔案 Uri
+     */
+    public static Uri exportToBackupFolder(Context context) throws Exception {
+        String folder = Export.getBackupFolder(context);
+        if (folder == null || folder.isEmpty()) {
+            throw new IllegalStateException("尚未設定備份資料夾");
+        }
+        Uri tree = Uri.parse(folder);
+        Uri dir = DocumentsContract.buildDocumentUriUsingTree(
+                tree, DocumentsContract.getTreeDocumentId(tree));
+        Uri target = findChild(context, tree, dir, EXPORT_FILE_NAME);
+        if (target == null) {
+            target = DocumentsContract.createDocument(
+                    context.getContentResolver(), dir, "application/json", EXPORT_FILE_NAME);
+        }
+        if (target == null) {
+            throw new IllegalStateException("無法在備份資料夾建立 " + EXPORT_FILE_NAME);
+        }
+        // "wt"＝truncate 後重寫；少了 t 會變成疊寫，舊內容的尾巴會留在後面
+        try (OutputStream os = context.getContentResolver().openOutputStream(target, "wt");
+             Writer w = new OutputStreamWriter(os, "UTF-8")) {
+            for (String line : readLines(file(context))) {
+                w.write(line);
+                w.write("\n");
+            }
+        }
+        return target;
+    }
+
+    /** SAF 沒有「依名字取檔」的 API，只能列子項目找——找不到回 null（代表要新建）。 */
+    private static Uri findChild(Context context, Uri tree, Uri dir, String name) {
+        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(
+                tree, DocumentsContract.getDocumentId(dir));
+        try (android.database.Cursor c = context.getContentResolver().query(children,
+                new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                        DocumentsContract.Document.COLUMN_DISPLAY_NAME}, null, null, null)) {
+            while (c != null && c.moveToNext()) {
+                if (name.equals(c.getString(1))) {
+                    return DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0));
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "找備份資料夾內既有檔案失敗", e);
+        }
+        return null;
     }
 
     public static void clear(Context context) {

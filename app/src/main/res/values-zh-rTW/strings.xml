@@ -911,6 +911,9 @@
   <string name="tpl_parse_result">範例處理結果</string>
   <string name="tpl_parse_not_found">(未找到)</string>
   <string name="tpl_failed_to_parse">(無法將 \'%s\' 解讀成數字)</string>
+  <string name="sms_tpl_account_ok">✓ 會記到帳戶：%1$s</string>
+  <string name="sms_tpl_account_missing">⚠ 對不到帳戶——只是比中並不會記帳。末四碼「%1$s」沒有對應的帳戶，上方也沒有選帳戶。請到帳戶編輯頁把「卡號」填成後四碼，或在上方直接選一個帳戶。</string>
+  <string name="sms_tpl_account_missing_no_digits">⚠ 對不到帳戶——只是比中並不會記帳。請在上方選一個帳戶。</string>
   <string name="pref_tpl">通知模板</string>
   <string name="pref_tpl_transaction_status_title">交易狀態</string>
   <string name="pref_tpl_transaction_status">從模板自動產生的交易狀態: %s</string>
@@ -1143,6 +1146,14 @@
   <string name="ai_notif_reapply_none">沒有樣板比中這則通知——它目前不會被自動記帳</string>
   <string name="ai_notif_template_saved_recorded">樣板已存，並依它把這則通知記起來了：%1$s</string>
   <string name="ai_notif_template_saved_no_match">樣板已存，但它比不中這則通知，所以沒有記帳。請檢查樣板內容。</string>
+  <string name="ai_notif_action_filter">增加過濾</string>
+  <string name="ai_notif_filter">過濾關鍵字</string>
+  <string name="ai_notif_filter_hint">一行一個關鍵字，標題或內文含到就不顯示（不分大小寫）。# 開頭的行當註解。</string>
+  <string name="ai_notif_filter_placeholder">例：\n限時動態\n優惠最後倒數\n# 下面這行擋同步狀態通知\nSyncing:</string>
+  <string name="ai_notif_filter_save">儲存</string>
+  <string name="ai_notif_filter_applied">已套用，這次擋掉 %1$d 則</string>
+  <string name="ai_notif_no_account">樣板比中了，但對不到帳戶，所以沒有記帳。\n\n內文的卡號末四碼是「%1$s」，沒有帳戶登記這組號碼，樣板本身也沒有指定帳戶。\n\n解法：到該帳戶的編輯頁把「卡號」填成後四碼（同一個帳戶有多張卡時用逗號分隔，例：1706,8842），或直接在樣板裡指定帳戶。</string>
+  <string name="ai_notif_no_account_no_digits">樣板比中了，但對不到帳戶，所以沒有記帳。\n\n樣板沒有指定帳戶，內文也沒抽到卡號末四碼。請在樣板裡指定帳戶。</string>
   <string name="ai_api_key_missing">AI 解析尚未設定——請先到 AI 設定填 API key</string>
   <string name="ai_keys_hint">Gemini 有免費額度，個人記帳夠用（詳見說明）</string>
   <string name="ai_provider_gemini">Google AI（Gemini）</string>
@@ -1175,6 +1186,9 @@
   <string name="ai_log_share">分享</string>
   <string name="ai_log_clear">清除</string>
   <string name="ai_log_empty">還沒有紀錄</string>
+  <string name="ai_log_export">存到備份夾</string>
+  <string name="ai_log_exported">已寫進備份資料夾：%1$s</string>
+  <string name="ai_log_export_failed">匯出失敗：%1$s</string>
   <string name="ai_voice_nothing">沒聽到內容，點麥克風再試一次</string>
   <string name="ai_transfer_need_to_account">轉帳需要指定轉入帳戶，請說出要轉入哪個帳戶</string>
   <string name="ai_type_switch_cancelled">已取消切換型別</string>
