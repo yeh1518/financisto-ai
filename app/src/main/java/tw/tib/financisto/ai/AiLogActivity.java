@@ -61,7 +61,7 @@ public class AiLogActivity extends ComponentActivity {
     private void exportToBackupFolder() {
         try {
             AiLog.exportToBackupFolder(this);
-            Toast.makeText(this, getString(R.string.ai_log_exported, AiLog.EXPORT_FILE_NAME),
+            Toast.makeText(this, getString(R.string.ai_log_exported, AiLog.SNAPSHOT_FILE_NAME),
                     Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             Toast.makeText(this, getString(R.string.ai_log_export_failed, e.getMessage()),

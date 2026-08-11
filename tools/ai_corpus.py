@@ -129,11 +129,28 @@ def collect_sources(paths):
     files = []
     for p in paths:
         if os.path.isdir(p):
-            files.append(os.path.join(p, EXPORT_NAME))
+            # 名字用 glob 抓：SAF 建檔時會依 mime type 自己補副檔名，
+            # 匯出的檔實際落地可能是 ai-log.jsonl.json 而不是 ai-log.jsonl
+            files.extend(sorted(glob.glob(os.path.join(p, "ai-log*"))))
             files.extend(sorted(glob.glob(os.path.join(p, "*.txt"))))
         else:
             files.append(p)
     return [f for f in files if os.path.exists(f)]
+
+
+def read_any(path):
+    """看內容決定怎麼讀，不看副檔名——副檔名不是我們說了算（見 collect_sources）。"""
+    try:
+        with io.open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                json.loads(line)      # 第一行就是一個 JSON 物件＝JSONL
+                return read_jsonl(path)
+    except (ValueError, OSError):
+        pass
+    return read_legacy(path)
 
 
 # --------------------------------------------------------------------------- 實體清單
@@ -372,7 +389,7 @@ def cmd_ingest(args):
     seen = {entry_key(e) for e in existing}
     added, per_file = [], []
     for path in collect_sources(cfg["sources"]):
-        entries = read_jsonl(path) if path.endswith(".jsonl") else read_legacy(path)
+        entries = read_any(path)
         new = [e for e in entries if entry_key(e) not in seen]
         for e in new:
             seen.add(entry_key(e))

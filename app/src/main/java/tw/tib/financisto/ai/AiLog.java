@@ -1,7 +1,9 @@
 package tw.tib.financisto.ai;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.Uri;
+import android.preference.PreferenceManager;
 import android.provider.DocumentsContract;
 import android.util.Log;
 
@@ -39,8 +41,23 @@ public class AiLog {
 
     private static final String TAG = "AiLog";
     private static final String FILE_NAME = "ai_log.jsonl";
-    /** 匯出到備份資料夾用的檔名（固定，每次覆蓋）。電腦端的 ingest 認這個名字。 */
-    public static final String EXPORT_FILE_NAME = "ai-log.jsonl";
+    /**
+     * 匯出到備份資料夾用的檔名（固定，每次覆蓋）。電腦端的 ingest 認這個名字。
+     *
+     * 副檔名跟著 mime type 用 .json 而不是內容其實更貼切的 .jsonl：SAF 建檔時會依 mime
+     * 自己補副檔名，取名 ai-log.jsonl 實際會落地成 ai-log.jsonl.json（2026-08-10 實證）。
+     * 內容仍是一行一個 JSON 物件。
+     */
+    public static final String EXPORT_FILE_NAME = "ai-log.json";
+    /**
+     * 完整快照的檔名。與上面那個滾動附加的檔**分開**：那個只增不減（電腦端語料庫的來源），
+     * 快照是整份覆蓋，兩者共用一個檔的話，一次快照就會把累積的歷史砍到只剩手機留的那 1000 筆。
+     * 快照的用途是補洞——滾動附加曾經失敗、或換手機重裝之後把現有的補回去。
+     */
+    public static final String SNAPSHOT_FILE_NAME = "ai-log-full.json";
+    /** 記住這兩個檔的 Uri，下次直接寫它，不必再靠檔名去找。 */
+    private static final String KEY_EXPORT_URI = "ai_log_export_uri";
+    private static final String KEY_SNAPSHOT_URI = "ai_log_snapshot_uri";
     /**
      * 超過就修剪，只留最後 MAX_ENTRIES 筆。
      * 2026-07-31 從 300 筆／256KB 放寬到 1000 筆／1MB：偶發的解析錯誤事後才想追，
@@ -164,8 +181,34 @@ public class AiLog {
             Log.e(TAG, "寫紀錄失敗", e);
             return;
         }
+        mirrorToBackupFolder(context, line);
         if (f.length() > TRIM_THRESHOLD_BYTES) {
             trim(f);
+        }
+    }
+
+    /**
+     * 每寫一筆就同步附加到備份資料夾那份，讓語料不必等每日備份、也不必手動按鈕。
+     *
+     * 附加而不是整檔重寫：手機這邊只留 {@value #MAX_ENTRIES} 筆、超過就捲掉，備份資料夾那份
+     * 卻是電腦端語料庫的來源，**不能跟著捲**。所以那個檔只增不減，也因此絕不能被完整快照
+     * 覆蓋——快照另外寫 {@link #SNAPSHOT_FILE_NAME}。
+     *
+     * 一律吞掉例外：這是研究素材，不值得為了它讓一筆記帳失敗。寫不進去也還有每日的完整快照
+     * 可以補洞（電腦端 ingest 會去重）。
+     */
+    private static void mirrorToBackupFolder(Context context, String line) {
+        try {
+            Uri target = resolveTarget(context, EXPORT_FILE_NAME, KEY_EXPORT_URI);
+            if (target == null) return;
+            // "wa"＝append。少了 a 就會從頭覆蓋，等於每次只剩最後一行
+            try (OutputStream os = context.getContentResolver().openOutputStream(target, "wa");
+                 Writer w = new OutputStreamWriter(os, "UTF-8")) {
+                w.write(line);
+                w.write("\n");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "同步到備份資料夾失敗（不影響記帳）", e);
         }
     }
 
@@ -249,20 +292,9 @@ public class AiLog {
      * @return 寫出去的檔案 Uri
      */
     public static Uri exportToBackupFolder(Context context) throws Exception {
-        String folder = Export.getBackupFolder(context);
-        if (folder == null || folder.isEmpty()) {
+        Uri target = resolveTarget(context, SNAPSHOT_FILE_NAME, KEY_SNAPSHOT_URI);
+        if (target == null) {
             throw new IllegalStateException("尚未設定備份資料夾");
-        }
-        Uri tree = Uri.parse(folder);
-        Uri dir = DocumentsContract.buildDocumentUriUsingTree(
-                tree, DocumentsContract.getTreeDocumentId(tree));
-        Uri target = findChild(context, tree, dir, EXPORT_FILE_NAME);
-        if (target == null) {
-            target = DocumentsContract.createDocument(
-                    context.getContentResolver(), dir, "application/json", EXPORT_FILE_NAME);
-        }
-        if (target == null) {
-            throw new IllegalStateException("無法在備份資料夾建立 " + EXPORT_FILE_NAME);
         }
         // "wt"＝truncate 後重寫；少了 t 會變成疊寫，舊內容的尾巴會留在後面
         try (OutputStream os = context.getContentResolver().openOutputStream(target, "wt");
@@ -273,6 +305,53 @@ public class AiLog {
             }
         }
         return target;
+    }
+
+    /**
+     * 取得備份資料夾裡那個檔（沒有就建），並把 Uri 記起來。
+     *
+     * 認 Uri 而不是認檔名：SAF 建檔時可能依 mime 補副檔名，落地的名字未必等於我們給的名字，
+     * 靠名字找會每次都找不到、每次都新建一個「ai-log (1)、(2)…」（2026-08-10 實證）。
+     *
+     * @return null＝還沒設定備份資料夾
+     */
+    private static Uri resolveTarget(Context context, String name, String prefKey) {
+        String folder = Export.getBackupFolder(context);
+        if (folder == null || folder.isEmpty()) return null;
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        String saved = prefs.getString(prefKey, null);
+        if (saved != null) {
+            Uri u = Uri.parse(saved);
+            if (exists(context, u)) return u;
+        }
+        Uri tree = Uri.parse(folder);
+        Uri dir = DocumentsContract.buildDocumentUriUsingTree(
+                tree, DocumentsContract.getTreeDocumentId(tree));
+        Uri target = findChild(context, tree, dir, name);
+        if (target == null) {
+            try {
+                target = DocumentsContract.createDocument(
+                        context.getContentResolver(), dir, "application/json", name);
+            } catch (java.io.FileNotFoundException e) {
+                Log.e(TAG, "備份資料夾不存在或已失去授權", e);
+                return null;
+            }
+        }
+        if (target != null) {
+            prefs.edit().putString(prefKey, target.toString()).apply();
+        }
+        return target;
+    }
+
+    /** 記住的那個檔還在不在（使用者可能自己刪了或換了備份資料夾）。 */
+    private static boolean exists(Context context, Uri uri) {
+        try (android.database.Cursor c = context.getContentResolver().query(
+                uri, new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID},
+                null, null, null)) {
+            return c != null && c.moveToFirst();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** SAF 沒有「依名字取檔」的 API，只能列子項目找——找不到回 null（代表要新建）。 */
