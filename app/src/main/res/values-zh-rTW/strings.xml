@@ -1138,8 +1138,8 @@
   <string name="ai_notification_template_generating">正在產生樣板…</string>
   <string name="ai_notification_template_failed">樣板產生失敗：%1$s</string>
   <string name="ai_notif_action_title">這則通知要怎麼處理</string>
-  <string name="ai_notif_action_generate">AI 樣板</string>
-  <string name="ai_notif_action_parse">AI 交易</string>
+  <string name="ai_notif_action_generate">AI解析產生樣板</string>
+  <string name="ai_notif_action_parse">AI解析交易</string>
   <string name="ai_notif_action_reapply">套用樣板</string>
   <string name="ai_notif_reapply_confirm">要用現有樣板把這則通知記成一筆交易嗎？\n\n重複執行會記成兩筆。</string>
   <string name="ai_notif_reapply_done">已記一筆：%1$s</string>
