@@ -148,8 +148,14 @@ public class TemplateGenerator {
                 throw e;
             }
             last = t;
+            // 先把抄歪的空白修回原文的樣子，再驗證——空白是模型最常抄錯、也是程式最容易
+            // 修對的東西，為了它多耗一次 API 重試不划算
+            String raw = t.template;
+            t.template = repairWhitespace(t.template, body);
             String problem = validate(t, body);
-            log(body, attempt, t.template, describe(t), problem);
+            log(body, attempt, t.template
+                            + (t.template.equals(raw) ? "" : "\n（空白已依原文修正，模型原本產出：" + raw + "）"),
+                    describe(t), problem);
             if (problem == null) return t;
             retryHint = problem;
         }
@@ -233,6 +239,77 @@ public class TemplateGenerator {
             if (rest.isEmpty() || rest.startsWith("{{*}}")) return ph;
         }
         return null;
+    }
+
+    /** 切開樣板的佔位符與固定文字，兩者都保留。 */
+    private static final java.util.regex.Pattern PLACEHOLDER =
+            java.util.regex.Pattern.compile("\\{\\{[a-z*]\\}\\}");
+
+    /**
+     * 把模型抄歪的空白修回原文的樣子。
+     *
+     * 模型很擅長挑出「哪裡是變動的」，很不擅長逐字複製——特別是中文之間的半形空格與全形空白，
+     * 它會順手正規化掉。少一個空格整條樣板就比不中，因為 {{e}} 這類是 (\S+?)，吃不下空白。
+     * 實地兩次都死在這裡（2026-08-09 的全形「卡　　號」、2026-08-11 的「在 商家 刷卡。」）。
+     *
+     * 作法：把樣板切成「固定文字」與「佔位符」，每段固定文字拿去原文裡用**忽略空白**的方式
+     * 定位，找到就換成原文那一段的實際字元（連同緊鄰的空白一起吃進來，讓空白落在固定文字裡
+     * 而不是佔位符的地盤）。定位不到就整段放棄、回傳原樣板，交給既有的驗證去擋。
+     *
+     * 修完仍要跑完整驗證：這裡放寬只是為了「找到位置」，對不對由 {@link #validate} 說了算。
+     */
+    static String repairWhitespace(String template, String body) {
+        if (template == null || body == null) return template;
+        java.util.regex.Matcher m = PLACEHOLDER.matcher(template);
+        StringBuilder out = new StringBuilder();
+        int last = 0;          // 樣板上的游標
+        int cursor = 0;        // 原文上的游標：固定文字必須依序出現
+        while (true) {
+            boolean found = m.find();
+            String literal = template.substring(last, found ? m.start() : template.length());
+            if (!literal.isEmpty()) {
+                int[] span = locate(literal, body, cursor);
+                if (span == null) return template;      // 有一段對不上就別修了，避免越修越糟
+                out.append(body, span[0], span[1]);
+                cursor = span[1];
+            }
+            if (!found) break;
+            out.append(m.group());
+            last = m.end();
+        }
+        return out.toString();
+    }
+
+    /**
+     * 在 body 的 from 之後找這段固定文字（忽略字元之間的空白），回傳 {起,迄}——
+     * 並把緊鄰前後的空白一起圈進來。空白留在固定文字裡，佔位符才不必去吃它。
+     */
+    /**
+     * 空白的字元類。**不能只寫 `\s`**：Java 的 `\s` 是 [ \t\n\x0B\f\r]，不含全形空白 U+3000
+     * 也不含 NBSP——而「卡　　號」這種全形空白正是模型最愛抄歪、也最需要修的東西。
+     */
+    private static final String SPACES = "[\\s\\u00A0\\u3000]*";
+
+    private static boolean isSpace(char c) {
+        return Character.isWhitespace(c) || c == ' ' || c == '　';
+    }
+
+    private static int[] locate(String literal, String body, int from) {
+        StringBuilder p = new StringBuilder();
+        for (int i = 0; i < literal.length(); i++) {
+            char c = literal.charAt(i);
+            if (isSpace(c)) continue;
+            if (p.length() > 0) p.append(SPACES);
+            p.append(java.util.regex.Pattern.quote(String.valueOf(c)));
+        }
+        if (p.length() == 0) return new int[]{from, from};   // 整段都是空白
+        java.util.regex.Matcher m =
+                java.util.regex.Pattern.compile(p.toString()).matcher(body);
+        if (!m.find(from)) return null;
+        int s = m.start(), e = m.end();
+        while (s > from && isSpace(body.charAt(s - 1))) s--;
+        while (e < body.length() && isSpace(body.charAt(e))) e++;
+        return new int[]{s, e};
     }
 
     private static boolean sameAmount(String a, String b) {
