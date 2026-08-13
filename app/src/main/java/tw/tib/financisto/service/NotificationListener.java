@@ -160,7 +160,9 @@ public class NotificationListener extends NotificationListenerService {
 
             // 存進滾動日誌給「AI 產樣板」的通知列表用（cache 滑掉就沒了，日誌留 7 天）。
             // body 存與樣板引擎吃到的同一格式（含 title 前綴），生成樣板回測才一致。
-            NotificationJournal.record(context, packageName, title, body);
+            // 時間一定要傳 sbn 的 postTime、不能讓日誌自己取當下：onListenerConnected 會把
+            // 通知欄裡還掛著的舊通知整批重掃一遍，用當下時間會把它們全壓成「app 啟動那一刻」。
+            NotificationJournal.record(context, packageName, title, body, notification.postTime);
 
             if (processTemplate && (existing == null || !body.equals(existing.body))) {
                 if (GOOGLE_WALLET_PACKAGES.contains(packageName)
@@ -193,6 +195,7 @@ public class NotificationListener extends NotificationListenerService {
             StringBuilder sb = new StringBuilder();
             result = new ParsedNotification();
             result.key = sbn.getKey();
+            result.pkg = sbn.getPackageName();
             result.postTime = sbn.getPostTime();
             result.title = getString(extras.getCharSequence(Notification.EXTRA_TITLE));
             String text = getString(extras.getCharSequence(Notification.EXTRA_TEXT));
@@ -217,6 +220,8 @@ public class NotificationListener extends NotificationListenerService {
         public String title;
         public String text;
         public String body;
+        /** 來源套件名。列表顯示 app 名稱、以及排除整個 app 都靠它。 */
+        public String pkg;
         /** When the notification was posted; used to order the notification list. */
         public long postTime;
     }

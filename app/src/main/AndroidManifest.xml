@@ -456,6 +456,14 @@
 		<intent>
 			<action android:name="android.speech.action.RECOGNIZE_SPEECH" />
 		</intent>
+		<!-- 通知列表要顯示「這則通知是哪個 app 送的」：targetSdk 30+ 的 package visibility 下
+		     對任意套件查 getApplicationInfo 會 NameNotFoundException（listener 沒有豁免）。
+		     宣告 MAIN/LAUNCHER 讓所有「有桌面圖示的 app」可見就夠了——銀行、支付、社群
+		     全都符合。刻意不用 QUERY_ALL_PACKAGES：那是為了列舉整台手機，這裡只要翻名字。 -->
+		<intent>
+			<action android:name="android.intent.action.MAIN" />
+			<category android:name="android.intent.category.LAUNCHER" />
+		</intent>
 	</queries>
 
 </manifest> 

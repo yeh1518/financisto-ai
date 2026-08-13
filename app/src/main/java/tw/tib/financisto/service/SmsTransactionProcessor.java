@@ -60,6 +60,20 @@ public class SmsTransactionProcessor {
 
     /** 同 {@link #createTransactionBySms}，但回報「為什麼沒記成」——給要對人解釋的 UI 用。 */
     public Result process(Context context, String addr, String fullSmsBody, TransactionStatus status, boolean updateNote) {
+        return process(context, addr, fullSmsBody, status, updateNote, 0);
+    }
+
+    /**
+     * @param fallbackDateTime 樣板沒抽到 {@code {{g}}} 時間戳時，要記成的交易時間
+     *        （0＝用交易物件預設的「當下」）。
+     *
+     *        給「事後拿一則舊通知來記帳」用：通知日誌留 7 天，從列表點三天前那則通知套樣板，
+     *        交易時間該是通知發出的時間、不是按下去的當下。背景自動入帳不需要（收到就記，
+     *        當下 ≈ 通知時間），所以走上面那個不帶時間的版本。
+     *        樣板自己抽到的 {{g}} 優先——那是銀行給的，比通知時間準。
+     */
+    public Result process(Context context, String addr, String fullSmsBody, TransactionStatus status,
+                          boolean updateNote, long fallbackDateTime) {
         Result res = new Result();
         List<SmsTemplate> addrTemplates = db.getSmsTemplatesByNumber(addr);
         for (final SmsTemplate template : addrTemplates) {
@@ -98,7 +112,8 @@ public class SmsTransactionProcessor {
                 try {
                     BigDecimal price = toBigDecimal(parsedPrice);
                     Transaction t = createNewTransaction(context, addr, fullSmsBody, template, currencyText, price, account, account_name,
-                            transfer_to_account_name, payeeText, projectText, note, timestampMillisText, status);
+                            transfer_to_account_name, payeeText, projectText, note, timestampMillisText, status,
+                            fallbackDateTime);
                     if (t != null) {
                         res.transaction = t;
                         return res;
@@ -184,7 +199,8 @@ public class SmsTransactionProcessor {
         String projectText,
         String note,
         String timestampMillis,
-        TransactionStatus status)
+        TransactionStatus status,
+        long fallbackDateTime)
     {
         Transaction res = null;
         long accountId = 0;
@@ -220,8 +236,12 @@ public class SmsTransactionProcessor {
             res.isTemplate = 0;
             res.fromAccountId = accountId;
 
+            // {{g}}（銀行給的時間戳）優先；沒有才用呼叫端給的時間；兩者都沒有就留預設的當下
             if (timestampMillis != null) {
                 res.dateTime = Long.parseLong(timestampMillis);
+            }
+            else if (fallbackDateTime > 0) {
+                res.dateTime = fallbackDateTime;
             }
 
             if (payee != null) {

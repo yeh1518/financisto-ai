@@ -62,6 +62,13 @@ public class AiInputActivity extends ComponentActivity {
     /** 搭配 {@link #TEXT_EXTRA}：這段文字的來源標籤，寫進 AiLog 的 stt 欄。 */
     public static final String TEXT_SOURCE_EXTRA = "textSource";
     /**
+     * 搭配 {@link #TEXT_EXTRA}：這段文字「發生」的時間，模型沒解析出日期時當交易時間。
+     *
+     * 通知列表帶通知的 postTime 進來——日誌留 7 天，事後拿三天前那則通知記帳，交易時間
+     * 該是通知發出的時間而不是按下去的當下。語音入口不帶（講的當下就是現在）。
+     */
+    public static final String BASE_TIME_EXTRA = "baseTime";
+    /**
      * 桌面捷徑用的 action（見 xml/shortcuts.xml 與設定頁的「加語音捷徑到桌面」）。
      * 走 action 而非 extra：shortcuts.xml 的 &lt;intent&gt; 不支援自訂 extra，
      * 而 app 內部啟動一律用不帶 action 的 explicit intent，兩者天然分得開。
@@ -122,6 +129,14 @@ public class AiInputActivity extends ComponentActivity {
 
     private long defaultAccountId = -1;
     private long pendingDraftId = -1;
+    /**
+     * 現在框裡這段字「發生」的時間（見 {@link #BASE_TIME_EXTRA}）；0＝就是當下。
+     *
+     * 用欄位而不是每次去讀 getIntent()：本頁是 singleTop，從通知進來記完一筆後留在畫面上
+     * 再按麥克風講一句時，intent 還是那個帶著通知時間的舊 intent——會把語音那筆也記成
+     * 三天前。所以開語音時要清掉。
+     */
+    private long baseTimeMillis;
     /** 由桌面捷徑（ACTION_VOICE_INPUT）啟動＝可套用「完成後進 App」的收尾路由。 */
     private boolean launchedFromShortcut = false;
     /** 上面那條的返回鍵攔截；捷徑再次進來時要能改開關（見 onNewIntent）。 */
@@ -210,6 +225,7 @@ public class AiInputActivity extends ComponentActivity {
             inputText.setText(presetText);
             settingTextInternally = false;
             voiceSource = getIntent().getStringExtra(TEXT_SOURCE_EXTRA);
+            baseTimeMillis = getIntent().getLongExtra(BASE_TIME_EXTRA, 0);
             onParse();
             return;                     // 已經在解析了，不要再走下面的語音入口
         }
@@ -280,6 +296,8 @@ public class AiInputActivity extends ComponentActivity {
     private void startVoice() {
         // 第一次用先看說明（含免費組合與隱私聲明）；按「開始使用」才接著錄
         if (!recording && AiIntroDialog.showIfFirstTime(this, this::startVoice)) return;
+        // 講出來的是「現在」的事，不能沿用上一輪（可能來自通知）的時間
+        baseTimeMillis = 0;
         AiPreferences prefs = AiPreferences.load(this);
         // 沒設 key 就別讓人對著麥克風講完才發現不能用——直接給引導
         if (!prefs.isConfigured() && !prefs.isCloudSttConfigured()) {
@@ -533,6 +551,7 @@ public class AiInputActivity extends ComponentActivity {
             settingTextInternally = false;
             voiceSource = intent.getStringExtra(TEXT_SOURCE_EXTRA);
             voiceTextEdited = false;
+            baseTimeMillis = intent.getLongExtra(BASE_TIME_EXTRA, 0);
             onParse();
             return;
         }
@@ -687,8 +706,7 @@ public class AiInputActivity extends ComponentActivity {
     private void launchDraftShuttle(ParsedTransaction t, EntityContextBuilder ctx, long accountId) {
         Transaction draft = new Transaction();
         draft.isTemplate = 1;
-        Long spoken = t.resolveDateTimeMillis();
-        draft.dateTime = spoken != null ? spoken : System.currentTimeMillis();
+        draft.dateTime = resolveDateTime(t);
         draft.fromAccountId = accountId;
 
         boolean isTransfer = t.isTransfer() && t.toAccount.resolved();
@@ -744,7 +762,19 @@ public class AiInputActivity extends ComponentActivity {
     }
 
     /**
-     * 有講日期/時間才帶 DATETIME_EXTRA。沒講就不帶＝維持原本「用記帳當下時間」。
+     * 交易時間：講出來的日期最優先，其次是這段文字本身的時間（{@link #BASE_TIME_EXTRA}，
+     * 通知列表帶進來的通知時間），都沒有才是記帳的當下。
+     */
+    private long resolveDateTime(ParsedTransaction t) {
+        Long spoken = t.resolveDateTimeMillis();
+        if (spoken != null) return spoken;
+        if (baseTimeMillis > 0) return baseTimeMillis;
+        return System.currentTimeMillis();
+    }
+
+    /**
+     * 有講日期/時間（或這段文字自帶時間）才帶 DATETIME_EXTRA。都沒有就不帶＝維持原本
+     * 「用記帳當下時間」。
      * ⚠️ draft 自己的 dateTime 不夠用：duplicate prefill 會把它重設，只有這個 extra 壓得住
      * （見 AbstractTransactionActivity 的 isDuplicate 分支）。
      */
@@ -752,6 +782,9 @@ public class AiInputActivity extends ComponentActivity {
         Long spoken = t.resolveDateTimeMillis();
         if (spoken != null) {
             intent.putExtra(AbstractTransactionActivity.DATETIME_EXTRA, (long) spoken);
+        }
+        else if (baseTimeMillis > 0) {
+            intent.putExtra(AbstractTransactionActivity.DATETIME_EXTRA, baseTimeMillis);
         }
     }
 

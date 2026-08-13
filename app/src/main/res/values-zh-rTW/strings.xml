@@ -1152,10 +1152,11 @@
   <string name="ai_notif_reapply_none">沒有樣板比中這則通知——它目前不會被自動記帳</string>
   <string name="ai_notif_template_saved_recorded">樣板已存，並依它把這則通知記起來了：%1$s</string>
   <string name="ai_notif_template_saved_no_match">樣板已存，但它比不中這則通知，所以沒有記帳。請檢查樣板內容。</string>
-  <string name="ai_notif_action_filter">增加過濾</string>
-  <string name="ai_notif_filter">過濾關鍵字</string>
-  <string name="ai_notif_filter_hint">一行一個關鍵字，標題或內文含到就不顯示（不分大小寫）。# 開頭的行當註解。</string>
-  <string name="ai_notif_filter_placeholder">例：\n限時動態\n優惠最後倒數\n# 下面這行擋同步狀態通知\nSyncing:</string>
+  <string name="ai_notif_action_exclude_app">排除這個 app（%1$s）</string>
+  <string name="ai_notif_action_filter">用關鍵字排除…</string>
+  <string name="ai_notif_filter">通知排除清單</string>
+  <string name="ai_notif_filter_hint">一行一條規則。「app:套件名」排掉整個 app（後面接的字當註記）；其餘的行是關鍵字，標題或內文含到就不顯示（不分大小寫）。# 開頭的行當註解。</string>
+  <string name="ai_notif_filter_placeholder">例：\napp:com.instagram.android  # Instagram\n限時動態\n優惠最後倒數\n# 下面這行擋同步狀態通知\nSyncing:</string>
   <string name="ai_notif_filter_save">儲存</string>
   <string name="ai_notif_filter_applied">已套用，這次擋掉 %1$d 則</string>
   <string name="ai_notif_no_account">樣板比中了，但對不到帳戶，所以沒有記帳。\n\n內文的卡號末四碼是「%1$s」，沒有帳戶登記這組號碼，樣板本身也沒有指定帳戶。\n\n解法：到該帳戶的編輯頁把「卡號」填成後四碼（同一個帳戶有多張卡時用逗號分隔，例：1706,8842），或直接在樣板裡指定帳戶。</string>

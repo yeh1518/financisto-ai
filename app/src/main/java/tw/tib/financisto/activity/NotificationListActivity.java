@@ -25,8 +25,10 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -34,6 +36,8 @@ import java.util.Set;
 
 import tw.tib.financisto.R;
 import tw.tib.financisto.ai.AiPreferences;
+import tw.tib.financisto.ai.AppLabels;
+import tw.tib.financisto.datetime.DateUtils;
 import tw.tib.financisto.ai.EntityContextBuilder;
 import tw.tib.financisto.ai.NotificationFilter;
 import tw.tib.financisto.ai.NotificationJournal;
@@ -228,30 +232,50 @@ public class NotificationListActivity extends AppCompatActivity {
     /**
      * 點一則通知的三條路：產樣板（長期）／直接記這筆（一次性）／套現有樣板（含驗證用途）。
      * 三者的差別是「要不要留下規則」與「誰來解析」，所以擺在同一個選單裡讓人當場選。
+     * 後面接兩個排除動作：整個 app（一鍵）與關鍵字（開編輯器）。
      */
     private void showActionDialog(NotificationListener.ParsedNotification n) {
-        CharSequence[] items = {
-                getString(R.string.ai_notif_action_generate),
-                getString(R.string.ai_notif_action_parse),
-                getString(R.string.ai_notif_action_reapply),
-                getString(R.string.ai_notif_action_filter),
-        };
+        // 拿不到來源套件名時不給「排除這個 app」——沒東西可寫進清單
+        boolean canExcludeApp = n.pkg != null && !n.pkg.isEmpty();
+        List<CharSequence> items = new ArrayList<>();
+        items.add(getString(R.string.ai_notif_action_generate));
+        items.add(getString(R.string.ai_notif_action_parse));
+        items.add(getString(R.string.ai_notif_action_reapply));
+        if (canExcludeApp) {
+            items.add(getString(R.string.ai_notif_action_exclude_app, AppLabels.of(this, n.pkg)));
+        }
+        items.add(getString(R.string.ai_notif_action_filter));
         // 標題用「那則通知的標題」而非通用問句：對話框蓋住列表後，同一家銀行的好幾則
-        // 長得很像，你會忘記剛剛點的是哪一則；三個動作本身已經夠自解釋
+        // 長得很像，你會忘記剛剛點的是哪一則；動作本身已經夠自解釋
         CharSequence title = android.text.TextUtils.isEmpty(n.title)
                 ? getString(R.string.ai_notif_action_title) : n.title;
         new AlertDialog.Builder(this)
                 .setTitle(title)
-                .setItems(items, (d, which) -> {
+                .setItems(items.toArray(new CharSequence[0]), (d, which) -> {
                     switch (which) {
                         case 0: generateTemplate(n); break;
                         case 1: parseDirectly(n); break;
                         case 2: confirmReapply(n); break;
-                        case 3: showFilterEditor(n); break;
+                        case 3:
+                            if (canExcludeApp) excludeApp(n); else showFilterEditor(n);
+                            break;
+                        default: showFilterEditor(n); break;
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)
                 .show();
+    }
+
+    /**
+     * 一鍵把來源 app 加進排除清單。不再問一次確認：這個動作反悔的成本是「開過濾清單刪一行」，
+     * 而擋掉整個 app 的價值就在於當下順手——多一個對話框就會讓人懶得用，雜訊繼續吃掉
+     * 日誌的 100 筆額度。清單原文裡會連 app 名稱一起寫成註記，事後看得懂那行是什麼。
+     */
+    private void excludeApp(NotificationListener.ParsedNotification n) {
+        String label = AppLabels.of(this, n.pkg);
+        NotificationFilter.saveRaw(this,
+                NotificationFilter.addPackage(NotificationFilter.loadRaw(this), n.pkg, label));
+        reloadList();
     }
 
     /**
@@ -262,6 +286,11 @@ public class NotificationListActivity extends AppCompatActivity {
         Intent i = new Intent(this, tw.tib.financisto.ai.AiInputActivity.class);
         i.putExtra(tw.tib.financisto.ai.AiInputActivity.TEXT_EXTRA, n.body);
         i.putExtra(tw.tib.financisto.ai.AiInputActivity.TEXT_SOURCE_EXTRA, "notification");
+        // 日誌留 7 天，這則可能是好幾天前的——模型沒從內文解析出日期時要用通知時間，
+        // 不是按下去的當下
+        if (n.postTime > 0) {
+            i.putExtra(tw.tib.financisto.ai.AiInputActivity.BASE_TIME_EXTRA, n.postTime);
+        }
         startActivity(i);
     }
 
@@ -290,7 +319,10 @@ public class NotificationListActivity extends AppCompatActivity {
                 r = new SmsTransactionProcessor(db).process(
                         this, n.title, n.body,
                         MyPreferences.getSmsTransactionStatus(),
-                        MyPreferences.shouldSaveSmsToTransactionNote());
+                        MyPreferences.shouldSaveSmsToTransactionNote(),
+                        // 通知時間當交易時間（樣板自己抽到 {{g}} 時以那個為準）：日誌留 7 天，
+                        // 事後套樣板記成「按下去的當下」就是錯的日期
+                        n.postTime);
             } catch (Exception e) {
                 Log.e("NotificationList", "套用樣板失敗", e);
             }
@@ -393,6 +425,10 @@ public class NotificationListActivity extends AppCompatActivity {
 
         private final ArrayList<NotificationListener.ParsedNotification> list;
         private final LayoutInflater inflater;
+        private final Context context;
+        /** 用系統設定的短日期／時間格式（含 24 小時制偏好），不自己寫 pattern。 */
+        private final DateFormat dateFormat;
+        private final DateFormat timeFormat;
 
         public NotificationListAdapter(Context context, boolean includeJournal) {
             list = new ArrayList<>(NotificationCache.getInstance().cache.values());
@@ -408,24 +444,29 @@ public class NotificationListActivity extends AppCompatActivity {
                                 new NotificationListener.ParsedNotification();
                         n.title = e.title;
                         n.body = e.body;
+                        n.pkg = e.pkg;
                         n.postTime = e.at;
                         list.add(n);
                     }
                 }
             }
-            // 關鍵字排除（只在挑選模式；實體選單那個入口是拿來複製通知內容的，不該少東西）。
-            // 在顯示這一層過濾＝改掉關鍵字，被擋的東西就回來了；日誌那邊的過濾是為了不佔
+            // 排除清單（只在挑選模式；實體選單那個入口是拿來複製通知內容的，不該少東西）。
+            // 在顯示這一層過濾＝改掉清單，被擋的東西就回來了；日誌那邊的過濾是為了不佔
             // 100 筆的額度，兩者目的不同、都要有。
             lastHiddenCount = 0;
             if (includeJournal) {
-                List<String> keywords =
-                        NotificationFilter.keywords(NotificationFilter.loadRaw(context));
-                if (!keywords.isEmpty()) {
+                String raw = NotificationFilter.loadRaw(context);
+                List<String> keywords = NotificationFilter.keywords(raw);
+                Set<String> packages = NotificationFilter.packages(raw);
+                if (!keywords.isEmpty() || !packages.isEmpty()) {
                     int before = list.size();
                     for (Iterator<NotificationListener.ParsedNotification> it = list.iterator();
                          it.hasNext(); ) {
                         NotificationListener.ParsedNotification n = it.next();
-                        if (NotificationFilter.matches(keywords, n.title, n.body)) it.remove();
+                        if (NotificationFilter.matchesPackage(packages, n.pkg)
+                                || NotificationFilter.matches(keywords, n.title, n.body)) {
+                            it.remove();
+                        }
                     }
                     lastHiddenCount = before - list.size();
                 }
@@ -436,6 +477,20 @@ public class NotificationListActivity extends AppCompatActivity {
             // so sorting covers both sources.)
             Collections.sort(list, (a, b) -> Long.compare(b.postTime, a.postTime));
             inflater = LayoutInflater.from(context);
+            this.context = context;
+            dateFormat = DateUtils.getShortDateFormat(context);
+            timeFormat = DateUtils.getTimeFormat(context);
+        }
+
+        /** 「app 名 · 08/10 14:32」。任一半拿不到就只顯示有的那半。 */
+        private String meta(NotificationListener.ParsedNotification n) {
+            String label = AppLabels.of(context, n.pkg);
+            String when = n.postTime > 0
+                    ? dateFormat.format(new Date(n.postTime)) + " " + timeFormat.format(new Date(n.postTime))
+                    : "";
+            if (label.isEmpty()) return when;
+            if (when.isEmpty()) return label;
+            return label + " · " + when;
         }
 
         @Override
@@ -464,7 +519,8 @@ public class NotificationListActivity extends AppCompatActivity {
             else {
                 notificationViewHolder = (NotificationViewHolder) view.getTag();
             }
-            notificationViewHolder.bindView(list.get(i));
+            NotificationListener.ParsedNotification n = list.get(i);
+            notificationViewHolder.bindView(n, meta(n));
 
             return view;
         }
@@ -473,17 +529,21 @@ public class NotificationListActivity extends AppCompatActivity {
     static class NotificationViewHolder {
         public TextView title;
         public TextView body;
+        public TextView meta;
         public NotificationListener.ParsedNotification notification;
 
         public NotificationViewHolder(@NonNull View itemView) {
             title = itemView.findViewById(R.id.title);
             body = itemView.findViewById(R.id.body);
+            meta = itemView.findViewById(R.id.meta);
         }
 
-        public void bindView(NotificationListener.ParsedNotification notification) {
+        public void bindView(NotificationListener.ParsedNotification notification, String metaText) {
             this.notification = notification;
             title.setText(notification.title);
             body.setText(notification.body);
+            meta.setText(metaText);
+            meta.setVisibility(metaText.isEmpty() ? View.GONE : View.VISIBLE);
         }
     }
 }

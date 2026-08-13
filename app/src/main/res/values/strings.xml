@@ -1317,10 +1317,11 @@
     <string name="ai_notif_reapply_none">No template matched — this notification would not be recorded automatically</string>
     <string name="ai_notif_template_saved_recorded">Template saved, and this notification was recorded with it: %1$s</string>
     <string name="ai_notif_template_saved_no_match">Template saved, but it does not match this notification, so nothing was recorded. Check the template.</string>
-    <string name="ai_notif_action_filter">Add filter</string>
-    <string name="ai_notif_filter">Filter keywords</string>
-    <string name="ai_notif_filter_hint">One keyword per line; a notification is hidden when its title or body contains any of them (case-insensitive). Lines starting with # are comments.</string>
-    <string name="ai_notif_filter_placeholder">e.g.\nstory\nlast chance\n# hide sync status notifications\nSyncing:</string>
+    <string name="ai_notif_action_exclude_app">Exclude this app (%1$s)</string>
+    <string name="ai_notif_action_filter">Exclude by keyword…</string>
+    <string name="ai_notif_filter">Exclusion list</string>
+    <string name="ai_notif_filter_hint">One rule per line. "app:&lt;package&gt;" excludes a whole app (anything after it on the line is a note); any other line is a keyword, and a notification is hidden when its title or body contains it (case-insensitive). Lines starting with # are comments.</string>
+    <string name="ai_notif_filter_placeholder">e.g.\napp:com.instagram.android  # Instagram\nstory\nlast chance\n# hide sync status notifications\nSyncing:</string>
     <string name="ai_notif_filter_save">Save</string>
     <string name="ai_notif_filter_applied">Applied — %1$d hidden this time</string>
     <string name="ai_notif_no_account">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe message contains card digits \"%1$s\", no account is registered with them, and the template itself sets no account.\n\nFix: put the last four digits into the account\'s \"Card number\" field (comma-separate several cards sharing one account, e.g. 1706,8842), or set an account on the template.</string>

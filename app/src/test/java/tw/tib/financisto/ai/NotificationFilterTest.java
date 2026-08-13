@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /** 通知排除清單的比對規則。擋錯了會讓真的銀行通知消失，所以每種形狀都釘住。 */
 public class NotificationFilterTest {
@@ -16,6 +17,7 @@ public class NotificationFilterTest {
     private static final String BANK_TITLE = "信用卡消費通知";
     private static final String BANK_BODY =
             "信用卡消費通知 消費金額：1179元\n卡　　號：末四碼1706\n商店名稱：Nintendo CC1685606546";
+    private static final String IG = "com.instagram.android";
 
     @Test
     public void emptyListHidesNothing() {
@@ -80,5 +82,74 @@ public class NotificationFilterTest {
     public void suggestKeywordFallsBackToFirstBodyLine() {
         assertEquals("消費金額：1179元", NotificationFilter.suggestKeyword("  ", "消費金額：1179元\n卡號"));
         assertEquals("", NotificationFilter.suggestKeyword(null, null));
+    }
+
+    // --- app: 規則 ---
+
+    @Test
+    public void appRuleIsNotAlsoAKeyword() {
+        // 套件名若同時被當關鍵字，擋到的東西就不是使用者以為的那些了
+        assertEquals(Collections.<String>emptyList(),
+                NotificationFilter.keywords("app:" + IG));
+        assertEquals(Collections.singleton(IG), NotificationFilter.packages("app:" + IG));
+    }
+
+    @Test
+    public void appRuleIgnoresTrailingNoteAndCase() {
+        Set<String> p = NotificationFilter.packages("APP: Com.Instagram.Android  # Instagram");
+        assertEquals(Collections.singleton(IG), p);
+        assertTrue(NotificationFilter.matchesPackage(p, IG));
+        assertTrue(NotificationFilter.matchesPackage(p, "COM.INSTAGRAM.ANDROID"));
+    }
+
+    @Test
+    public void unknownPackageIsNeverHidden() {
+        // 拿不到來源（舊日誌紀錄、抓不到套件名）不該被無聲吃掉
+        Set<String> p = NotificationFilter.packages("app:" + IG);
+        assertFalse(NotificationFilter.matchesPackage(p, null));
+        assertFalse(NotificationFilter.matchesPackage(p, ""));
+        assertFalse(NotificationFilter.matchesPackage(p, "tw.tib.financisto"));
+        assertFalse(NotificationFilter.matchesPackage(Collections.<String>emptySet(), IG));
+    }
+
+    @Test
+    public void bareAppPrefixIsNotARule() {
+        // 「app:」自己一行不能變成「排除空字串」＝什麼都擋
+        assertTrue(NotificationFilter.packages("app:").isEmpty());
+        assertTrue(NotificationFilter.packages("app:   # 想打但沒打完").isEmpty());
+        assertEquals(Collections.<String>emptyList(), NotificationFilter.keywords("app:"));
+    }
+
+    @Test
+    public void mixedListKeepsBothKindsApart() {
+        String raw = "app:" + IG + "  # Instagram\n限時動態\n# 註解\napp:com.spotify.music";
+        assertEquals(Arrays.asList("限時動態"), NotificationFilter.keywords(raw));
+        assertEquals(new java.util.HashSet<>(Arrays.asList(IG, "com.spotify.music")),
+                NotificationFilter.packages(raw));
+    }
+
+    @Test
+    public void addPackageWritesLabelAsNote() {
+        String raw = NotificationFilter.addPackage("限時動態", IG, "Instagram");
+        assertEquals("限時動態\napp:" + IG + "  # Instagram\n", raw);
+        assertEquals(Arrays.asList("限時動態"), NotificationFilter.keywords(raw));
+        assertTrue(NotificationFilter.packages(raw).contains(IG));
+    }
+
+    @Test
+    public void addPackageIsIdempotent() {
+        String once = NotificationFilter.addPackage("", IG, "Instagram");
+        assertEquals(once, NotificationFilter.addPackage(once, IG, "Instagram"));
+        // 大小寫不同也算同一個，不該重複加一行
+        assertEquals(once, NotificationFilter.addPackage(once, "COM.Instagram.Android", "IG"));
+    }
+
+    @Test
+    public void addPackageHandlesEmptyAndUnlabeled() {
+        assertEquals("app:" + IG + "\n", NotificationFilter.addPackage(null, IG, null));
+        assertEquals("app:" + IG + "\n", NotificationFilter.addPackage("", IG, ""));
+        // 查不到名稱時 AppLabels 會退回套件名——別寫成「app:x  # x」這種廢註記
+        assertEquals("app:" + IG + "\n", NotificationFilter.addPackage("", IG, IG));
+        assertEquals("限時動態", NotificationFilter.addPackage("限時動態", "  ", "x"));
     }
 }
