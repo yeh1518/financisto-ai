@@ -1324,7 +1324,7 @@
     <string name="ai_notif_filter_placeholder">e.g.\napp:com.instagram.android  # Instagram\nstory\nlast chance\n# hide sync status notifications\nSyncing:</string>
     <string name="ai_notif_filter_save">Save</string>
     <string name="ai_notif_filter_applied">Applied — %1$d hidden this time</string>
-    <string name="ai_notif_no_account">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe message contains card digits \"%1$s\", no account is registered with them, and the template itself sets no account.\n\nFix: put the last four digits into the account\'s \"Card number\" field (comma-separate several cards sharing one account, e.g. 1706,8842), or set an account on the template.</string>
+    <string name="ai_notif_no_account">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe message contains card digits \"%1$s\", no account is registered with them, and the template itself sets no account.\n\nFix: put the last four digits into the account\'s \"Card number\" field (comma-separate several cards sharing one account, e.g. 1234,5678), or set an account on the template.</string>
     <string name="ai_notif_no_account_no_digits">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe template sets no account and no card digits were captured from the message. Set an account on the template.</string>
     <string name="ai_api_key_missing">AI parsing not configured — set an API key in AI settings first</string>
     <string name="ai_keys_hint">Gemini has a free tier that\'s enough for personal use (see Help)</string>

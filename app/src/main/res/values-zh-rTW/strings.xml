@@ -1159,7 +1159,7 @@
   <string name="ai_notif_filter_placeholder">例：\napp:com.instagram.android  # Instagram\n限時動態\n優惠最後倒數\n# 下面這行擋同步狀態通知\nSyncing:</string>
   <string name="ai_notif_filter_save">儲存</string>
   <string name="ai_notif_filter_applied">已套用，這次擋掉 %1$d 則</string>
-  <string name="ai_notif_no_account">樣板比中了，但對不到帳戶，所以沒有記帳。\n\n內文的卡號末四碼是「%1$s」，沒有帳戶登記這組號碼，樣板本身也沒有指定帳戶。\n\n解法：到該帳戶的編輯頁把「卡號」填成後四碼（同一個帳戶有多張卡時用逗號分隔，例：1706,8842），或直接在樣板裡指定帳戶。</string>
+  <string name="ai_notif_no_account">樣板比中了，但對不到帳戶，所以沒有記帳。\n\n內文的卡號末四碼是「%1$s」，沒有帳戶登記這組號碼，樣板本身也沒有指定帳戶。\n\n解法：到該帳戶的編輯頁把「卡號」填成後四碼（同一個帳戶有多張卡時用逗號分隔，例：1234,5678），或直接在樣板裡指定帳戶。</string>
   <string name="ai_notif_no_account_no_digits">樣板比中了，但對不到帳戶，所以沒有記帳。\n\n樣板沒有指定帳戶，內文也沒抽到卡號末四碼。請在樣板裡指定帳戶。</string>
   <string name="ai_api_key_missing">AI 解析尚未設定——請先到 AI 設定填 API key</string>
   <string name="ai_keys_hint">Gemini 有免費額度，個人記帳夠用（詳見說明）</string>

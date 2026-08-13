@@ -16,7 +16,7 @@ public class NotificationFilterTest {
 
     private static final String BANK_TITLE = "信用卡消費通知";
     private static final String BANK_BODY =
-            "信用卡消費通知 消費金額：1179元\n卡　　號：末四碼1706\n商店名稱：Nintendo CC1685606546";
+            "信用卡消費通知 消費金額：990元\n卡　　號：末四碼5678\n商店名稱：測試電商 CC0000000000";
     private static final String IG = "com.instagram.android";
 
     @Test
@@ -80,7 +80,7 @@ public class NotificationFilterTest {
 
     @Test
     public void suggestKeywordFallsBackToFirstBodyLine() {
-        assertEquals("消費金額：1179元", NotificationFilter.suggestKeyword("  ", "消費金額：1179元\n卡號"));
+        assertEquals("消費金額：990元", NotificationFilter.suggestKeyword("  ", "消費金額：990元\n卡號"));
         assertEquals("", NotificationFilter.suggestKeyword(null, null));
     }
 
