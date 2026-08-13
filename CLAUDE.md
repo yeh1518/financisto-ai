@@ -14,6 +14,10 @@ repo 拓撲、簽章金鑰位置）、`docs/對帳規則.md`。**翻 git 找不�
 
 ## 幾條會踩到的
 
+- **做完一個可測的版本就出 APK 交付，不必等使用者開口**：`assembleRelease` → 覆蓋
+  `syncthink\obsidian\financisto\apk\financisto-ai-release.apk`（Syncthing 同步到手機）。
+  **一定是 release 版**——手機上是 release 簽章，debug APK 裝不上去且只會顯示「應用程式未安裝」。
+  完整流程與金鑰位置見 `DEV-BUILD.md` 的「交付」節。
 - 金額／統計／換匯相關的改動，出貨前用**全量真實備份**驗等價性
   （`tools/verify_report_equivalence.py`）。使用者無法自行驗算對錯，這一關不能省。
 - 解析品質看語料、不看直覺：`tools/ai_corpus.py report`。改 prompt 或解析程式的前後都要跑，
