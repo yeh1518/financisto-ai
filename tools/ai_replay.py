@@ -17,9 +17,14 @@
     且該名字不是別的帳戶名的子字串時的帳戶）。這個子集小但答案沒有爭議。
 
 用法：
-    python tools/ai_replay.py --ledger <放 .backup 的資料夾> [--limit N] [--arms a,b,c]
+    python tools/ai_replay.py --ledger <放 .backup 的資料夾> [--limit N] [--old-rev <commit>]
 
 金鑰讀環境變數 GEMINI_API_KEY（沒有就從 myinfra secrets.json 撈，路徑用 --secrets 指定）。
+
+⚠️ 這支工具會燒 API（臂數 × 句數 次呼叫），所以「跑完之後才會壞的東西」代價特別高——
+底下那行 stdout 強制 UTF-8 就是為此：報表含 `↔`、`·` 等字元，Windows console 預設 cp950
+編不出來，會在**四個臂都跑完、錢都花掉之後**才 UnicodeEncodeError 炸掉（2026-08-13 實際踩到）。
+明細 JSON 那時已經寫出來了，重算報表不必重跑，但別再讓它發生。
 """
 
 import argparse
@@ -33,6 +38,10 @@ import time
 import urllib.request
 import urllib.error
 from collections import defaultdict
+
+# 見上方 docstring：報表印到 cp950 console 會炸，而那是在錢都花完之後
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JAVA = os.path.join(ROOT, "app", "src", "main", "java", "tw", "tib", "financisto", "ai",
@@ -262,6 +271,15 @@ def main():
             if (i + 1) % 10 == 0:
                 print("  %s %d/%d" % (name, i + 1, len(cases)))
         print("%s 完成，%.0f 秒" % (name, time.time() - t0))
+
+    # 整臂全錯要當場喊，不要讓它安靜地變成報表裡的「0/0 = 0%」——那讀起來像「一致率 0%」
+    # （很糟），實際是「這一臂沒有任何有效結果」（沒資訊），兩者的處置完全不同。
+    # 2026-08-13 踩到：--strong-model 的預設 model 名已失效，整臂 60 次呼叫全 404。
+    for name, _, model in arms:
+        errs = [r for r in results[name].values() if "_error" in r]
+        if len(errs) == len(cases):
+            print("\n⚠️ 「%s」整臂失敗（model=%s），該臂不具參考價值：\n   %s"
+                  % (name, model, errs[0]["_error"][:200]))
 
     rows = []
     for c in cases:
