@@ -57,6 +57,12 @@ public class TemplateGenerator {
             + "}"
             + "}";
 
+    /**
+     * ⚠️ 這份清單是刻意手寫的、不是從 {@code Placeholder} enum 生成——引擎支援的佔位符
+     * 不等於「該給這個模型用的」。特別是 {@code {{k}}}（分類 id）：它是給「自己產生訊息、
+     * 讀得到帳本」的來源用的（見 docs/Telegram通知記帳-定稿.md），銀行通知裡不可能出現
+     * 分類 id，寫進 prompt 只會讓模型硬掰一個數字進去。**新增引擎佔位符時不要順手加到這裡。**
+     */
     private static final String SYSTEM_PROMPT =
             "你是通知樣板產生器。給你一則手機通知（標題與內文），請產出一條能讓記帳 app 自動\n"
             + "解析同類通知的樣板。只回 JSON。\n"

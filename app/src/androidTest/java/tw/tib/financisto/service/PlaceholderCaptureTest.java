@@ -61,4 +61,44 @@ public class PlaceholderCaptureTest {
         assertEquals("(存款)", captureTransferTo("(存款)"));
         assertEquals("(旅遊儲蓄金)", captureTransferTo("(旅遊儲蓄金)"));
     }
+
+    // --- {{k}}（分類 id）---
+
+    /** Finn 記帳訊息的支出樣板：分類錨在帳戶正後方、備註之前。 */
+    private static final String BOOKKEEPING_TEMPLATE =
+            "🧾記帳｜支出｜{{p}}｜{{c}}｜{{k}}｜{{t}}｜{{g}}｜";
+
+    private static String[] bookkeeping(String categoryField, String note) {
+        String[] match = SmsTransactionProcessor.findTemplateMatches(BOOKKEEPING_TEMPLATE,
+                "Finn 🧾記帳｜支出｜250｜中信信用卡｜" + categoryField + "｜" + note
+                        + "｜1785761364401｜1/3");
+        assertNotNull("template did not match for category field: " + categoryField, match);
+        return match;
+    }
+
+    @Test
+    public void capturesCategoryIdAndLeavesOtherFieldsIntact() {
+        String[] m = bookkeeping("17", "全家超商 晚餐便當");
+        assertEquals("17", m[Placeholder.CATEGORY_ID.ordinal()]);
+        assertEquals("250", m[Placeholder.PRICE.ordinal()]);
+        assertEquals("中信信用卡", m[Placeholder.ACCOUNT_NAME.ordinal()]);
+        assertEquals("全家超商 晚餐便當", m[Placeholder.TEXT.ordinal()]);
+        assertEquals("1785761364401", m[Placeholder.TIMESTAMP_MILLIS.ordinal()]);
+    }
+
+    /** 0＝不指定分類，要照樣比中（引擎那端才決定「0 就不設」）。 */
+    @Test
+    public void capturesZeroAsUnspecified() {
+        assertEquals("0", bookkeeping("0", "ATM 提款")[Placeholder.CATEGORY_ID.ordinal()]);
+    }
+
+    /**
+     * ICU 的 \d 抓 Unicode Nd，所以全形數字也會被 (\d{1,9}) 吃到。這個測試存在的意義是
+     * **確認它在 Android 上真的會被抓到**——桌面 JVM 的 \d 是 ASCII-only，答案不一樣。
+     * 抓到之後怎麼解讀是 parseCategoryId 的事（照數值解，見 CategoryPlaceholderTest）。
+     */
+    @Test
+    public void capturesFullWidthDigitsOnAndroid() {
+        assertEquals("１７", bookkeeping("１７", "全形數字")[Placeholder.CATEGORY_ID.ordinal()]);
+    }
 }

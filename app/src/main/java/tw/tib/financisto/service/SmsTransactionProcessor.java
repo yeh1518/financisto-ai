@@ -93,6 +93,7 @@ public class SmsTransactionProcessor {
                 String projectText = match[PROJECT.ordinal()];
                 String currencyText = match[CURRENCY.ordinal()];
                 String timestampMillisText = match[TIMESTAMP_MILLIS.ordinal()];
+                String categoryIdText = match[CATEGORY_ID.ordinal()];
                 if (text == null && greedy_text != null) {
                     text = greedy_text;
                 }
@@ -112,8 +113,8 @@ public class SmsTransactionProcessor {
                 try {
                     BigDecimal price = toBigDecimal(parsedPrice);
                     Transaction t = createNewTransaction(context, addr, fullSmsBody, template, currencyText, price, account, account_name,
-                            transfer_to_account_name, payeeText, projectText, note, timestampMillisText, status,
-                            fallbackDateTime);
+                            transfer_to_account_name, payeeText, projectText, note, timestampMillisText, categoryIdText,
+                            status, fallbackDateTime);
                     if (t != null) {
                         res.transaction = t;
                         return res;
@@ -199,6 +200,7 @@ public class SmsTransactionProcessor {
         String projectText,
         String note,
         String timestampMillis,
+        String categoryIdText,
         TransactionStatus status,
         long fallbackDateTime)
     {
@@ -287,6 +289,17 @@ public class SmsTransactionProcessor {
             if (smsTemplate.categoryId != 0) {
                 res.categoryId = smsTemplate.categoryId;
             }
+            // {{k}} 帶的分類最優先：它是「這一筆」的判斷，比樣板綁死的那個與受款人記著的
+            // 上一次都具體。抓到的 id 必須是帳本裡真的存在的分類——訊息產生端讀的是帳本
+            // 備份，備份比 app 舊一點的時候可能指到已刪掉的分類。
+            //
+            // 對不到就當作沒帶（留空），交易照記：分類錯不影響金額與帳戶，而留空正好退回
+            // 原本的行為（分類事後在 blotter 篩出來補），在畫面上看得見。相對地「整筆不記」
+            // 對記帳的代價太大——為了一個分類丟掉一整筆是不划算的交換。
+            long placeholderCategoryId = parseCategoryId(categoryIdText);
+            if (placeholderCategoryId > 0 && db.getCategory(placeholderCategoryId) != null) {
+                res.categoryId = placeholderCategoryId;
+            }
             res.status = status;
             long id = db.insertOrUpdate(res);
             res.id = id;
@@ -296,6 +309,23 @@ public class SmsTransactionProcessor {
             db.log(context.getString(R.string.sms_tpl_error_log, sender, body, smsTemplate.template));
         }
         return res;
+    }
+
+    /**
+     * {@code {{k}}} 抓到的字串 → 分類 id。0 / 空 / 不是數字都回 0＝不指定。
+     *
+     * 全形與其他書寫系統的數字會照數值解讀（Android 的 regex 是 ICU 實作、{@code \d} 抓的是
+     * Unicode Nd，而 {@code parseLong} 走 {@code Character.digit} 一樣解得出來）——這是
+     * 安全的方向，不要改嚴。try/catch 是為了「真的不是數字」時不讓整筆交易掉在例外裡不見。
+     */
+    static long parseCategoryId(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        try {
+            return Long.parseLong(text.trim());
+        } catch (NumberFormatException e) {
+            Log.w(TAG, format("{{k}} 抓到不是十進位數字的內容：\"%s\"，當作沒帶分類", text));
+            return 0;
+        }
     }
 
     private long findAccount(String accountLastDigits, long defaultId) {
@@ -415,6 +445,11 @@ public class SmsTransactionProcessor {
         PAYEE("<:E:>", "(\\S+?)", "{{e}}"),
         CURRENCY("<:F:>", "([A-Z]{3})", "{{f}}"),
         TIMESTAMP_MILLIS("<:G:>", "(\\d{1,13})", "{{g}}"),
+        // 分類 id（不是分類名）。給「訊息由會判斷的一端產生」的來源用——它讀得到帳本、
+        // 挑得出確切那一個分類，所以直接帶 id：分類名在樹的不同分支可以重複，而全路徑
+        // 含空白（"3C數位 > 訂閱服務"），(\S+?) 那類佔位符接不住。0＝不指定。
+        // 對照 app 內的 AI 記帳，那條路也是模型回 category_id（見 EntityContextBuilder）。
+        CATEGORY_ID("<:K:>", "(\\d{1,9})", "{{k}}"),
         PRICE("<:P:>", BALANCE.regexp, "{{p}}"),
         PROJECT("<:R:>", "(\\S+?)", "{{r}}"),
         TEXT("<:T:>", "(.*?)", "{{t}}"),
