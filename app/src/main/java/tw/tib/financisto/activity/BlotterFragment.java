@@ -99,6 +99,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     private static final int MONTHLY_VIEW_REQUEST = 6;
     private static final int BILL_PREVIEW_REQUEST = 7;
     private static final int SHOW_TOTALS_REQUEST = 8;
+    private static final int MASS_OP_REQUEST = 9;
 
     protected static final int FILTER_REQUEST = 6;
     private static final int MENU_DUPLICATE = MENU_ADD + 1;
@@ -114,6 +115,8 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
 
     protected ImageButton bFilter;
     protected ImageButton bPending;
+    /** 批次異動入口。只有 blotter 版面有這顆（MassOpFragment 等子類的版面沒有），一律 null-guard。 */
+    protected android.widget.Button bMassOp;
     protected ImageButton bTransfer;
     protected ImageButton bTemplate;
     protected ImageButton bSearch;
@@ -308,6 +311,18 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         bPending = view.findViewById(R.id.bPending);
         if (bPending != null) {
             bPending.setOnClickListener(v -> togglePendingFilter());
+        }
+
+        // 批次異動：把當下的篩選整個交給批次畫面（MassOpActivity 本來就會把 intent extras
+        // 當 fragment args 餵給 MassOpFragment，那邊 WhereFilter.fromBundle 收）。
+        // 一般篩選與「只看擱置」都住在同一個 blotterFilter，所以這裡不必分別處理。
+        bMassOp = view.findViewById(R.id.bMassOp);
+        if (bMassOp != null) {
+            bMassOp.setOnClickListener(v -> {
+                Intent intent = new Intent(getContext(), MassOpActivity.class);
+                blotterFilter.toIntent(intent);
+                startActivityForResult(intent, MASS_OP_REQUEST);
+            });
         }
 
         totalText = view.findViewById(R.id.total);
@@ -1179,6 +1194,21 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     protected void updateFilterImage() {
         FilterState.updateFilterColor(getContext(), blotterFilter, bFilter);
         updatePendingButton();
+        updateMassOpButton();
+    }
+
+    /**
+     * 批次異動只在**有篩選**時出現。
+     *
+     * 用的是 app 自己對「有篩選」的定義（{@code WhereFilter.isEmpty()}，跟篩選鈕變藍的判斷
+     * 同一個），所以一般篩選與「只看擱置」都算——後者就是把 STATUS=PN 塞進同一個篩選物件。
+     *
+     * 隱藏不只是版面考量：批次操作真正會出大事的情境是「對全部交易做」，而沒篩選時這顆
+     * 不存在，那個情境就不在路徑上。
+     */
+    private void updateMassOpButton() {
+        if (bMassOp == null) return;
+        bMassOp.setVisibility(blotterFilter.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     /** 目前的篩選是不是「剛好只篩擱置」——只有這種情況才算這顆鈕是開著的。 */

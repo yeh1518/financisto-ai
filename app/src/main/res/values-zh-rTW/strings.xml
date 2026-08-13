@@ -601,6 +601,19 @@
   <string name="proceed">繼續</string>
   <string name="apply_mass_op" formatted="false">以 \'%s\' 處理 %d 筆交易?</string>
   <string name="apply_mass_op_zero_count">未選擇任何交易...</string>
+  <string name="mass_operations_set_category">改分類</string>
+  <string name="mass_operations_clear_category">清除分類</string>
+  <string name="mass_operations_set_project">改專案</string>
+  <string name="mass_operations_clear_project">清除專案</string>
+  <string name="mass_operations_append_note">備註附加文字</string>
+  <string name="mass_operations_append_note_hint">要附加的文字，例如：8月對帳</string>
+  <string name="mass_operations_append_note_empty">沒有輸入要附加的文字。</string>
+  <string name="mass_operations_working">處理中…</string>
+  <string name="mass_operations_backup_first">會先存一份備份，做錯了還原就回來了。</string>
+  <string name="mass_operations_backup_failed">什麼都沒有改：備份失敗，而這個操作的安全性正是建立在「有備份可還原」上面。\n\n%1$s</string>
+  <string name="mass_operations_skipped_splits">跳過了 %1$d 筆分割交易——分割是每一份各有分類，沒辦法用單一分類取代。</string>
+  <string name="mass_operations_split_not_a_target">[分割] 不能當批次的目標分類——那會把這些交易變成沒有子項的分割父交易。</string>
+  <string name="blotter_mass_op">對篩選出的交易做批次異動</string>
   <string name="entities">實體</string>
   <string name="transaction_status_restored">修復</string>
   <string name="scheduled_transactions_restored">已復原定期交易</string>

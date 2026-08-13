@@ -1490,6 +1490,116 @@ public class DatabaseAdapter extends MyEntityManager {
         }
     }
 
+    /**
+     * 批次改分類。
+     *
+     * **刻意不碰分割交易**：父交易的 category_id 是分割佔位符
+     * （{@link Category#SPLIT_CATEGORY_ID}），改掉它分割結構就壞了；而把子交易全部蓋成同一個
+     * 分類，等於把「一筆拆多分類」這件事本身抹掉。所以兩邊都避開——回傳的列數會少於選取數，
+     * 呼叫端要把差額講給使用者聽，不能靜靜地少做。
+     *
+     * @return 實際改到的列數
+     */
+    public int updateCategoryForSelectedTransactions(long[] ids, long categoryId) {
+        return updateSelectedTransactions(ids,
+                DatabaseHelper.TransactionColumns.category_id + "=?",
+                new Object[]{categoryId},
+                DatabaseHelper.TransactionColumns.category_id + "<>" + Category.SPLIT_CATEGORY_ID,
+                false);
+    }
+
+    /**
+     * 批次改專案。專案是整筆的屬性、分割子交易本來也從父交易繼承（見 insertSplits），
+     * 所以連帶套用到子交易。
+     *
+     * @param projectId {@link Project#NO_PROJECT_ID} ＝ 清除專案
+     * @return 實際改到的列數
+     */
+    public int updateProjectForSelectedTransactions(long[] ids, long projectId) {
+        return updateSelectedTransactions(ids,
+                DatabaseHelper.TransactionColumns.project_id + "=?",
+                new Object[]{projectId}, null, true);
+    }
+
+    /**
+     * 批次在備註後面**附加**一段文字（不覆寫）。
+     *
+     * 覆寫會把自動記帳帶進來的商家／品項資訊抹掉，而那是抹了就沒了的東西；附加則永遠是加法。
+     * 原本沒備註的就直接填上，不留前導空白。只套用在選取的那幾列、不進子交易——使用者看到
+     * 並勾選的就是這幾列。
+     *
+     * @return 實際改到的列數
+     */
+    public int appendNoteToSelectedTransactions(long[] ids, String text) {
+        String note = DatabaseHelper.TransactionColumns.note.name();
+        return updateSelectedTransactions(ids,
+                note + "=CASE WHEN " + note + " IS NULL OR " + note + "='' THEN ? ELSE "
+                        + note + "||? END",
+                new Object[]{text, " " + text}, null, false);
+    }
+
+    /**
+     * 批次更新選取的交易，回傳實際改到的列數。
+     *
+     * 與 {@link #runInTransaction(String, long[])} 的差別有兩個，都是新操作需要的：
+     * 能帶綁定參數（備註那條要 SQL 運算式）、能選擇要不要連帶套用到分割子交易
+     * （狀態該連帶、分類不該）。同樣按 100 筆分批，避免 SQL 的 IN 清單過長。
+     */
+    private int updateSelectedTransactions(long[] ids, String setClause, Object[] args,
+                                           String extraWhere, boolean includeChildren) {
+        if (ids == null || ids.length == 0) return 0;
+        SQLiteDatabase db = db();
+        int total = 0;
+        db.beginTransaction();
+        try {
+            final int bucket = 100;
+            for (int x = 0; x < ids.length; x += bucket) {
+                int y = Math.min(ids.length, x + bucket);
+                String inList = joinIds(ids, x, y);
+                StringBuilder sb = new StringBuilder("UPDATE ")
+                        .append(DatabaseHelper.TRANSACTION_TABLE)
+                        .append(" SET ").append(setClause)
+                        .append(" WHERE ").append(DatabaseHelper.TransactionColumns.is_template)
+                        .append("=0 AND (")
+                        .append(DatabaseHelper.TransactionColumns._id)
+                        .append(" IN (").append(inList).append(")");
+                if (includeChildren) {
+                    sb.append(" OR ").append(DatabaseHelper.TransactionColumns.parent_id)
+                            .append(" IN (").append(inList).append(")");
+                }
+                sb.append(")");
+                if (extraWhere != null) {
+                    sb.append(" AND ").append(extraWhere);
+                }
+                android.database.sqlite.SQLiteStatement st = db.compileStatement(sb.toString());
+                try {
+                    for (int i = 0; i < args.length; i++) {
+                        Object a = args[i];
+                        if (a instanceof Long) st.bindLong(i + 1, (Long) a);
+                        else if (a == null) st.bindNull(i + 1);
+                        else st.bindString(i + 1, a.toString());
+                    }
+                    total += st.executeUpdateDelete();
+                } finally {
+                    st.close();
+                }
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+        return total;
+    }
+
+    private static String joinIds(long[] ids, int x, int y) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = x; i < y; i++) {
+            if (i > x) sb.append(",");
+            sb.append(ids[i]);
+        }
+        return sb.toString();
+    }
+
     private void runInTransaction(String sql, long[] ids) {
         SQLiteDatabase db = db();
         db.beginTransaction();

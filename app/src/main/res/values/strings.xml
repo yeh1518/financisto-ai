@@ -666,6 +666,19 @@
     <string name="proceed">Proceed</string>
     <string name="apply_mass_op" formatted="false">Apply \'%s\' on %d transaction(s)?</string>
     <string name="apply_mass_op_zero_count">No transactions selected…</string>
+    <string name="mass_operations_set_category">Set category</string>
+    <string name="mass_operations_clear_category">Clear category</string>
+    <string name="mass_operations_set_project">Set project</string>
+    <string name="mass_operations_clear_project">Clear project</string>
+    <string name="mass_operations_append_note">Append to note</string>
+    <string name="mass_operations_append_note_hint">Text to append, e.g. reconciled Aug</string>
+    <string name="mass_operations_append_note_empty">Nothing to append.</string>
+    <string name="mass_operations_working">Working…</string>
+    <string name="mass_operations_backup_first">A backup is saved first, so this can be undone by restoring it.</string>
+    <string name="mass_operations_backup_failed">Nothing was changed: the backup failed, and this operation is only safe because a backup exists.\n\n%1$s</string>
+    <string name="mass_operations_skipped_splits">%1$d split transaction(s) were skipped — a split keeps a category per part, so a single category cannot replace it.</string>
+    <string name="mass_operations_split_not_a_target">[Split…] cannot be a batch target: it would turn these into split parents with no parts.</string>
+    <string name="blotter_mass_op">Mass operations on the filtered transactions</string>
     <string name="entities">Entities</string>
     <string name="transaction_status_restored">Restored</string>
     <string name="scheduled_transactions_restored">Scheduled transactions have been restored</string>

@@ -100,6 +100,20 @@
 		android:textColor="#FFFFFF"
 		android:visibility="gone" />
 
+	<!-- 批次異動：只在「有篩選」時出現（由 BlotterFragment 控制），刻意不放進底排。
+	     兩個理由：底排是 HorizontalScrollView，按鈕會被捲到看不見；而且「無篩選＝碰不到批次」
+	     本身就是一道保險——對全部交易做批次正是唯一會出大事的情境。 -->
+	<Button
+		android:id="@+id/bMassOp"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:text="@string/mass_operations"
+		android:drawableStart="@drawable/ic_menu_agenda"
+		android:drawablePadding="8dp"
+		android:gravity="center"
+		android:contentDescription="@string/blotter_mass_op"
+		android:visibility="gone" />
+
 	<androidx.constraintlayout.widget.ConstraintLayout
 		android:id="@+id/bottom_bar"
 		style="@style/BottomBar">
