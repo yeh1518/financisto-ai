@@ -36,6 +36,10 @@
 
 Get it on Google Play: https://play.google.com/store/apps/details?id=tw.tib.financisto
 
+If you find this app helpful, please consider support the maintainer
+with PayPal -- Non-recurring, amount as you wish, a cup of tea latte is great: 
+[![](https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif)](https://paypal.me/tibteng/10)
+
 Please see https://github.com/dsolonenko/financisto for latest development by 
 orginal author.
 
@@ -54,7 +58,6 @@ BE SURE TO BACKUP YOUR DATA!
 * Tweaked text layout, support device text scaling
 * Search memo text, amount value (even with range)
 * Location removed due to huge change in google maps API
-* Photo removed due to backup and content linking/updating difficulties
 * Backup file compatible with Play store version 1.7.1
 * SMS template has been changed to Notification template, supporting other apps' push notification
 

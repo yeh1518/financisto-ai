@@ -25,6 +25,7 @@ local-backups/
 *.backup
 DEV-BUILD.md
 docs/對帳規則.md
+docs/Telegram對帳-定稿.md
 tools/restructure-categories.py
 tools/recon/
 
