@@ -164,10 +164,16 @@ public class MassOpFragment extends BlotterFragment {
         Bundle args = getArguments();
         if (args != null && !args.isEmpty()) {
             blotterFilter = WhereFilter.fromBundle(args);
+            // 帶著篩選進來＝意圖就是「對這批做」，所以預設全勾。
+            // 從主選單進來（沒有 args）維持原樣：那條路是先自己篩、再自己挑，預設不勾才對。
+            checkAllOnFirstLoad = true;
             applyFilter();
             recreateCursor();
         }
     }
+
+    /** 從交易列表帶篩選進來時，第一次載入完要把全部勾起來（見 onViewCreated）。 */
+    private boolean checkAllOnFirstLoad;
 
     /**
      * 選了操作按「執行」的入口。需要參數的操作（改分類／改專案／附加備註）先問參數，
@@ -175,9 +181,22 @@ public class MassOpFragment extends BlotterFragment {
      */
     protected void applyMassOp(final MassOp op) {
         BlotterListAdapter adapter = (BlotterListAdapter) getListAdapter();
-        int count = adapter == null ? 0 : adapter.getCheckedCount();
+        // ⚠️ **當場把 id 快照下來**，不要留著 adapter 等一下再問它。
+        //
+        // 需要選參數的操作會跳出另一個 Activity（分類選擇器），回來時 Loader 會送一份新 cursor
+        // 進來、setListAdapter 換成新的 adapter，舊的那個 cursor 已經關掉——此時
+        // getAllCheckedIds() 會安靜地回空陣列，於是備份照存、確認框照跳、什麼都沒改。
+        // （實測踩到：log 是 "Will apply SET_CATEGORY on []"。原本的批次畫面沒這問題，
+        //  因為它中間不會跳出別的 Activity。）
+        pendingIds = adapter == null ? new long[0] : adapter.getAllCheckedIds();
+        int count = pendingIds.length;
         if (count == 0) {
-            Toast.makeText(getContext(), R.string.apply_mass_op_zero_count, Toast.LENGTH_SHORT).show();
+            // 用對話框而不是短 toast：這是這個畫面最容易撞到的死路（選了操作、按了執行、
+            // 卻一筆都沒勾），而一閃而過的 toast 看起來就跟「按了沒反應」一樣。
+            new AlertDialog.Builder(getContext())
+                    .setMessage(R.string.apply_mass_op_zero_count)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
             return;
         }
         switch (op.pick()) {
@@ -258,24 +277,22 @@ public class MassOpFragment extends BlotterFragment {
      * 今天已記的那些一起回不來。備份的成本是一次幾百 KB 的寫檔，換掉的是「不可回復」。
      */
     private void confirmAndApply(final MassOp op, final Param param) {
-        BlotterListAdapter adapter = (BlotterListAdapter) getListAdapter();
-        if (adapter == null) return;
-        int count = adapter.getCheckedCount();
+        final long[] ids = pendingIds;
+        if (ids == null || ids.length == 0) return;
         String what = getString(op.getTitleId());
         if (param.label != null) {
             what = what + "「" + param.label + "」";
         }
         new AlertDialog.Builder(getContext())
-                .setMessage(getString(R.string.apply_mass_op, what, count)
+                .setMessage(getString(R.string.apply_mass_op, what, ids.length)
                         + "\n\n" + getString(R.string.mass_operations_backup_first))
-                .setPositiveButton(R.string.yes, (d, w) -> runMassOp(op, param, adapter))
+                .setPositiveButton(R.string.yes, (d, w) -> runMassOp(op, param, ids))
                 .setNegativeButton(R.string.no, null)
                 .show();
     }
 
     /** 備份 → 套用 → 重讀清單。都在背景執行緒，備份是寫檔、不能卡 UI。 */
-    private void runMassOp(final MassOp op, final Param param, final BlotterListAdapter adapter) {
-        final long[] ids = adapter.getAllCheckedIds();
+    private void runMassOp(final MassOp op, final Param param, final long[] ids) {
         Log.d("Financisto", "Will apply " + op + " on " + Arrays.toString(ids));
         final ProgressDialog progress = ProgressDialog.show(getContext(), null,
                 getString(R.string.mass_operations_working), true, false);
@@ -323,7 +340,10 @@ public class MassOpFragment extends BlotterFragment {
                             getString(R.string.mass_operations_skipped_splits, skipped),
                             Toast.LENGTH_LONG).show();
                 }
-                adapter.uncheckAll();
+                pendingIds = null;
+                // 取當下的 adapter，不是操作開始時那個——中間可能已經被 Loader 換掉
+                BlotterListAdapter current = (BlotterListAdapter) getListAdapter();
+                if (current != null) current.uncheckAll();
                 recreateCursor();
             });
         });
@@ -360,6 +380,8 @@ public class MassOpFragment extends BlotterFragment {
 
     /** 需要參數的操作暫存在這裡，等 CategorySelectorActivity 回來。 */
     private MassOp pendingOp;
+    /** 使用者按下「執行」當下勾選的那批 id（見 applyMassOp 的註解：不能事後再問 adapter）。 */
+    private long[] pendingIds;
 
     /** 操作的參數：id 用於分類／專案，text 用於備註，label 只給確認對話框顯示。 */
     private static class Param {
@@ -386,7 +408,13 @@ public class MassOpFragment extends BlotterFragment {
             emptyText.setVisibility(View.VISIBLE);
         }
         progressBar.setVisibility(View.GONE);
-        return new BlotterListAdapter(context, db, R.layout.blotter_mass_op_list_item, cursor, true);
+        BlotterListAdapter adapter =
+                new BlotterListAdapter(context, db, R.layout.blotter_mass_op_list_item, cursor, true);
+        if (checkAllOnFirstLoad) {
+            checkAllOnFirstLoad = false;   // 只在第一次載入，之後（做完一次操作重讀）不要又全勾回來
+            adapter.checkAll();
+        }
+        return adapter;
     }
 
     /**
