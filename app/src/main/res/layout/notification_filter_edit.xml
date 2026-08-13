@@ -35,5 +35,6 @@
         android:gravity="top"
         android:inputType="textMultiLine|textNoSuggestions"
         android:fontFamily="monospace"
+        android:textSize="13sp"
         android:hint="@string/ai_notif_filter_placeholder" />
 </LinearLayout>

@@ -112,14 +112,16 @@ public class NotificationFilter {
      */
     public static String addPackage(String raw, String pkg, String label) {
         if (pkg == null || pkg.trim().isEmpty()) return raw == null ? "" : raw;
-        String base = raw == null ? "" : raw;
+        // ⚠️ 尾端空白要削掉、也不要留尾端換行：SharedPreferences 的 XML writer 在值以換行
+        // 結尾時會把縮排一起寫進去（實測讀回來是 "…# Messages\n    "），於是下一次
+        // endsWith("\n") 判斷失準、多插一個只有空白的行，每加一個 app 就累積一行。
+        String base = raw == null ? "" : raw.replaceAll("\\s+$", "");
         if (packages(base).contains(pkg.trim().toLowerCase(Locale.ROOT))) return base;
-        String prefix = base.isEmpty() || base.endsWith("\n") ? base : base + "\n";
         String line = APP_PREFIX + pkg.trim();
         if (label != null && !label.trim().isEmpty() && !label.trim().equals(pkg.trim())) {
             line += "  # " + label.trim();
         }
-        return prefix + line + "\n";
+        return base.isEmpty() ? line : base + "\n" + line;
     }
 
     /**

@@ -527,20 +527,17 @@ public class NotificationListActivity extends AppCompatActivity {
     }
 
     static class NotificationViewHolder {
-        public TextView title;
         public TextView body;
         public TextView meta;
         public NotificationListener.ParsedNotification notification;
 
         public NotificationViewHolder(@NonNull View itemView) {
-            title = itemView.findViewById(R.id.title);
             body = itemView.findViewById(R.id.body);
             meta = itemView.findViewById(R.id.meta);
         }
 
         public void bindView(NotificationListener.ParsedNotification notification, String metaText) {
             this.notification = notification;
-            title.setText(notification.title);
             body.setText(notification.body);
             meta.setText(metaText);
             meta.setVisibility(metaText.isEmpty() ? View.GONE : View.VISIBLE);

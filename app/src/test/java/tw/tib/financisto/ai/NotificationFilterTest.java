@@ -131,9 +131,19 @@ public class NotificationFilterTest {
     @Test
     public void addPackageWritesLabelAsNote() {
         String raw = NotificationFilter.addPackage("限時動態", IG, "Instagram");
-        assertEquals("限時動態\napp:" + IG + "  # Instagram\n", raw);
+        assertEquals("限時動態\napp:" + IG + "  # Instagram", raw);
         assertEquals(Arrays.asList("限時動態"), NotificationFilter.keywords(raw));
         assertTrue(NotificationFilter.packages(raw).contains(IG));
+    }
+
+    @Test
+    public void addPackageDoesNotAccumulateBlankLines() {
+        // SharedPreferences 讀回來的值尾端會多出縮排空白（值以換行結尾時 XML writer 寫進去的）。
+        // 沒削掉的話每加一個 app 就多一個只有空白的行。
+        String fromPrefs = "app:a  # A\n    ";
+        assertEquals("app:a  # A\napp:b  # B",
+                NotificationFilter.addPackage(fromPrefs, "b", "B"));
+        assertEquals("app:b  # B", NotificationFilter.addPackage("   \n\n  ", "b", "B"));
     }
 
     @Test
@@ -146,10 +156,10 @@ public class NotificationFilterTest {
 
     @Test
     public void addPackageHandlesEmptyAndUnlabeled() {
-        assertEquals("app:" + IG + "\n", NotificationFilter.addPackage(null, IG, null));
-        assertEquals("app:" + IG + "\n", NotificationFilter.addPackage("", IG, ""));
+        assertEquals("app:" + IG, NotificationFilter.addPackage(null, IG, null));
+        assertEquals("app:" + IG, NotificationFilter.addPackage("", IG, ""));
         // 查不到名稱時 AppLabels 會退回套件名——別寫成「app:x  # x」這種廢註記
-        assertEquals("app:" + IG + "\n", NotificationFilter.addPackage("", IG, IG));
+        assertEquals("app:" + IG, NotificationFilter.addPackage("", IG, IG));
         assertEquals("限時動態", NotificationFilter.addPackage("限時動態", "  ", "x"));
     }
 }

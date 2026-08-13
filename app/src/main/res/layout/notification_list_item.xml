@@ -4,10 +4,14 @@
     android:layout_height="wrap_content"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <TextView android:id="@+id/title"
+    <!-- 來源 app 與通知時間，擺在標題原本的位置。
+         不另外顯示通知標題：body 本身就是「標題 + 內文」（見 NotificationListener.extractNotification），
+         標題再獨立一行等於把同一段字讀兩遍。真正分不出來的是「誰送的、什麼時候」——
+         同一家銀行的好幾則長得很像，而時間又是拿這則通知記帳時會用的交易時間。 -->
+    <TextView android:id="@+id/meta"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Title"
+        android:text="App · 00/00 00:00"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         android:textAppearance="?android:attr/textAppearanceMedium"
@@ -16,21 +20,10 @@
     <TextView android:id="@+id/body"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="5dp"
         android:text="Body"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/title"
+        app:layout_constraintTop_toBottomOf="@id/meta"
         android:textAppearance="?android:attr/textAppearanceSmall" />
-
-    <!-- 來源 app 與通知時間。同一家銀行的好幾則長得很像，只靠標題分不出是哪一則；
-         時間又是拿這則通知記帳時會用的交易時間，所以要看得到。 -->
-    <TextView android:id="@+id/meta"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="5dp"
-        android:text="App · 00/00 00:00"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/body"
-        android:textAppearance="?android:attr/textAppearanceSmall"
-        android:textColor="?android:attr/textColorSecondary" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
