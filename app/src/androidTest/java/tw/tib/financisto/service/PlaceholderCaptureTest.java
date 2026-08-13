@@ -32,14 +32,14 @@ public class PlaceholderCaptureTest {
 
     @Test
     public void capturesAsciiAccountTitle() {
-        assertEquals("LineBank", captureTransferTo("LineBank"));
+        assertEquals("NeoBank", captureTransferTo("NeoBank"));
     }
 
     @Test
     public void capturesCjkAccountTitle() {
         assertEquals("身上現金", captureTransferTo("身上現金"));
-        assertEquals("中信信用卡", captureTransferTo("中信信用卡"));
-        assertEquals("Richart帳戶", captureTransferTo("Richart帳戶"));
+        assertEquals("甲銀行信用卡", captureTransferTo("甲銀行信用卡"));
+        assertEquals("Digi帳戶", captureTransferTo("Digi帳戶"));
     }
 
     /**
@@ -50,8 +50,8 @@ public class PlaceholderCaptureTest {
     @Test
     public void capturesAccountTitleWithHyphen() {
         assertEquals("Visa-Gold", captureTransferTo("Visa-Gold"));
-        assertEquals("郵局-老婆", captureTransferTo("郵局-老婆"));
-        assertEquals("富邦銀行-老婆", captureTransferTo("富邦銀行-老婆"));
+        assertEquals("郵政帳戶-配偶", captureTransferTo("郵政帳戶-配偶"));
+        assertEquals("乙銀行存款-配偶", captureTransferTo("乙銀行存款-配偶"));
     }
 
     /** Same for parentheses, which are punctuation rather than word characters. */
@@ -59,7 +59,7 @@ public class PlaceholderCaptureTest {
     public void capturesAccountTitleWithParentheses() {
         assertEquals("Cash(Joint)", captureTransferTo("Cash(Joint)"));
         assertEquals("(存款)", captureTransferTo("(存款)"));
-        assertEquals("(旅遊儲蓄金)", captureTransferTo("(旅遊儲蓄金)"));
+        assertEquals("(旅遊基金)", captureTransferTo("(旅遊基金)"));
     }
 
     // --- {{k}}（分類 id）---
@@ -70,7 +70,7 @@ public class PlaceholderCaptureTest {
 
     private static String[] bookkeeping(String categoryField, String note) {
         String[] match = SmsTransactionProcessor.findTemplateMatches(BOOKKEEPING_TEMPLATE,
-                "Finn 🧾記帳｜支出｜250｜中信信用卡｜" + categoryField + "｜" + note
+                "Finn 🧾記帳｜支出｜250｜甲銀行信用卡｜" + categoryField + "｜" + note
                         + "｜1785761364401｜1/3");
         assertNotNull("template did not match for category field: " + categoryField, match);
         return match;
@@ -81,7 +81,7 @@ public class PlaceholderCaptureTest {
         String[] m = bookkeeping("17", "全家超商 晚餐便當");
         assertEquals("17", m[Placeholder.CATEGORY_ID.ordinal()]);
         assertEquals("250", m[Placeholder.PRICE.ordinal()]);
-        assertEquals("中信信用卡", m[Placeholder.ACCOUNT_NAME.ordinal()]);
+        assertEquals("甲銀行信用卡", m[Placeholder.ACCOUNT_NAME.ordinal()]);
         assertEquals("全家超商 晚餐便當", m[Placeholder.TEXT.ordinal()]);
         assertEquals("1785761364401", m[Placeholder.TIMESTAMP_MILLIS.ordinal()]);
     }

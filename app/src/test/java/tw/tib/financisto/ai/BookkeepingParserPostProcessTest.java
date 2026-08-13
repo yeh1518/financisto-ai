@@ -21,11 +21,11 @@ public class BookkeepingParserPostProcessTest {
     private static final Map<String, Long> ACCOUNTS = new HashMap<>();
     static {
         ACCOUNTS.put("借款", 26L);
-        ACCOUNTS.put("玉山信用卡", 48L);
-        ACCOUNTS.put("中信信用卡", 6L);
-        ACCOUNTS.put("中信帳戶總覽", 5L);
+        ACCOUNTS.put("丙銀行信用卡", 48L);
+        ACCOUNTS.put("甲銀行信用卡", 6L);
+        ACCOUNTS.put("甲銀行存款", 5L);
         ACCOUNTS.put("身上現金", 8L);
-        ACCOUNTS.put("郵局總覽", 1L);
+        ACCOUNTS.put("郵政帳戶", 1L);
     }
 
     private static ParsedTransaction tx(String type, Long account, Long toAccount, String note) {
@@ -71,18 +71,18 @@ public class BookkeepingParserPostProcessTest {
 
     @Test
     public void accountNameInNoteFillsEmptyAccount() {
-        // 「借款轉中信帳號9000元」實測形狀：account 空著、帳戶名掉進 note
+        // 「借款轉甲銀行帳號9000元」實測形狀：account 空著、帳戶名掉進 note
         ParsedTransaction t = tx(ParsedTransaction.TYPE_TRANSFER, null, 5L, "借款");
-        BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "借款轉中信帳號9000元");
+        BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "借款轉甲銀行帳號9000元");
         assertEquals(Long.valueOf(26L), t.account.id);
         assertNull(t.note);
     }
 
     @Test
     public void accountNameInNoteOverridesWrongAccount() {
-        // 「玉山信用卡2383」實測形狀：note=玉山信用卡，帳戶卻挑了中信信用卡
-        ParsedTransaction t = tx(ParsedTransaction.TYPE_EXPENSE, 6L, null, "玉山信用卡");
-        BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "玉山信用卡2383");
+        // 「丙銀行信用卡2383」實測形狀：note=丙銀行信用卡，帳戶卻挑了甲銀行信用卡
+        ParsedTransaction t = tx(ParsedTransaction.TYPE_EXPENSE, 6L, null, "丙銀行信用卡");
+        BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "丙銀行信用卡2383");
         assertEquals(Long.valueOf(48L), t.account.id);
         assertEquals(1.0, t.account.confidence, 0.0001);
         assertNull(t.note);
@@ -91,7 +91,7 @@ public class BookkeepingParserPostProcessTest {
     @Test
     public void accountNameNotInUtteranceOnlyStripsNote() {
         // 名字沒出現在原句裡＝模型自己生的字，沒有份量：清掉備註但不動帳戶
-        ParsedTransaction t = tx(ParsedTransaction.TYPE_EXPENSE, 6L, null, "玉山信用卡");
+        ParsedTransaction t = tx(ParsedTransaction.TYPE_EXPENSE, 6L, null, "丙銀行信用卡");
         BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "刷卡2383");
         assertEquals(Long.valueOf(6L), t.account.id);
         assertNull(t.note);
@@ -100,8 +100,8 @@ public class BookkeepingParserPostProcessTest {
     @Test
     public void noteNamingTransferTargetDoesNotOverwriteSource() {
         // 轉帳時備註若是轉入帳戶的名字，那只是重複——拿去蓋轉出帳戶會把整筆轉帳弄反
-        ParsedTransaction t = tx(ParsedTransaction.TYPE_TRANSFER, 1L, 5L, "中信帳戶總覽");
-        BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "郵局轉中信帳戶總覽5000");
+        ParsedTransaction t = tx(ParsedTransaction.TYPE_TRANSFER, 1L, 5L, "甲銀行存款");
+        BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "郵政轉甲銀行存款5000");
         assertEquals(Long.valueOf(1L), t.account.id);
         assertEquals(Long.valueOf(5L), t.toAccount.id);
         assertNull(t.note);
@@ -126,7 +126,7 @@ public class BookkeepingParserPostProcessTest {
     public void partialAccountNameIsNotTouched() {
         // 「轉身上現金」不等於任何帳戶名——只有整段相符才算，避免誤殺有意義的描述
         ParsedTransaction t = tx(ParsedTransaction.TYPE_TRANSFER, 1L, 8L, "轉身上現金");
-        BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "郵局轉身上現金3000元");
+        BookkeepingParser.applyAccountNamedInNote(t, ACCOUNTS, "郵政轉身上現金3000元");
         assertEquals("轉身上現金", t.note);
         assertEquals(Long.valueOf(1L), t.account.id);
     }

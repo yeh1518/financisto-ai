@@ -447,7 +447,7 @@ public class SmsTransactionProcessor {
         TIMESTAMP_MILLIS("<:G:>", "(\\d{1,13})", "{{g}}"),
         // 分類 id（不是分類名）。給「訊息由會判斷的一端產生」的來源用——它讀得到帳本、
         // 挑得出確切那一個分類，所以直接帶 id：分類名在樹的不同分支可以重複，而全路徑
-        // 含空白（"3C數位 > 訂閱服務"），(\S+?) 那類佔位符接不住。0＝不指定。
+        // 含空白（"數位服務 > 訂閱服務"），(\S+?) 那類佔位符接不住。0＝不指定。
         // 對照 app 內的 AI 記帳，那條路也是模型回 category_id（見 EntityContextBuilder）。
         CATEGORY_ID("<:K:>", "(\\d{1,9})", "{{k}}"),
         PRICE("<:P:>", BALANCE.regexp, "{{p}}"),

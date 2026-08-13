@@ -199,7 +199,7 @@ def verifiable(text, ent):
     if len(set(nums)) == 1:
         out["amount"] = float(nums[0])
     names = [a["name"] for a in ent["accounts"] if a["name"] and a["name"] in (text or "")]
-    # 名字是另一個帳戶名的子字串時（富邦信用卡 ⊂ 富邦信用卡-老婆）答案有歧義，不計分
+    # 名字是另一個帳戶名的子字串時（乙銀行信用卡 ⊂ 乙銀行信用卡-配偶）答案有歧義，不計分
     if len(names) == 1:
         n = names[0]
         if not any(o["name"] != n and n in o["name"] for o in ent["accounts"]):

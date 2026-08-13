@@ -20,7 +20,8 @@ status: 已完結（結論：短期維持雲端）
   constrained decoding，與 LiteRT-LM constrained decoding 同機制類）。
 - **語料**：24 題，涵蓋 expense / income / transfer / balance / splits /
   相對日期（昨天、上週三）/ 時間（早上八點半）/ 專案比對 / 同名消歧
-  （富邦 vs 富邦-老婆）/ 異形字（「臺灣银行」）。時間釘死 2026-07-22 12:00（週三）。
+  （乙銀行 vs 乙銀行-配偶）/ 異形字（帳戶名把「銀」寫成簡體「银」，講的人不會注意到、
+  但完全相等比對會整筆對不到）。時間釘死 2026-07-22 12:00（週三）。
 - **Runtime**：GARY_Z13 的 Ollama，經 mesh-SSH port-forward（`localhost:11435`）。
 
 ## 結果

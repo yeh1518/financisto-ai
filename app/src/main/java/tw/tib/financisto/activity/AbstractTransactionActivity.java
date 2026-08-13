@@ -93,7 +93,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	public static final String TEMPLATE_EXTRA = "isTemplate";
 	public static final String DATETIME_EXTRA = "dateTimeExtra";
 	public static final String NEW_FROM_TEMPLATE_EXTRA = "newFromTemplateExtra";
-	/** AI 調整餘額 prefill：balance 型也可能講出用途（「街口剩下895，飲食買炸春捲」）。
+	/** AI 調整餘額 prefill：balance 型也可能講出用途（「電子錢包剩下895，飲食買炸春捲」）。
 	 *  調整餘額不走 draft-shuttle（沒有 template 可帶欄位），分類/備註/專案改用這組 extra 帶進表單。 */
 	public static final String AI_PREFILL_CATEGORY_ID_EXTRA = "aiPrefillCategoryId";
 	public static final String AI_PREFILL_NOTE_EXTRA = "aiPrefillNote";

@@ -664,7 +664,7 @@ public class AiInputActivity extends ComponentActivity {
     }
 
     /**
-     * 「中信剩下300」→ 原生的調整餘額模式：帶入目前餘額 + 講出來的新餘額，
+     * 「甲銀行剩下300」→ 原生的調整餘額模式：帶入目前餘額 + 講出來的新餘額，
      * 差額由 TransactionActivity 自己算。這條路不需要 draft row。
      */
     private void launchBalanceAdjust(ParsedTransaction t, EntityContextBuilder ctx, long accountId) {
@@ -686,7 +686,7 @@ public class AiInputActivity extends ComponentActivity {
             long newBalance = toMinorUnits(t.amount, accountId, ctx);
             intent.putExtra(TransactionActivity.NEW_BALANCE_EXTRA, t.amount < 0 ? -newBalance : newBalance);
         }
-        // 「街口剩下895，飲食買炸春捲」：balance 也可能講出用途——分類/備註/專案帶進表單
+        // 「電子錢包剩下895，飲食買炸春捲」：balance 也可能講出用途——分類/備註/專案帶進表單
         if (t.category.resolved()) {
             intent.putExtra(AbstractTransactionActivity.AI_PREFILL_CATEGORY_ID_EXTRA, t.category.id);
         }

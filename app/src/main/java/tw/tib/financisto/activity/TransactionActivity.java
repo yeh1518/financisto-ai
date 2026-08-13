@@ -49,7 +49,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
     public static final String CURRENT_BALANCE_EXTRA = "accountCurrentBalance";
     /**
      * 調整餘額模式下，預先填入的「新餘額」（minor units）。
-     * 給 AI 一句話記帳用（「中信剩下300」）：CURRENT_BALANCE_EXTRA 帶入目前餘額，
+     * 給 AI 一句話記帳用（「甲銀行剩下300」）：CURRENT_BALANCE_EXTRA 帶入目前餘額，
      * 這個帶入目標餘額，差額由既有的 listener 自動算出。
      */
     public static final String NEW_BALANCE_EXTRA = "accountNewBalance";
@@ -265,7 +265,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
             } else {
                 rateView.setExpense();
             }
-            // AI 一句話記帳（「中信剩下300」）：預填講出來的新餘額。
+            // AI 一句話記帳（「甲銀行剩下300」）：預填講出來的新餘額。
             // 必須放在上面的 setIncome/setExpense 之後才不會被蓋掉，且正負號要依「新」
             // 餘額決定（AmountInput.setAmount 內部取絕對值，符號由 income/expense 決定）——
             // 依舊餘額判斷的話，負餘額帳戶(如信用卡)會把差額算反。

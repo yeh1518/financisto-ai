@@ -1272,7 +1272,7 @@
     <!-- AI one-sentence bookkeeping (Step 1) -->
     <string name="ai_bookkeeping">AI bookkeeping</string>
     <string name="ai_input_hint">Type a sentence, AI fills the transaction form</string>
-    <string name="ai_input_placeholder">e.g. Coffee 120 paid by CTBC card</string>
+    <string name="ai_input_placeholder">e.g. Coffee 120 paid by credit card</string>
     <string name="ai_parse">Parse</string>
     <string name="ai_settings">Settings</string>
     <string name="ai_save">Save</string>

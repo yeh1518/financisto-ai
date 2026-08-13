@@ -33,10 +33,10 @@ public class CategoryPlaceholderTest {
     @Test
     public void splitsAllFields() {
         String[] m = match(EXPENSE_TEMPLATE,
-                "Finn 🧾記帳｜支出｜250｜中信信用卡｜17｜全家超商 晚餐便當｜1785761364401｜1/3");
+                "Finn 🧾記帳｜支出｜250｜甲銀行信用卡｜17｜全家超商 晚餐便當｜1785761364401｜1/3");
         assertNotNull("樣板沒比中", m);
         assertEquals("250", captured(m, Placeholder.PRICE));
-        assertEquals("中信信用卡", captured(m, Placeholder.ACCOUNT_NAME));
+        assertEquals("甲銀行信用卡", captured(m, Placeholder.ACCOUNT_NAME));
         assertEquals("17", captured(m, Placeholder.CATEGORY_ID));
         assertEquals("全家超商 晚餐便當", captured(m, Placeholder.TEXT));
         assertEquals("1785761364401", captured(m, Placeholder.TIMESTAMP_MILLIS));
@@ -56,7 +56,7 @@ public class CategoryPlaceholderTest {
     @Test
     public void noteWithNumericSegmentShiftsLaterFields() {
         String[] m = match(EXPENSE_TEMPLATE,
-                "Finn 🧾記帳｜支出｜250｜中信信用卡｜17｜發票｜99｜1785761364401｜1/3");
+                "Finn 🧾記帳｜支出｜250｜甲銀行信用卡｜17｜發票｜99｜1785761364401｜1/3");
         assertNotNull(m);
         assertEquals("17", captured(m, Placeholder.CATEGORY_ID));   // 分類仍正確（錨在帳戶後）
         assertEquals("發票", captured(m, Placeholder.TEXT));         // 備註被切斷
@@ -71,14 +71,14 @@ public class CategoryPlaceholderTest {
     public void categoryStaysCorrectEvenWhenNoteBreaksLaterFields() {
         String riskyOrder = "🧾記帳｜支出｜{{p}}｜{{c}}｜{{t}}｜{{k}}｜{{g}}｜";
         String[] bad = match(riskyOrder,
-                "Finn 🧾記帳｜支出｜250｜中信信用卡｜發票｜99｜17｜1785761364401｜1/3");
+                "Finn 🧾記帳｜支出｜250｜甲銀行信用卡｜發票｜99｜17｜1785761364401｜1/3");
         assertNotNull(bad);
         assertEquals("99", captured(bad, Placeholder.CATEGORY_ID));  // 本意是 17 → 記錯分類
         assertEquals("17", captured(bad, Placeholder.TIMESTAMP_MILLIS));
 
         // 正式順序下，同樣的壞備註至少不會污染分類
         String[] good = match(EXPENSE_TEMPLATE,
-                "Finn 🧾記帳｜支出｜250｜中信信用卡｜17｜發票｜99｜1785761364401｜1/3");
+                "Finn 🧾記帳｜支出｜250｜甲銀行信用卡｜17｜發票｜99｜1785761364401｜1/3");
         assertNotNull(good);
         assertEquals("17", captured(good, Placeholder.CATEGORY_ID));
     }
@@ -96,7 +96,7 @@ public class CategoryPlaceholderTest {
     @Test
     public void noteContainingNonNumericSeparatorIsFine() {
         String[] m = match(EXPENSE_TEMPLATE,
-                "Finn 🧾記帳｜支出｜250｜中信信用卡｜17｜A｜B｜1785761364401｜1/3");
+                "Finn 🧾記帳｜支出｜250｜甲銀行信用卡｜17｜A｜B｜1785761364401｜1/3");
         assertNotNull(m);
         assertEquals("17", captured(m, Placeholder.CATEGORY_ID));
         assertEquals("A｜B", captured(m, Placeholder.TEXT));
@@ -106,9 +106,9 @@ public class CategoryPlaceholderTest {
     @Test
     public void parenthesisedAccountNameWithCategory() {
         String[] m = match(EXPENSE_TEMPLATE,
-                "Finn 🧾記帳｜支出｜1200｜(旅遊儲蓄金)｜8｜機票訂金｜1785761364401｜1/1");
+                "Finn 🧾記帳｜支出｜1200｜(旅遊基金)｜8｜機票訂金｜1785761364401｜1/1");
         assertNotNull(m);
-        assertEquals("(旅遊儲蓄金)", captured(m, Placeholder.ACCOUNT_NAME));
+        assertEquals("(旅遊基金)", captured(m, Placeholder.ACCOUNT_NAME));
         assertEquals("8", captured(m, Placeholder.CATEGORY_ID));
     }
 
@@ -116,9 +116,9 @@ public class CategoryPlaceholderTest {
     @Test
     public void transferTemplateWithCategory() {
         String[] m = match("🧾記帳｜轉帳｜{{p}}｜{{c}}｜{{x}}｜{{k}}｜{{t}}｜{{g}}｜",
-                "Finn 🧾記帳｜轉帳｜5000｜中信帳戶總覽｜身上現金｜0｜ATM 提款｜1785769151816｜1/2");
+                "Finn 🧾記帳｜轉帳｜5000｜甲銀行存款｜身上現金｜0｜ATM 提款｜1785769151816｜1/2");
         assertNotNull(m);
-        assertEquals("中信帳戶總覽", captured(m, Placeholder.ACCOUNT_NAME));
+        assertEquals("甲銀行存款", captured(m, Placeholder.ACCOUNT_NAME));
         assertEquals("身上現金", captured(m, Placeholder.TRANSFER_TO_ACCOUNT_NAME));
         assertEquals("0", captured(m, Placeholder.CATEGORY_ID));
         assertEquals("ATM 提款", captured(m, Placeholder.TEXT));
@@ -128,10 +128,10 @@ public class CategoryPlaceholderTest {
     @Test
     public void incomeTemplateSplitsAllFields() {
         String[] m = match("🧾記帳｜收入｜{{p}}｜{{c}}｜{{k}}｜{{t}}｜{{g}}｜",
-                "Finn 🧾記帳｜收入｜32000｜中信帳戶總覽｜71｜八月薪資｜1785761364401｜1/1");
+                "Finn 🧾記帳｜收入｜32000｜甲銀行存款｜71｜八月薪資｜1785761364401｜1/1");
         assertNotNull(m);
         assertEquals("32000", captured(m, Placeholder.PRICE));
-        assertEquals("中信帳戶總覽", captured(m, Placeholder.ACCOUNT_NAME));
+        assertEquals("甲銀行存款", captured(m, Placeholder.ACCOUNT_NAME));
         assertEquals("71", captured(m, Placeholder.CATEGORY_ID));
         assertEquals("八月薪資", captured(m, Placeholder.TEXT));
     }
@@ -147,9 +147,9 @@ public class CategoryPlaceholderTest {
         String incomeTpl = "🧾記帳｜收入｜{{p}}｜{{c}}｜{{k}}｜{{t}}｜{{g}}｜";
         String transferTpl = "🧾記帳｜轉帳｜{{p}}｜{{c}}｜{{x}}｜{{k}}｜{{t}}｜{{g}}｜";
 
-        String expenseMsg = "Finn 🧾記帳｜支出｜250｜中信信用卡｜17｜全家超商｜1785761364401｜1/1";
-        String incomeMsg = "Finn 🧾記帳｜收入｜32000｜中信帳戶總覽｜71｜八月薪資｜1785761364401｜1/1";
-        String transferMsg = "Finn 🧾記帳｜轉帳｜5000｜中信帳戶總覽｜身上現金｜0｜ATM 提款｜1785761364401｜1/1";
+        String expenseMsg = "Finn 🧾記帳｜支出｜250｜甲銀行信用卡｜17｜全家超商｜1785761364401｜1/1";
+        String incomeMsg = "Finn 🧾記帳｜收入｜32000｜甲銀行存款｜71｜八月薪資｜1785761364401｜1/1";
+        String transferMsg = "Finn 🧾記帳｜轉帳｜5000｜甲銀行存款｜身上現金｜0｜ATM 提款｜1785761364401｜1/1";
 
         assertNotNull(match(expenseTpl, expenseMsg));
         assertNull(match(incomeTpl, expenseMsg));
@@ -168,7 +168,7 @@ public class CategoryPlaceholderTest {
     @Test
     public void templateWithoutCategoryPlaceholderIsUnaffected() {
         String[] m = match("🧾記帳｜支出｜{{p}}｜{{c}}｜{{t}}｜{{g}}｜",
-                "Finn 🧾記帳｜支出｜250｜中信信用卡｜全家超商 晚餐便當｜1785761364401｜1/3");
+                "Finn 🧾記帳｜支出｜250｜甲銀行信用卡｜全家超商 晚餐便當｜1785761364401｜1/3");
         assertNotNull(m);
         assertEquals("250", captured(m, Placeholder.PRICE));
         assertEquals("全家超商 晚餐便當", captured(m, Placeholder.TEXT));

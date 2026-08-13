@@ -1107,7 +1107,7 @@
   <!-- AI 一句話記帳（Step 1） -->
   <string name="ai_bookkeeping">AI 記帳</string>
   <string name="ai_input_hint">說一句話，AI 幫你填交易表單</string>
-  <string name="ai_input_placeholder">例：買咖啡 120 刷中信</string>
+  <string name="ai_input_placeholder">例：買咖啡 120 刷信用卡</string>
   <string name="ai_parse">解析</string>
   <string name="ai_settings">設定</string>
   <string name="ai_save">儲存</string>
