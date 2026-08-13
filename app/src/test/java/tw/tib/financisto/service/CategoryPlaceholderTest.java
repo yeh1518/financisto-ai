@@ -124,6 +124,46 @@ public class CategoryPlaceholderTest {
         assertEquals("ATM 提款", captured(m, Placeholder.TEXT));
     }
 
+    /** 收入樣板（與支出只差字面）也要切得對——三條樣板都是實際要設進 app 的字串。 */
+    @Test
+    public void incomeTemplateSplitsAllFields() {
+        String[] m = match("🧾記帳｜收入｜{{p}}｜{{c}}｜{{k}}｜{{t}}｜{{g}}｜",
+                "Finn 🧾記帳｜收入｜32000｜中信帳戶總覽｜71｜八月薪資｜1785761364401｜1/1");
+        assertNotNull(m);
+        assertEquals("32000", captured(m, Placeholder.PRICE));
+        assertEquals("中信帳戶總覽", captured(m, Placeholder.ACCOUNT_NAME));
+        assertEquals("71", captured(m, Placeholder.CATEGORY_ID));
+        assertEquals("八月薪資", captured(m, Placeholder.TEXT));
+    }
+
+    /**
+     * 跨樣板互斥：方向不是引擎讀得到的欄位，而是樣板上的一個布林（is_income），所以
+     * 「這筆是收是支」完全靠**哪一條樣板比中**。三條樣板同標題（Finn%）、引擎逐條試、
+     * 只有第一條產出交易的生效——互斥若不成立，正負號就會看運氣。
+     */
+    @Test
+    public void expenseAndIncomeTemplatesAreMutuallyExclusive() {
+        String expenseTpl = EXPENSE_TEMPLATE;
+        String incomeTpl = "🧾記帳｜收入｜{{p}}｜{{c}}｜{{k}}｜{{t}}｜{{g}}｜";
+        String transferTpl = "🧾記帳｜轉帳｜{{p}}｜{{c}}｜{{x}}｜{{k}}｜{{t}}｜{{g}}｜";
+
+        String expenseMsg = "Finn 🧾記帳｜支出｜250｜中信信用卡｜17｜全家超商｜1785761364401｜1/1";
+        String incomeMsg = "Finn 🧾記帳｜收入｜32000｜中信帳戶總覽｜71｜八月薪資｜1785761364401｜1/1";
+        String transferMsg = "Finn 🧾記帳｜轉帳｜5000｜中信帳戶總覽｜身上現金｜0｜ATM 提款｜1785761364401｜1/1";
+
+        assertNotNull(match(expenseTpl, expenseMsg));
+        assertNull(match(incomeTpl, expenseMsg));
+        assertNull(match(transferTpl, expenseMsg));
+
+        assertNotNull(match(incomeTpl, incomeMsg));
+        assertNull(match(expenseTpl, incomeMsg));
+        assertNull(match(transferTpl, incomeMsg));
+
+        assertNotNull(match(transferTpl, transferMsg));
+        assertNull(match(expenseTpl, transferMsg));
+        assertNull(match(incomeTpl, transferMsg));
+    }
+
     /** 沒有 {{k}} 的既有樣板不受影響——加佔位符不能動到已經在跑的樣板。 */
     @Test
     public void templateWithoutCategoryPlaceholderIsUnaffected() {
