@@ -613,6 +613,7 @@
   <string name="mass_operations_backup_failed">什麼都沒有改：備份失敗，而這個操作的安全性正是建立在「有備份可還原」上面。\n\n%1$s</string>
   <string name="mass_operations_skipped_splits">跳過了 %1$d 筆分割交易——分割是每一份各有分類，沒辦法用單一分類取代。</string>
   <string name="mass_operations_split_not_a_target">[分割] 不能當批次的目標分類——那會把這些交易變成沒有子項的分割父交易。</string>
+  <string name="blotter_mass_op_count">· 篩出 %1$d 筆</string>
   <string name="blotter_mass_op">對篩選出的交易做批次異動</string>
   <string name="entities">實體</string>
   <string name="transaction_status_restored">修復</string>

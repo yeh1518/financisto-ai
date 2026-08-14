@@ -27,6 +27,12 @@
 
     <color name="button_tint">#757575</color>
 
+    <!-- 批次異動列（篩選中才出現，在底排上方） -->
+    <color name="mass_op_bar_background_color">#3A3A3A</color>
+    <color name="mass_op_bar_divider">#4A4A4A</color>
+    <color name="mass_op_bar_text">#E2E2E2</color>
+    <color name="mass_op_bar_count">#9A9A9A</color>
+
     <color name="transaction_category">@android:color/primary_text_dark</color>
     <color name="transaction_note">@android:color/secondary_text_dark</color>
     <color name="transaction_payee">@android:color/holo_blue_light</color>

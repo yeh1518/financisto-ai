@@ -678,6 +678,7 @@
     <string name="mass_operations_backup_failed">Nothing was changed: the backup failed, and this operation is only safe because a backup exists.\n\n%1$s</string>
     <string name="mass_operations_skipped_splits">%1$d split transaction(s) were skipped — a split keeps a category per part, so a single category cannot replace it.</string>
     <string name="mass_operations_split_not_a_target">[Split…] cannot be a batch target: it would turn these into split parents with no parts.</string>
+    <string name="blotter_mass_op_count">· %1$d shown</string>
     <string name="blotter_mass_op">Mass operations on the filtered transactions</string>
     <string name="entities">Entities</string>
     <string name="transaction_status_restored">Restored</string>

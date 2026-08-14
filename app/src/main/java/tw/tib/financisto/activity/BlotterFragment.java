@@ -15,8 +15,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextWatcher;
 import android.text.format.DateUtils;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -116,7 +119,9 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     protected ImageButton bFilter;
     protected ImageButton bPending;
     /** 批次異動入口。只有 blotter 版面有這顆（MassOpFragment 等子類的版面沒有），一律 null-guard。 */
-    protected android.widget.Button bMassOp;
+    protected TextView bMassOp;
+    /** 目前篩選出的筆數，顯示在批次異動列上。-1＝還沒載入完，那時只顯示標題不顯示筆數。 */
+    private int massOpRowCount = -1;
     protected ImageButton bTransfer;
     protected ImageButton bTemplate;
     protected ImageButton bSearch;
@@ -1054,6 +1059,9 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 Log.d(TAG, "createAdapter: " + format("%,d", System.nanoTime() - t1) + " ns");
 
                 updatePeriodDisplay();
+                // 筆數只有在 cursor 載完才知道，所以在這裡更新（applyFilter 那次會早於載入完成）
+                massOpRowCount = count;
+                updateMassOpButton();
 
                 if (isNewAdapter) {
                     setListAdapterKeepScrollState(adapter);
@@ -1208,7 +1216,22 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
      */
     private void updateMassOpButton() {
         if (bMassOp == null) return;
-        bMassOp.setVisibility(blotterFilter.isEmpty() ? View.GONE : View.VISIBLE);
+        if (blotterFilter.isEmpty()) {
+            bMassOp.setVisibility(View.GONE);
+            return;
+        }
+        bMassOp.setVisibility(View.VISIBLE);
+        String label = getString(R.string.mass_operations);
+        if (massOpRowCount < 0) {
+            bMassOp.setText(label);
+            return;
+        }
+        // 筆數用較暗的灰：標題是動作、筆數是附註，兩個同色會讀成一整串
+        String count = getString(R.string.blotter_mass_op_count, massOpRowCount);
+        SpannableString s = new SpannableString(label + "  " + count);
+        s.setSpan(new ForegroundColorSpan(getResources().getColor(R.color.mass_op_bar_count)),
+                label.length(), s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        bMassOp.setText(s);
     }
 
     /** 目前的篩選是不是「剛好只篩擱置」——只有這種情況才算這顆鈕是開著的。 */
