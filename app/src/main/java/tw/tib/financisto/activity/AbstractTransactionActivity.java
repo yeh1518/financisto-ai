@@ -941,15 +941,18 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		updateTransactionFromUI(draft);        // dateTime / note / category / project / location（當前 UI）
 		draft.isTemplate = 1;
 		draft.fromAccountId = fromAccountId;
+		// 分類兩個方向都保留（2026-08-14 修）：原本切到轉帳時會清成無分類，理由寫「轉帳無分類」
+		// ——那個前提是錯的，轉帳表單本來就有分類欄（TransferActivity 依偏好
+		// isShowCategoryInTransferScreen 建節點）。切換型別是「換一張表單繼續填」，
+		// 使用者已經選好的分類沒有理由在這一步被丟掉。
+		if (t.category.resolved()) draft.categoryId = t.category.id;
 		if (toTransfer) {
 			draft.toAccountId = toAccountId;
-			draft.categoryId = NO_CATEGORY_ID; // 轉帳無分類
 			// 慣例：轉出為負、轉入為正（各依自己帳戶 scale 換算）
 			draft.fromAmount = -toMinor(curMajor, fromAccountId);
 			draft.toAmount = toMinor(curMajor, toAccountId);
 		} else {
 			draft.toAccountId = 0;
-			if (t.category.resolved()) draft.categoryId = t.category.id;
 			long minor = toMinor(curMajor, fromAccountId);
 			draft.fromAmount = t.isIncome() ? minor : -minor;
 		}
