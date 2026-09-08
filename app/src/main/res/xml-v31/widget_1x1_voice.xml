@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 同 xml/widget_1x1_voice.xml，另加 API 31 才有的欄位（挑選清單的預覽與說明、格數）。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/ai_voice_widget_description"
+    android:initialLayout="@layout/widget_1x1_voice"
+    android:minHeight="40dp"
+    android:minWidth="40dp"
+    android:previewLayout="@layout/widget_1x1_voice"
+    android:resizeMode="none"
+    android:targetCellHeight="1"
+    android:targetCellWidth="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

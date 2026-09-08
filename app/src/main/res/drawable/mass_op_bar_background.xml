@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 批次異動列的底：比底排（#303030）淺一階，讀起來像底排長出來的第二層而不是外來物；
+     頂部一條 1dp 亮線把它和上方的交易清單分開。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/mass_op_bar_divider" />
+        </shape>
+    </item>
+    <item android:top="1dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/mass_op_bar_background_color" />
+        </shape>
+    </item>
+</layer-list>

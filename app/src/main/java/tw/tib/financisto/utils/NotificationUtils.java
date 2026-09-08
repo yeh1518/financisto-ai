@@ -62,6 +62,32 @@ public class NotificationUtils {
         }
     }
 
+    /** 固定 id：連續觸發只保留最新一則，不洗版。 */
+    private static final int BACKUP_NOTIFICATION_ID = 913001;
+
+    /**
+     * 遠端觸發備份的完成／失敗通知（AutoBackupWorker 只在 NOTIFY_RESULT 時叫）。
+     * 內文絕不能含觸發指令「🧾備份」那串——雖然 NotificationListener 本來就會跳過
+     * 自家套件的通知，不靠字面撞不撞得上。
+     */
+    public static void notifyBackupResult(Context context, boolean success, String detail) {
+        Intent mainScreenIntent = new Intent(context, MainActivity.class);
+        PendingIntent pi = PendingIntent.getActivity(context, BACKUP_NOTIFICATION_ID,
+                mainScreenIntent, FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        Notification notification = new NotificationCompat.Builder(context, NotificationChannelService.TRANSACTIONS_CHANNEL)
+                .setContentIntent(pi)
+                .setSmallIcon(R.mipmap.a_icon_notify)
+                .setWhen(System.currentTimeMillis())
+                .setContentTitle(context.getString(success
+                        ? R.string.remote_backup_done_title : R.string.remote_backup_failed_title))
+                .setContentText(detail)
+                .setAutoCancel(true)
+                .build();
+
+        notifyUser(context, notification, BACKUP_NOTIFICATION_ID);
+    }
+
     public static void notifyUser(Context context, Notification notification, int id) {
         NotificationChannelService.initialize(context);
 

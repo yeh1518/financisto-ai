@@ -668,6 +668,20 @@
     <string name="proceed">Proceed</string>
     <string name="apply_mass_op" formatted="false">Apply \'%s\' on %d transaction(s)?</string>
     <string name="apply_mass_op_zero_count">No transactions selected…</string>
+    <string name="mass_operations_set_category">Set category</string>
+    <string name="mass_operations_clear_category">Clear category</string>
+    <string name="mass_operations_set_project">Set project</string>
+    <string name="mass_operations_clear_project">Clear project</string>
+    <string name="mass_operations_append_note">Append to note</string>
+    <string name="mass_operations_append_note_hint">Text to append, e.g. reconciled Aug</string>
+    <string name="mass_operations_append_note_empty">Nothing to append.</string>
+    <string name="mass_operations_working">Working…</string>
+    <string name="mass_operations_backup_first">A backup is saved first, so this can be undone by restoring it.</string>
+    <string name="mass_operations_backup_failed">Nothing was changed: the backup failed, and this operation is only safe because a backup exists.\n\n%1$s</string>
+    <string name="mass_operations_skipped_splits">%1$d split transaction(s) were skipped — a split keeps a category per part, so a single category cannot replace it.</string>
+    <string name="mass_operations_split_not_a_target">[Split…] cannot be a batch target: it would turn these into split parents with no parts.</string>
+    <string name="blotter_mass_op_count">· %1$d shown</string>
+    <string name="blotter_mass_op">Mass operations on the filtered transactions</string>
     <string name="entities">Entities</string>
     <string name="transaction_status_restored">Restored</string>
     <string name="scheduled_transactions_restored">Scheduled transactions have been restored</string>
@@ -968,7 +982,7 @@
         <item>Reports</item>
     </string-array>
 
-    <string name="integrity_error">Running balances look out of sync, please do Menu -> More -> Integrity Fix</string>
+    <string name="integrity_error">Running balances look out of sync</string>
     <string name="integrity_fix">Integrity Fix</string>
     <string name="integrity_fix_in_progress">Checking and fixing if necessary…</string>
 
@@ -1035,6 +1049,8 @@
     <string name="show_payee_in_transfer_summary">Show payee field in New Transfer screen</string>
     <string name="google_drive_backup_account">Backup account</string>
     <string name="google_drive_backup_account_summary">Choose your Google Drive account</string>
+    <string name="google_drive_disabled_summary">Disabled — use local backup folder + Syncthing</string>
+    <string name="google_drive_disabled_message">Google Drive backup is disabled in this build. Drive sign-in authenticates by package name + signing key against the upstream Google Cloud project, which no longer matches this fork. Use a local backup folder synced with Syncthing instead.</string>
     <string name="google_drive_sign_out">Sign out account</string>
     <string name="google_drive_sign_out_summary">Sign out to choose another account</string>
     <string name="google_drive_permission_requested">Permission requested</string>
@@ -1129,6 +1145,9 @@
     <string name="tpl_parse_result">Example notification process result</string>
     <string name="tpl_parse_not_found">(Not found)</string>
     <string name="tpl_failed_to_parse">(Failed to parse \'%s\' as decimal)</string>
+    <string name="sms_tpl_account_ok">✓ Will be recorded to: %1$s</string>
+    <string name="sms_tpl_account_missing">⚠ No account resolved — a match alone records nothing. No account is registered with digits \"%1$s\", and none is selected above. Fill in the account\'s \"Card number\" field, or pick an account above.</string>
+    <string name="sms_tpl_account_missing_no_digits">⚠ No account resolved — a match alone records nothing. Pick an account above.</string>
     <string name="pref_tpl">Notification Template</string>
     <string name="pref_tpl_transaction_status_title">Transaction Status</string>
     <string name="pref_tpl_transaction_status">Status of transaction created from template: %s</string>
@@ -1176,6 +1195,7 @@
     <string name="backup_newlines_summary">Newlines will be escaped as `\\n`, backslashes will be escaped as `\\\\`. If not enabled, newlines will be replaced as space (as in old versions).</string>
     <string name="auto_backup_is_not_enabled">You should consider enabling autobackup to Google Drive or Dropbox to keep your data safe. Go to Menu -> Preferences -> Backup.</string>
     <string name="integrity_error_message">%s%n(Tap to dismiss this message)</string>
+    <string name="integrity_error_message_fixable">%s%n(Tap to fix)</string>
     <string name="autobackup_failed_message">Autobackup failed at %s with error [%s].</string>
 
     <string name="request_permissions_storage_not_granted">Write external storage permisson not granted</string>
@@ -1204,6 +1224,8 @@
     <string name="set_focus_on_amount_field_summary">Automatically set focus on amount field for new transactions</string>
 
     <string name="notification_channel_name">Financisto</string>
+    <string name="remote_backup_done_title">Backup created</string>
+    <string name="remote_backup_failed_title">Backup failed</string>
     <string name="confirm_create_entity">Create "%s" ?</string>
 
     <string name="transaction_show_in_account_blotter">Show in account blotter</string>
@@ -1268,4 +1290,144 @@
         <item>Only show split summary</item>
         <item>Only show split children</item>
     </string-array>
+
+    <!-- AI one-sentence bookkeeping (Step 1) -->
+    <string name="ai_bookkeeping">AI bookkeeping</string>
+    <string name="ai_input_hint">Type a sentence, AI fills the transaction form</string>
+    <string name="ai_input_placeholder">e.g. Coffee 120 paid by credit card</string>
+    <string name="ai_parse">Parse</string>
+    <string name="ai_settings">Settings</string>
+    <string name="ai_save">Save</string>
+    <string name="ai_parsing">AI parsing…</string>
+    <string name="ai_recognized">Recognized, please confirm</string>
+    <string name="ai_failed">Failed: %1$s</string>
+    <string name="ai_empty_input">Please type something first</string>
+    <string name="ai_not_configured">API key not set — open Settings first</string>
+    <string name="ai_saved">Saved</string>
+    <string name="ai_settings_saved">Settings saved</string>
+    <string name="ai_settings_base_url">Base URL</string>
+    <string name="ai_settings_base_url_hint">https://api.openai.com/v1</string>
+    <string name="ai_settings_model">Model</string>
+    <string name="ai_settings_model_hint">gpt-4o-mini</string>
+    <string name="ai_settings_api_key">API key</string>
+    <string name="ai_settings_api_key_hint">Enter to update (blank = keep)</string>
+    <string name="ai_api_key_set">API key is set</string>
+    <string name="ai_api_key_unset">API key not set</string>
+    <string name="ai_voice_prompt">Say your transaction</string>
+    <string name="ai_voice_button_desc">Voice input</string>
+    <string name="ai_voice_unavailable">No speech recognition on this device — please type instead</string>
+    <string name="ai_voice_tap_to_talk">Tap to talk</string>
+    <string name="ai_voice_tap_to_stop">● Recording… tap to finish</string>
+    <string name="ai_voice_need_mic">Microphone permission is required for voice input</string>
+    <string name="ai_balance_need_account">Balance adjustment needs an account — please say the account name</string>
+    <string name="ai_voice_supplement_prompt">Say what to add or correct</string>
+    <string name="ai_voice_shortcut_short">Say it</string>
+    <string name="ai_voice_shortcut_long">Voice bookkeeping</string>
+    <string name="ai_voice_widget_label">Voice bookkeeping</string>
+    <string name="ai_voice_widget_description">Tap to start recording a transaction</string>
+    <string name="ai_log_title">Parse log</string>
+    <string name="ai_notification_template">AI notification template</string>
+    <string name="ai_notification_template_pick">Pick a notification to make a template</string>
+    <string name="ai_notification_template_generating">Generating template…</string>
+    <string name="ai_notification_template_failed">Template generation failed: %1$s</string>
+    <string name="ai_notif_action_title">What to do with this notification</string>
+    <string name="ai_notif_action_generate">AI template</string>
+    <string name="ai_notif_action_parse">AI transaction</string>
+    <string name="ai_notif_action_reapply">Apply template</string>
+    <string name="ai_notif_reapply_confirm">Record this notification as a transaction using the existing template?\n\nRunning it again will create a second transaction.</string>
+    <string name="ai_notif_reapply_done">Recorded: %1$s</string>
+    <string name="ai_notif_reapply_none">No template matched — this notification would not be recorded automatically</string>
+    <string name="ai_notif_template_saved_recorded">Template saved, and this notification was recorded with it: %1$s</string>
+    <string name="ai_notif_template_saved_no_match">Template saved, but it does not match this notification, so nothing was recorded. Check the template.</string>
+    <string name="ai_notif_action_exclude_app">Exclude this app (%1$s)</string>
+    <string name="ai_notif_action_filter">Exclude by keyword…</string>
+    <string name="ai_notif_filter">Exclusion list</string>
+    <string name="ai_notif_filter_hint">One rule per line. "app:&lt;package&gt;" excludes a whole app (anything after it on the line is a note); any other line is a keyword, and a notification is hidden when its title or body contains it (case-insensitive). Lines starting with # are comments.</string>
+    <string name="ai_notif_filter_placeholder">e.g.\napp:com.instagram.android  # Instagram\nstory\nlast chance\n# hide sync status notifications\nSyncing:</string>
+    <string name="ai_notif_filter_save">Save</string>
+    <string name="ai_notif_filter_applied">Applied — %1$d hidden this time</string>
+    <string name="ai_notif_no_account">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe message contains card digits \"%1$s\", no account is registered with them, and the template itself sets no account.\n\nFix: put the last four digits into the account\'s \"Card number\" field (comma-separate several cards sharing one account, e.g. 1234,5678), or set an account on the template.</string>
+    <string name="ai_notif_no_account_no_digits">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe template sets no account and no card digits were captured from the message. Set an account on the template.</string>
+    <string name="ai_api_key_missing">AI parsing not configured — set an API key in AI settings first</string>
+    <string name="ai_keys_hint">Gemini has a free tier that\'s enough for personal use (see Help)</string>
+    <string name="ai_provider_gemini">Google AI (Gemini)</string>
+    <string name="ai_provider_groq">Groq</string>
+    <string name="ai_provider_openai">OpenAI</string>
+    <string name="ai_save_hint">Save applies to the Speech recognition and AI parsing choices above. API keys and the settings below take effect immediately.</string>
+    <string name="ai_other_section">Other</string>
+    <string name="ai_stt_model_title">Recognition model</string>
+    <string name="ai_direct_model_title">One-shot model (transcribe + parse)</string>
+    <string name="ai_llm_model_title">Parsing model</string>
+    <string name="ai_model_unset">Not set (tap to load list)</string>
+    <string name="ai_fab_size_title">Voice button size</string>
+    <string name="ai_shortcut_behavior_title">After home-screen shortcut</string>
+    <string name="ai_shortcut_behavior_home">Back to home screen</string>
+    <string name="ai_pending_button_title">"Pending only" button in blotter</string>
+    <string name="ai_pending_button_on">Shown (next to the filter button)</string>
+    <string name="ai_pending_button_off">Hidden</string>
+    <string name="ai_shortcut_behavior_app">Open the matching app screen</string>
+    <string name="ai_notification_template_summary">Pick a notification and let AI build an auto-entry template</string>
+    <string name="ai_intro_title">About AI bookkeeping</string>
+    <string name="ai_intro_help">Help</string>
+    <string name="ai_intro_got_it">Get started</string>
+    <string name="ai_intro_open_settings">Open AI settings</string>
+    <string name="ai_intro_message">Say one sentence, get one entry: tap the mic and say "coffee at the corner store 60", and AI fills in the form for you to confirm.\n\n• Long-press the mic or the floating button to open AI settings\n• You can also type and hit parse\n• To auto-record bank/payment notifications: AI settings → "AI notification template"\n\n[What you need]\nOne cloud AI API key (Gemini, OpenAI or Groq), entered in AI settings.\n\n[To run it for free]\nA free Gemini key + speech recognition set to "Built-in" costs nothing. Gemini\'s free tier allows roughly 250 requests per day — plenty for personal bookkeeping (quotas are set by Google and may change).\n\n[Privacy]\nYour audio and text go straight to the cloud provider you choose. They never pass through any server of this app\'s developer (there is no such server). Accepting that provider\'s terms and risks is your call; if you\'d rather not use the cloud, just enter transactions manually — your ledger stays on your device either way.</string>
+    <string name="ai_not_configured_detail">No API key is set, so AI bookkeeping can\'t run.\n\nAdd a key in AI settings to get started. For a free setup, use a free Gemini key with speech recognition set to "Built-in". See Help for details.</string>
+    <string name="notification_access_title">Notification access</string>
+    <string name="notification_access_missing">Notification access is not granted, so no notifications can be captured. Open system settings to grant it?\n\nTip: if access looks granted but the list stays empty (e.g. right after an app update), toggle it off and on once.</string>
+    <string name="notification_access_open_settings">Notification access settings</string>
+    <string name="notification_access_settings_unavailable">Can\'t open notification access settings on this device</string>
+    <string name="ai_log_share">Share</string>
+    <string name="ai_log_clear">Clear</string>
+    <string name="ai_log_empty">No records yet</string>
+    <string name="ai_log_export">To backup folder</string>
+    <string name="ai_log_exported">Written to the backup folder as %1$s</string>
+    <string name="ai_log_export_failed">Export failed: %1$s</string>
+    <string name="ai_voice_nothing">Didn\'t catch that — tap the mic to try again</string>
+    <string name="ai_transfer_need_to_account">Transfer needs a destination account — say which account to transfer to</string>
+    <string name="ai_type_switch_cancelled">Type switch cancelled</string>
+    <string name="ai_type_switch_split_unsupported">Cannot change the type of a split transaction — delete it and enter it again</string>
+    <string name="ai_input_clear_desc">Clear text</string>
+    <string name="ai_auto_send">Send to parse right after recognition</string>
+    <string name="ai_auto_send_title">After recognition</string>
+    <string name="ai_notification_button">Notifications</string>
+    <string name="ai_auto_send_on">Send to parse right away</string>
+    <string name="ai_auto_send_off">Stop at the text box, I\'ll send it</string>
+    <string name="ai_auto_send_direct">Direct mode always parses right away</string>
+    <string name="ai_pin_shortcut">Add voice shortcut to home screen</string>
+    <string name="ai_pin_shortcut_unsupported">This launcher can\'t pin shortcuts</string>
+    <string name="ai_shortcut_enters_app">Shortcut enters the app when done (not home)</string>
+    <string name="ai_fetch_models">Models</string>
+    <string name="ai_models_loading">Fetching models…</string>
+    <string name="ai_models_pick">Pick a model</string>
+    <string name="ai_models_empty">No models returned</string>
+    <string name="ai_models_failed">Fetch failed: %1$s</string>
+    <string name="ai_fab_size">Floating mic button size: %1$d dp</string>
+    <!-- Cloud STT + per-provider settings -->
+    <string name="ai_keys_section">API Keys (any one is enough)</string>
+    <string name="ai_stt_gemini_direct">Google AI (voice direct-parse)</string>
+    <string name="ai_stt_openai_direct">OpenAI (voice direct-parse)</string>
+    <string name="ai_key_edit">Edit</string>
+    <string name="ai_key_set">Set</string>
+    <string name="ai_key_unset">Not set</string>
+    <string name="ai_key_dialog_title">%1$s API key</string>
+    <string name="ai_key_dialog_hint">Paste the API key</string>
+    <string name="ai_key_empty">Please enter a key</string>
+    <string name="ai_key_testing">Testing…</string>
+    <string name="ai_key_test_failed">Test failed: %1$s</string>
+    <string name="ai_key_saved">Key saved</string>
+    <string name="ai_stt_section">Speech recognition</string>
+    <string name="ai_stt_engine">Engine</string>
+    <string name="ai_stt_combined_title">Recognition &amp; model</string>
+    <string name="ai_llm_combined_title">Service &amp; model</string>
+    <string name="ai_direct_autosend_note">Voice direct-parse: parses right after recognition</string>
+    <string name="ai_stt_builtin">Built-in (Google popup)</string>
+    <string name="ai_llm_section">AI parsing</string>
+    <string name="ai_llm_provider">Provider</string>
+    <string name="ai_no_provider_key">Set an API key first</string>
+    <string name="ai_stt_not_configured">Cloud STT not configured — check keys in Settings</string>
+    <string name="ai_stt_need_mic">Microphone permission is required for cloud voice input</string>
+    <string name="ai_rec_transcribing">Transcribing…</string>
+    <string name="ai_rec_retry">Retry</string>
+    <string name="ai_voice_recording_label">● %1$s — tap mic to finish</string>
 </resources>

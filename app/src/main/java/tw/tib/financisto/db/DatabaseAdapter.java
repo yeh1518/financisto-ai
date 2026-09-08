@@ -684,18 +684,12 @@ public class DatabaseAdapter extends MyEntityManager {
             "insert or replace into running_balance(account_id,transaction_id,datetime,balance) values (?,?,?,?)";
 
     /**
-     * Shifts the running balance of every row that sorts after the given transaction.
+     * 調整「這筆之後」的每一列逐筆餘額。
      *
-     * <p>The table is ordered by {@code (datetime, transaction_id)}, so comparing
-     * {@code datetime} alone skips rows that share the same timestamp: those are never
-     * adjusted and the running balance drifts away from the account total, which is what
-     * surfaces as "running balance seems to be inaccurate".
-     *
-     * <p>Two transactions on one account can share an exact timestamp without anything
-     * unusual happening: scheduled transactions have their seconds and milliseconds zeroed
-     * ({@link tw.tib.financisto.datetime.DateUtils#zeroSeconds}), and CSV import never
-     * carries milliseconds. Editing such a transaction reaches this code as well, since an
-     * update is a delete followed by an insert.
+     * 排序鍵是 (datetime, transaction_id) 兩欄——只用 `datetime > ?` 會漏掉**同一時間**的其他
+     * 交易，那幾列就不會跟著加減，逐筆餘額從此與帳戶總額對不上（畫面跳「逐筆餘額似乎不準確」）。
+     * 同一時間同帳戶有兩筆並不罕見：AI 補充模式改型別是「建新筆＋刪原筆」且刻意沿用原本的時間，
+     * 每次都會撞上；手動同秒記兩筆也會。
      */
     private static final String UPDATE_RUNNING_BALANCE =
             "update running_balance set balance = balance+(?) where account_id = ?"
@@ -733,11 +727,8 @@ public class DatabaseAdapter extends MyEntityManager {
     }
 
     /**
-     * Returns the balance of the row that sorts immediately before this transaction, used as
-     * the base for the new row. The comparison needs both {@code (datetime, transaction_id)}
-     * for the same reason: with {@code datetime} alone, a same-timestamp neighbour that sorts
-     * <em>after</em> this transaction would be picked as the previous row. When there is no
-     * such neighbour the result is identical to the previous {@code datetime <= ?} form.
+     * 取「排在這筆之前那一列」的餘額當基準。比較同樣要用 (datetime, transaction_id) 兩欄：
+     * 同一時間若已有別筆，只比 datetime 會把「排在自己後面的同時間鄰居」當成前一筆，基準就取錯了。
      */
     private long fetchAccountBalanceAtTheTime(long accountId, long transactionId, long datetime) {
         return DatabaseUtils.rawFetchLongValue(this,
@@ -1211,6 +1202,26 @@ public class DatabaseAdapter extends MyEntityManager {
         }
     }
 
+    /**
+     * 比對用的候選樣板，依實際比對順位排好。順位很重要：{@code SmsTransactionProcessor}
+     * 是「第一條比中且建得成就收工」，排在後面的樣板等於不存在——順位錯不會報錯，只會
+     * 表現成「那條樣板從來沒生效過」。
+     *
+     * <p>兩層排序在實務上各自何時生效，取決於 sort_order 是怎麼來的：
+     * <ul>
+     * <li>欄位是 {@code integer not null default 0}，而 sort_order **不進備份**
+     *     （{@code DatabaseExport} 只對 account 匯出這欄），還原時走原生 insert 吃預設值
+     *     ⇒ **還原過備份的資料庫，整張表的 sort_order 都是 0**，全部同分，由樣板長度決勝。
+     * <li>之後在 app 內新存的樣板，{@code EntityManager} 給它 {@code max + 1}
+     *     ⇒ 正數，排在那堆 0 的後面。
+     * </ul>
+     * 兩條合起來對新樣板雙重不利：既拿到較大的 sort_order，樣板又因為產生器會裁長尾而更短。
+     * 而會去產新樣板，通常正是因為舊的那條接得不對——所以需要 {@link #moveSmsTemplateToTop}。
+     *
+     * <p>候選＝「通知標題比中 {@code title} 的 LIKE 樣式」或「{@code title} 欄寫的就是來源套件名」
+     * （上游 v251：樣板可用套件名比對，同一家銀行不同標題的通知一條樣板就接得住）。
+     * {@code pkg} 可為 null（實體簡訊路徑沒有套件名），視同不啟用套件名比對。
+     */
     public List<SmsTemplate> getSmsTemplatesByPkgTitle(String pkg, String title) {
         try (Cursor c = db().rawQuery(
                 String.format("select %1$s from %2$s where (? LIKE %3$s) OR (%3$s = ?) order by %4$s, length(%5$s) desc",
@@ -1219,7 +1230,7 @@ public class DatabaseAdapter extends MyEntityManager {
                         /* 3 */ DatabaseHelper.SmsTemplateColumns.title,
                         /* 4 */ DatabaseHelper.SmsTemplateColumns.sort_order,
                         /* 5 */ DatabaseHelper.SmsTemplateColumns.template),
-                new String[]{title, pkg}))
+                new String[]{title, pkg == null ? "" : pkg}))
         {
             List<SmsTemplate> res = new ArrayList<>(c.getCount());
             while (c.moveToNext()) {
@@ -1228,6 +1239,27 @@ public class DatabaseAdapter extends MyEntityManager {
             }
             return res;
         }
+    }
+
+    /**
+     * 把一條樣板排到比對順位的最前面。用在「從通知產生樣板」之後——見
+     * {@link #getSmsTemplatesByPkgTitle} 說明的那兩層不利。
+     *
+     * <p>必須在 {@code saveOrUpdate} **之後**單獨下：{@code EntityManager} 在 insert 時看到
+     * sort_order {@code <= 0} 會擅自改成 {@code max + 1}（＝排到最後），所以「存檔前把
+     * sortOrder 設成負數」不但沒用，還正好觸發那段把它踢到隊尾。先存好、再用這句直接改欄位。
+     *
+     * <p>⚠️ 這個順位**撐不過一次備份還原**：sort_order 不進備份，還原後整張表回到預設值 0，
+     * 順位重新由樣板長度決定。還原之後要重新確認置頂過的樣板是不是還贏得了。
+     */
+    public void moveSmsTemplateToTop(long id) {
+        db().execSQL(String.format(
+                "update %s set %s = (select min(%s) from %s) - 1 where %s = ?",
+                DatabaseHelper.SMS_TEMPLATES_TABLE,
+                DatabaseHelper.SmsTemplateColumns.sort_order,
+                DatabaseHelper.SmsTemplateColumns.sort_order,
+                DatabaseHelper.SMS_TEMPLATES_TABLE,
+                DatabaseHelper.SmsTemplateColumns._id), new Object[]{id});
     }
 
     public Set<String> findAllSmsTemplateNumbers() {
@@ -1516,6 +1548,124 @@ public class DatabaseAdapter extends MyEntityManager {
         } finally {
             db.endTransaction();
         }
+    }
+
+    /**
+     * 批次改分類。
+     *
+     * 兩件事刻意避開：
+     * <ul>
+     *   <li>**分割父交易**（category_id ＝ {@link Category#SPLIT_CATEGORY_ID}）永遠跳過——
+     *       那一格是分割的標記不是分類，改掉結構就壞了。</li>
+     *   <li>**不經由父交易連帶改子交易**（{@code includeChildren=false}）——把各份蓋成同一個
+     *       分類等於把「一筆拆多分類」抹掉。</li>
+     * </ul>
+     *
+     * 子交易若**自己出現在清單上被勾選**則照改：那時它就是一筆有真實分類的交易，
+     * 使用者看到的、選的就是它。
+     *
+     * 回傳列數可能少於選取數（父交易被跳過），呼叫端要把差額講給使用者聽，不能靜靜地少做。
+     *
+     * @return 實際改到的列數
+     */
+    public int updateCategoryForSelectedTransactions(long[] ids, long categoryId) {
+        return updateSelectedTransactions(ids,
+                DatabaseHelper.TransactionColumns.category_id + "=?",
+                new Object[]{categoryId},
+                DatabaseHelper.TransactionColumns.category_id + "<>" + Category.SPLIT_CATEGORY_ID,
+                false);
+    }
+
+    /**
+     * 批次改專案。專案是整筆的屬性、分割子交易本來也從父交易繼承（見 insertSplits），
+     * 所以連帶套用到子交易。
+     *
+     * @param projectId {@link Project#NO_PROJECT_ID} ＝ 清除專案
+     * @return 實際改到的列數
+     */
+    public int updateProjectForSelectedTransactions(long[] ids, long projectId) {
+        return updateSelectedTransactions(ids,
+                DatabaseHelper.TransactionColumns.project_id + "=?",
+                new Object[]{projectId}, null, true);
+    }
+
+    /**
+     * 批次在備註後面**附加**一段文字（不覆寫）。
+     *
+     * 覆寫會把自動記帳帶進來的商家／品項資訊抹掉，而那是抹了就沒了的東西；附加則永遠是加法。
+     * 原本沒備註的就直接填上，不留前導空白。只套用在選取的那幾列、不進子交易——使用者看到
+     * 並勾選的就是這幾列。
+     *
+     * @return 實際改到的列數
+     */
+    public int appendNoteToSelectedTransactions(long[] ids, String text) {
+        String note = DatabaseHelper.TransactionColumns.note.name();
+        return updateSelectedTransactions(ids,
+                note + "=CASE WHEN " + note + " IS NULL OR " + note + "='' THEN ? ELSE "
+                        + note + "||? END",
+                new Object[]{text, " " + text}, null, false);
+    }
+
+    /**
+     * 批次更新選取的交易，回傳實際改到的列數。
+     *
+     * 與 {@link #runInTransaction(String, long[])} 的差別有兩個，都是新操作需要的：
+     * 能帶綁定參數（備註那條要 SQL 運算式）、能選擇要不要連帶套用到分割子交易
+     * （狀態該連帶、分類不該）。同樣按 100 筆分批，避免 SQL 的 IN 清單過長。
+     */
+    private int updateSelectedTransactions(long[] ids, String setClause, Object[] args,
+                                           String extraWhere, boolean includeChildren) {
+        if (ids == null || ids.length == 0) return 0;
+        SQLiteDatabase db = db();
+        int total = 0;
+        db.beginTransaction();
+        try {
+            final int bucket = 100;
+            for (int x = 0; x < ids.length; x += bucket) {
+                int y = Math.min(ids.length, x + bucket);
+                String inList = joinIds(ids, x, y);
+                StringBuilder sb = new StringBuilder("UPDATE ")
+                        .append(DatabaseHelper.TRANSACTION_TABLE)
+                        .append(" SET ").append(setClause)
+                        .append(" WHERE ").append(DatabaseHelper.TransactionColumns.is_template)
+                        .append("=0 AND (")
+                        .append(DatabaseHelper.TransactionColumns._id)
+                        .append(" IN (").append(inList).append(")");
+                if (includeChildren) {
+                    sb.append(" OR ").append(DatabaseHelper.TransactionColumns.parent_id)
+                            .append(" IN (").append(inList).append(")");
+                }
+                sb.append(")");
+                if (extraWhere != null) {
+                    sb.append(" AND ").append(extraWhere);
+                }
+                android.database.sqlite.SQLiteStatement st = db.compileStatement(sb.toString());
+                try {
+                    for (int i = 0; i < args.length; i++) {
+                        Object a = args[i];
+                        if (a instanceof Long) st.bindLong(i + 1, (Long) a);
+                        else if (a == null) st.bindNull(i + 1);
+                        else st.bindString(i + 1, a.toString());
+                    }
+                    total += st.executeUpdateDelete();
+                } finally {
+                    st.close();
+                }
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+        return total;
+    }
+
+    private static String joinIds(long[] ids, int x, int y) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = x; i < y; i++) {
+            if (i > x) sb.append(",");
+            sb.append(ids[i]);
+        }
+        return sb.toString();
     }
 
     private void runInTransaction(String sql, long[] ids) {

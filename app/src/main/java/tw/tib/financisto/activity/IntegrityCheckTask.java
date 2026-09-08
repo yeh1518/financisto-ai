@@ -26,9 +26,18 @@ import tw.tib.financisto.utils.IntegrityCheck;
 public class IntegrityCheckTask extends AsyncTask<IntegrityCheck, Void, IntegrityCheck.Result> {
 
     private final Fragment fragment;
+    /**
+     * 這個畫面的橫幅點下去是「修」還是「關掉」——只影響提示文字，動作由畫面自己接。
+     *
+     * 不同分頁跑的是不同檢查，共用同一個橫幅：交易畫面是逐筆餘額（有現成的修法），
+     * 帳戶列表是自動備份（沒有一鍵可修的東西，只能關掉）。提示文字要跟著該畫面能做的事走，
+     * 不然就是叫使用者去點一個不會發生的動作。
+     */
+    private final boolean tapToFix;
 
-    public IntegrityCheckTask(Fragment fragment) {
+    public IntegrityCheckTask(Fragment fragment, boolean tapToFix) {
         this.fragment = fragment;
+        this.tapToFix = tapToFix;
     }
 
     @Override
@@ -45,7 +54,9 @@ public class IntegrityCheckTask extends AsyncTask<IntegrityCheck, Void, Integrit
             } else {
                 textView.setVisibility(View.VISIBLE);
                 textView.setBackgroundColor(fragment.getResources().getColor(colorForLevel(result.level)));
-                textView.setText(fragment.getString(R.string.integrity_error_message, result.message));
+                textView.setText(fragment.getString(tapToFix
+                        ? R.string.integrity_error_message_fixable
+                        : R.string.integrity_error_message, result.message));
             }
         }
     }

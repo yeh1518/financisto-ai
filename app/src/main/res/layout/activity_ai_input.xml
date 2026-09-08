@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ai_root 不放 padding：它負責吃 window insets（targetSdk 35+ 在 Android 15
+  強制 edge-to-edge，不處理的話內容會畫到狀態列/ActionBar 底下）。
+  實際內容的邊距放在內層 container。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ai_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/ai_input_hint"
+            android:textSize="14sp"
+            android:paddingBottom="8dp" />
+
+        <!-- 輸入框 + 一鍵清空（X）+ 送出解析（→）：清空比逐字刪快，接著重講也方便；
+             送出鈕貼著輸入框，因為它處理的就是框裡那段字（原本擺在畫面最下排，離得太遠） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/ai_input_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minLines="2"
+                android:gravity="top|start"
+                android:inputType="textMultiLine"
+                android:hint="@string/ai_input_placeholder"
+                android:importantForAutofill="no" />
+
+            <!-- 兩顆鈕直向分置：X 貼齊輸入框第一行、→ 貼齊最後一行（輸入框 minLines=2，
+                 沒打字時就已經有兩行的高度，所以一開始就分得開）。輸入變長時 → 跟著往下，
+                 手指停在「剛打完的那一行」旁邊 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="4dp"
+                android:orientation="vertical">
+
+                <!-- 清空是次要動作：圖示縮到 18dp，但外框仍留 40dp 的可點區域 -->
+                <ImageButton
+                    android:id="@+id/ai_input_clear"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:padding="11dp"
+                    android:scaleType="fitCenter"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_ai_cancel"
+                    android:contentDescription="@string/ai_input_clear_desc" />
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <!-- 送出是這一區的主要動作：圖示放到 32dp，比清空明顯大一階 -->
+                <ImageButton
+                    android:id="@+id/ai_parse_button"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_ai_send"
+                    android:contentDescription="@string/ai_parse" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="8dp">
+
+            <ProgressBar
+                android:id="@+id/ai_progress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:visibility="gone"
+                style="?android:attr/progressBarStyleSmall" />
+
+            <TextView
+                android:id="@+id/ai_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- 中央大錄音鈕。內建模式＝開 Google 語音彈窗；雲端模式＝就地開錄
+             （轉紅＋隨音量縮放＋計時，再點一下完成），不疊視窗 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <ImageButton
+                android:id="@+id/ai_voice_button"
+                android:layout_width="180dp"
+                android:layout_height="180dp"
+                android:background="@drawable/btn_ai_mic_circle"
+                android:src="@drawable/ic_ai_mic"
+                android:scaleType="fitCenter"
+                android:padding="48dp"
+                android:contentDescription="@string/ai_voice_button_desc" />
+
+            <TextView
+                android:id="@+id/ai_voice_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingTop="16dp"
+                android:textSize="15sp"
+                android:text="@string/ai_voice_tap_to_talk" />
+
+            <!-- 錄音中顯示取消；辨識/解析失敗顯示重試（同一段錄音重送，不用重講）。
+                 用 invisible 佔位（非 gone）：麥克風上下高度恆定，紫/紅切換時不會跳動 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/ai_voice_cancel"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@android:string/cancel"
+                    android:visibility="invisible" />
+
+                <Button
+                    android:id="@+id/ai_voice_retry"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/ai_rec_retry"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 底排＝入口列，靠兩邊放、中間留白給之後的功能（掃圖記帳等）接進來。
+             「辨識完直接送解析」的開關搬到 AI 設定的辨識方式下面了（那裡才是它的脈絡） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/ai_notification_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_notification_button" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/ai_settings_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_settings" />
+        </LinearLayout>
+
+    </LinearLayout>
+</LinearLayout>

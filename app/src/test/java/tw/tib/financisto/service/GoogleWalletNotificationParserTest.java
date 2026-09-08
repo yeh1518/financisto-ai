@@ -18,7 +18,8 @@ public class GoogleWalletNotificationParserTest {
                 "$4.50 with Visa •••• 1234", "STARBUCKS");
         assertNotNull(p);
         assertEquals(new BigDecimal("4.50"), p.amount);
-        assertEquals("USD", p.currency);
+        // symbol-only amounts are treated as the account's local currency (no code inferred from "$")
+        assertNull(p.currency);
         assertEquals("1234", p.cardLast4);
         assertEquals("STARBUCKS", p.merchant);
         assertEquals("Visa •••• 1234", p.cardLabel);
@@ -68,7 +69,7 @@ public class GoogleWalletNotificationParserTest {
                 "McDonald's", "12,34 € · Mastercard •• 4321");
         assertNotNull(p);
         assertEquals(new BigDecimal("12.34"), p.amount);
-        assertEquals("EUR", p.currency);
+        assertNull(p.currency);
         assertEquals("4321", p.cardLast4);
         assertEquals("McDonald's", p.merchant);
     }
@@ -79,7 +80,7 @@ public class GoogleWalletNotificationParserTest {
                 "123,45 грн через Visa •••• 9876", "СІЛЬПО");
         assertNotNull(p);
         assertEquals(new BigDecimal("123.45"), p.amount);
-        assertEquals("UAH", p.currency);
+        assertNull(p.currency);
         assertEquals("9876", p.cardLast4);
         assertEquals("СІЛЬПО", p.merchant);
     }
@@ -90,7 +91,7 @@ public class GoogleWalletNotificationParserTest {
                 "₴1 234,56 · Mastercard •••• 1111", "АТБ-МАРКЕТ");
         assertNotNull(p);
         assertEquals(new BigDecimal("1234.56"), p.amount);
-        assertEquals("UAH", p.currency);
+        assertNull(p.currency);
         assertEquals("1111", p.cardLast4);
         assertEquals("АТБ-МАРКЕТ", p.merchant);
     }

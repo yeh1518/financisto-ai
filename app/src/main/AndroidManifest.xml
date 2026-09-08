@@ -12,8 +12,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:tools="http://schemas.android.com/tools"
 	package="tw.tib.financisto"
-	android:versionName="2026-09-04 b" android:versionCode="252"
-    android:installLocation="internalOnly">
+	android:installLocation="internalOnly">
+    <!-- versionName/versionCode 由 build.gradle 自動產生（.ai 版），不在 manifest 寫死
+         （上游在此寫死 versionName/versionCode，合併時一律保留本 fork 的作法） -->
+
 
     <supports-screens
 	    android:smallScreens="true"
@@ -36,6 +38,8 @@
     <!--uses-permission android:name="android.permission.CAMERA" /-->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 雲端 STT 自錄音（標準 Google 語音彈窗不需要，由 Google app 代錄） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -45,6 +49,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 	<uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
+	<!-- AI 一句話記帳語音走標準 RecognizerIntent（由 Google app 代錄），app 本身不需
+	     RECORD_AUDIO。2026-07-16 從自控 SpeechRecognizer 回歸標準元件後移除該權限。 -->
+	<!-- GCM 權限（C2D_MESSAGE）已隨上游 1277850 移除——本來就沒在用。
+	     連帶解掉我們原本為了 debug(.ai) 與商店版同名衝突而做的 ${applicationId} 展開。 -->
+
 
 
     <application
@@ -53,7 +62,8 @@
 		android:icon="@mipmap/app_icon" android:label="@string/app_name"
 		android:hardwareAccelerated="true"
 		android:allowBackup="true"
-		android:fullBackupContent="true"
+		android:fullBackupContent="@xml/backup_rules"
+		android:dataExtractionRules="@xml/data_extraction_rules"
 		android:description="@string/app_description"
 		android:enableOnBackInvokedCallback="true"
 		tools:targetApi="tiramisu">
@@ -85,6 +95,14 @@
 			<action android:name="tw.tib.financisto.UPDATE_WIDGET" />
 			</intent-filter>
 			<meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_4x1" />
+		</receiver>
+
+		<!-- 1x1 語音記帳 widget（點一下開錄）。沒有資料要刷新，故不收 UPDATE_WIDGET 廣播 -->
+		<receiver android:name=".ai.AiVoiceWidget" android:label="@string/ai_voice_widget_label" android:exported="true">
+			<intent-filter>
+			<action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+			</intent-filter>
+			<meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_1x1_voice" />
 		</receiver>
 
 		<receiver android:name=".activity.PackageReplaceReceiver" android:exported="true">
@@ -181,6 +199,61 @@
 
 		<activity android:name=".activity.BlotterActivity" android:label="@string/blotter"
 			android:theme="@style/AppThemeCompat" />
+
+		<!-- stateHidden：主要用講的，鍵盤不該一進來就彈出擋住中央的錄音鈕 -->
+		<!--
+		  exported=true 是桌面捷徑的前提：捷徑由 launcher（別的 uid）啟動，不 export 會被
+		  「not exported from uid」擋掉。捷徑走自訂 action（見 xml/shortcuts.xml），
+		  Activity 據此判斷要不要一進來就開錄。
+		-->
+		<!--
+		  桌面語音入口的中繼站（捷徑／widget 指這裡，不直接指語音頁——理由見該類 javadoc）。
+		  自己一個 task、不留歷史、不進 recents：保證每次按都重跑 onCreate。
+		-->
+		<activity android:name=".ai.VoiceEntryActivity"
+			android:exported="true"
+			android:excludeFromRecents="true"
+			android:noHistory="true"
+			android:taskAffinity=""
+			android:theme="@android:style/Theme.Translucent.NoTitleBar">
+			<intent-filter>
+				<action android:name="tw.tib.financisto.ai.action.VOICE_INPUT" />
+				<category android:name="android.intent.category.DEFAULT" />
+			</intent-filter>
+		</activity>
+
+		<!-- singleTop：捷徑用 CLEAR_TOP 收回本頁時走 onNewIntent（重新開錄），不重建畫面 -->
+		<!--
+		  taskAffinity 要跟 MainActivity 同一個：捷徑經 VoiceEntryActivity 拉本頁時帶
+		  FLAG_ACTIVITY_NEW_TASK，語意是「併進 affinity 相同的既有 task，沒有才另開」。
+		  不寫的話本頁吃預設 affinity（＝package 名），與 MainActivity 宣告的 .MainActivity
+		  永遠對不上，於是每次都另開一個 task——recents 因此並列兩張卡（卡片名取自各自
+		  root activity 的 label，所以一張叫 Financisto 一張叫 AI 記帳）。
+		-->
+		<!--
+		  label 用 app_name（不是「AI 記帳」）：主 task 不在時捷徑仍會自建 task，
+		  而 recents 卡片的名字取自 root activity 的 label——叫 app 自己的名字才不會
+		  看起來像另一個 app。代價是本頁標題列也跟著顯示 app 名，可接受（大麥克風畫面
+		  本來就認得出來）。
+		-->
+		<activity android:name=".ai.AiInputActivity" android:label="@string/app_name"
+			android:exported="true"
+			android:launchMode="singleTop"
+			android:taskAffinity=".MainActivity"
+			android:windowSoftInputMode="stateHidden|adjustResize">
+			<intent-filter>
+				<action android:name="tw.tib.financisto.ai.action.VOICE_INPUT" />
+				<category android:name="android.intent.category.DEFAULT" />
+			</intent-filter>
+		</activity>
+
+		<activity android:name=".ai.AiSettingsActivity" android:label="@string/ai_settings" />
+
+		<!-- 補充模式的雲端錄音頁（與主語音頁同款大麥克風；app 內部使用） -->
+		<activity android:name=".ai.VoiceCaptureActivity" android:label="@string/ai_bookkeeping"
+			android:exported="false" />
+
+		<activity android:name=".ai.AiLogActivity" android:label="@string/ai_log_title" />
 
 		<activity android:name=".activity.PlannerActivity" android:label="@string/planner"/>
 
@@ -288,7 +361,11 @@
 		<activity android:name=".activity.ScheduledListActivity" android:label="@string/scheduled_transactions"
 			android:theme="@style/AppThemeCompat" />
 
-		<activity android:name=".activity.SelectTemplateActivity" android:label="@string/transaction_templates" android:exported="true"
+		<!-- exported：桌面捷徑「樣板」由 launcher（別的 uid）啟動，不 export 會被擋掉
+		     ——與交易/轉帳那兩個捷徑目標一致（它們本來就有）；
+		     MAIN/DEFAULT intent-filter 是上游為 Shortcut Maker 之類的 app 加的 -->
+		<activity android:name=".activity.SelectTemplateActivity" android:label="@string/transaction_templates"
+			android:exported="true"
 			android:theme="@style/AppDialogCompat" android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout|keyboardHidden">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
@@ -366,6 +443,8 @@
 			</intent-filter>
 		</activity>
 
+		<!-- authority 同樣是全域唯一，寫死會撞商店版 → INSTALL_FAILED_CONFLICTING_PROVIDER。
+		     release 展開後仍是 tw.tib.financisto，行為不變。 -->
 		<provider
 			android:name="androidx.core.content.FileProvider"
 			android:authorities="${applicationId}"
@@ -390,6 +469,22 @@
 	<queries>
 		<!-- for Dropbox app auth -->
 		<package android:name="com.dropbox.android" />
+		<!-- AI 一句話記帳：targetSdk 30+ 的 package visibility 下，
+		     沒宣告這兩個就 resolve 不到語音辨識，RecognizerIntent 會被誤判為不可用 -->
+		<intent>
+			<action android:name="android.speech.RecognitionService" />
+		</intent>
+		<intent>
+			<action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+		</intent>
+		<!-- 通知列表要顯示「這則通知是哪個 app 送的」：targetSdk 30+ 的 package visibility 下
+		     對任意套件查 getApplicationInfo 會 NameNotFoundException（listener 沒有豁免）。
+		     宣告 MAIN/LAUNCHER 讓所有「有桌面圖示的 app」可見就夠了——銀行、支付、社群
+		     全都符合。刻意不用 QUERY_ALL_PACKAGES：那是為了列舉整台手機，這裡只要翻名字。 -->
+		<intent>
+			<action android:name="android.intent.action.MAIN" />
+			<category android:name="android.intent.category.LAUNCHER" />
+		</intent>
 	</queries>
 
 </manifest> 

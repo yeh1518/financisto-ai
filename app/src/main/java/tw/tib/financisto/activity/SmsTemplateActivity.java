@@ -41,6 +41,14 @@ import java.util.ArrayList;
 public class SmsTemplateActivity extends AbstractActivity {
     private static final String TAG = "SmsTemplateActivity";
 
+    // AI 產樣板（NotificationListActivity 挑選模式）帶進來的預填值：
+    // 全部只是預填、不落地，使用者過目調整後按存才寫 DB。
+    public static final String EXTRA_PREFILL_TITLE = "PREFILL_TITLE";
+    public static final String EXTRA_PREFILL_TEMPLATE = "PREFILL_TEMPLATE";
+    public static final String EXTRA_PREFILL_EXAMPLE = "PREFILL_EXAMPLE";
+    public static final String EXTRA_PREFILL_ACCOUNT_ID = "PREFILL_ACCOUNT_ID";
+    public static final String EXTRA_PREFILL_IS_INCOME = "PREFILL_IS_INCOME";
+
     private DatabaseAdapter db;
 
     private EditText smsDescription;
@@ -55,6 +63,8 @@ public class SmsTemplateActivity extends AbstractActivity {
     private ArrayList<Account> accounts;
     private ArrayList<Account> toAccounts;
     private long categoryId = -1;
+    /** 這條樣板是不是「從通知產生樣板」帶進來的新樣板——決定存檔後要不要置頂。 */
+    private boolean fromGenerator = false;
     private SmsTemplate smsTemplate = new SmsTemplate();
     private LinearLayout selectors;
     private CategorySelector<SmsTemplateActivity> categorySelector;
@@ -103,6 +113,11 @@ public class SmsTemplateActivity extends AbstractActivity {
             if (Utils.checkEditText(smsNumber, "sms number", true, 30)
                 && Utils.checkEditText(templateTxt, "sms template", true, 160)) {
                 long id = db.saveOrUpdate(smsTemplate);
+                if (fromGenerator) {
+                    // 會來產樣板，通常就是因為現有那條接得不對。新樣板往往比舊的短
+                    // （產生器會裁長尾），照長度決勝會排在舊的後面、永遠輪不到。
+                    db.moveSmsTemplateToTop(id);
+                }
                 Intent intent = new Intent();
                 intent.putExtra(SmsTemplateColumns._id.name(), id);
                 setResult(RESULT_OK, intent);
@@ -161,6 +176,17 @@ public class SmsTemplateActivity extends AbstractActivity {
 
             @Override
             public void afterTextChanged(Editable s) {}
+        });
+        // 換帳戶會改變「解不解得出帳戶」的結論，所以也要重驗一次
+        accountSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                validateExampleAndHighlight(templateTxt.getText().toString(),
+                        exampleTxt.getText().toString());
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
         });
     }
 
@@ -256,8 +282,29 @@ public class SmsTemplateActivity extends AbstractActivity {
             if (id != -1) {
                 smsTemplate = db.load(SmsTemplate.class, id);
                 editSmsTemplate();
+            } else if (intent.hasExtra(EXTRA_PREFILL_TEMPLATE)) {
+                fromGenerator = true;
+                prefillFromGenerator(intent);
             }
         }
+    }
+
+    /** AI 產樣板的預填：填欄位、選帳戶/分類，example 帶原通知讓即時驗證直接亮結果。 */
+    private void prefillFromGenerator(Intent intent) {
+        smsNumber.setText(intent.getStringExtra(EXTRA_PREFILL_TITLE));
+        templateTxt.setText(intent.getStringExtra(EXTRA_PREFILL_TEMPLATE));
+        String example = intent.getStringExtra(EXTRA_PREFILL_EXAMPLE);
+        if (exampleTxt != null && example != null) {
+            exampleTxt.setText(example);
+        }
+        long accountId = intent.getLongExtra(EXTRA_PREFILL_ACCOUNT_ID, -1);
+        if (accountId != -1) {
+            selectedAccount(accountId);
+        }
+        // 分類刻意不預填：產樣板的模型只看得到一則樣本，判斷不出「這類通知的用途單不單一」，
+        // 而樣板綁的分類會無條件蓋過 payee 記憶（見 TemplateGenerator 的欄位規則）。
+        // 留空＝分類走 payee.lastCategoryId 自己學；用途真的單一時由使用者在這個畫面自己選。
+        toggleIncome.setChecked(intent.getBooleanExtra(EXTRA_PREFILL_IS_INCOME, false));
     }
 
     private void editSmsTemplate() {
@@ -348,8 +395,41 @@ public class SmsTemplateActivity extends AbstractActivity {
                     }
                     sb.append("\n");
                 }
+                appendAccountCheck(sb,
+                        matches[SmsTransactionProcessor.Placeholder.ACCOUNT.ordinal()],
+                        matches[SmsTransactionProcessor.Placeholder.ACCOUNT_NAME.ordinal()]);
                 parseResult.setText(sb);
             }
+        }
+    }
+
+    /**
+     * 比中不等於會記帳：{@link SmsTransactionProcessor} 還要求「解得出帳戶」，解不出就整筆丟掉。
+     * 這裡把同一套解法照跑一遍講給人聽——原本編輯器只驗比不比中，於是亮綠燈存檔、
+     * 實際永遠不會記帳，而且失敗訊息還說是「比不中」（2026-08-09 踩到）。
+     */
+    private void appendAccountCheck(StringBuilder sb, String accountDigits, String accountName) {
+        long resolved = 0;
+        if (accountName != null) {
+            resolved = db.getEntityIdByTitle(Account.class, accountName);
+        }
+        if (resolved <= 0) {
+            resolved = accountSpinner.getSelectedItemId();
+        }
+        if (resolved <= 0 && accountDigits != null) {
+            java.util.List<Long> byNumber = db.findAccountsByNumber(accountDigits);
+            if (!byNumber.isEmpty()) {
+                resolved = byNumber.get(0);
+            }
+        }
+        if (resolved > 0) {
+            Account a = db.getAccount(resolved);
+            sb.append(getString(R.string.sms_tpl_account_ok,
+                    a == null ? String.valueOf(resolved) : a.title));
+        } else if (accountDigits != null) {
+            sb.append(getString(R.string.sms_tpl_account_missing, accountDigits));
+        } else {
+            sb.append(getString(R.string.sms_tpl_account_missing_no_digits));
         }
     }
 }

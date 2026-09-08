@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- id 供 window insets 使用；理由同 activity_ai_input.xml
+
+     版面（2026-07-23 二次整理）：統一成「點一列 → 彈選單 → 選完即生效」，
+     沒有儲存按鈕、沒有可手打的欄位（模型只能從 /models 抓回來的清單選，打錯字就不會發生）。
+     每列都是「標題在上、目前值在下」，長字串不會像 Switch 那樣尷尬換行。 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ai_settings_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="24dp">
+
+        <!-- ================= API Keys ================= -->
+        <TextView
+            style="@style/AiSectionHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/ai_keys_section" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="4dp"
+            android:text="@string/ai_keys_hint"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            style="@style/AiSettingRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ai_provider_gemini" />
+
+            <TextView
+                android:id="@+id/ai_key_status_gemini"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textStyle="italic" />
+
+            <Button
+                android:id="@+id/ai_key_edit_gemini"
+                style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/ai_key_edit" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/AiSettingRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ai_provider_groq" />
+
+            <TextView
+                android:id="@+id/ai_key_status_groq"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textStyle="italic" />
+
+            <Button
+                android:id="@+id/ai_key_edit_groq"
+                style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/ai_key_edit" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/AiSettingRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ai_provider_openai" />
+
+            <TextView
+                android:id="@+id/ai_key_status_openai"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textStyle="italic" />
+
+            <Button
+                android:id="@+id/ai_key_edit_openai"
+                style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/ai_key_edit" />
+        </LinearLayout>
+
+        <View
+            style="@style/AiDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp" />
+
+        <!-- ================= 語音辨識 ================= -->
+        <TextView
+            style="@style/AiSectionHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/ai_stt_section" />
+
+        <LinearLayout
+            android:id="@+id/ai_stt_provider_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_stt_combined_title" />
+
+            <!-- 值＝「辨識方式 \ 模型」（內建無模型只顯示辨識方式）；點列＝先選方式再選模型 -->
+            <TextView
+                android:id="@+id/ai_stt_provider_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- 緊接在辨識方式下面：它講的是「辨識完之後怎麼接」，屬於同一件事的下一步。
+             一次到位模式沒有這個選擇（音檔直接進解析），那時值改顯示說明字 -->
+        <LinearLayout
+            android:id="@+id/ai_auto_send_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_auto_send_title" />
+
+            <TextView
+                android:id="@+id/ai_auto_send_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- ================= AI 解析 ================= -->
+        <TextView
+            style="@style/AiSectionHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="10dp"
+            android:text="@string/ai_llm_section" />
+
+        <LinearLayout
+            android:id="@+id/ai_llm_provider_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_llm_combined_title" />
+
+            <!-- 值＝「服務 \ 模型」；點列＝先選服務再選模型 -->
+            <TextView
+                android:id="@+id/ai_llm_provider_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <View
+            style="@style/AiDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp" />
+
+        <!-- ================= 其他項目 ================= -->
+        <TextView
+            style="@style/AiSectionHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/ai_other_section" />
+
+        <LinearLayout
+            android:id="@+id/ai_fab_size_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_fab_size_title" />
+
+            <TextView
+                android:id="@+id/ai_fab_size_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_shortcut_behavior_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_shortcut_behavior_title" />
+
+            <TextView
+                android:id="@+id/ai_shortcut_behavior_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_pin_shortcut_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_pin_shortcut" />
+        </LinearLayout>
+
+<!-- 「AI 通知樣板解析」原本在這裡；已改由 AI 記帳主畫面底排的「通知解析」進入
+             （日常操作，不是設定），這裡不再重複一個入口 -->
+
+        <!-- 交易列表底排的「只看擱置」鈕。放這裡而不是原生設定頁：它服務的是
+             AI／樣板自動記帳的收尾（自動記進來的是擱置，篩出來逐筆過目）。 -->
+        <LinearLayout
+            android:id="@+id/ai_pending_button_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_pending_button_title" />
+
+            <TextView
+                android:id="@+id/ai_pending_button_value"
+                style="@style/AiRowValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_help_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_intro_help" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ai_log_row"
+            style="@style/AiClickableRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                style="@style/AiRowTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ai_log_title" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

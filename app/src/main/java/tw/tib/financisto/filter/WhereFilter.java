@@ -364,10 +364,7 @@ public class WhereFilter {
 		return title;
 	}
 
-	/**
-	 * Number of criteria in this filter. For telling "is this filter down to a single
-	 * condition" apart from "is it empty" — see BlotterFragment.isNavigationOnlyFilter.
-	 */
+	/** 篩選裡的條件數。給「這個篩選是不是只剩某一條」這種判斷用（見 BlotterFragment.isNavigationOnlyFilter）。 */
 	public synchronized int criteriaCount() {
 		return criteria.size();
 	}

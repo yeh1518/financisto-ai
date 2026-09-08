@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  只排除 AI 的加密設定檔，其餘沿用原本「全部備份」的行為。
+
+  兩個理由：
+  1. API key 不該進 Android 自動備份 / Google 雲端。
+  2. EncryptedSharedPreferences 的 master key 在 Android Keystore、硬體綁定、
+     不會被備份 → 還原到別台裝置時這個檔案解不開，備份它沒有意義。
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="ai_secure_prefs.xml" />
+</full-backup-content>

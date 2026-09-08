@@ -3,7 +3,10 @@ package tw.tib.financisto.service;
 import android.content.Context;
 import android.util.Log;
 
+import org.json.JSONArray;
+
 import tw.tib.financisto.R;
+import tw.tib.financisto.ai.AiLog;
 import tw.tib.financisto.db.DatabaseAdapter;
 import tw.tib.financisto.model.Account;
 import tw.tib.financisto.model.Payee;
@@ -37,28 +40,69 @@ public class SmsTransactionProcessor {
     }
 
     /**
+     * 一次比對的結果。「沒有樣板比中」與「比中了卻沒記成一筆」是兩回事，處置也不同
+     * （前者要改樣板，後者八成是對不到帳戶），但兩者都只是「回 null」——
+     * UI 因此把後者講成「比不中」，把人指向錯的地方。2026-08-09 實地踩到後拆開。
+     */
+    public static class Result {
+        /** 記成的交易；null＝沒記成。 */
+        public Transaction transaction;
+        /** 有樣板比中內文（不論最後有沒有記成一筆）。 */
+        public boolean matched;
+        /** matched 但沒記成時：比中的樣板從內文抽到的卡號末四碼（沒抽到就 null）。 */
+        public String accountDigits;
+    }
+
+    /**
      * Parses sms and adds new transaction if it matches any sms template
      * @return new transaction or null if not matched/parsed
      */
     public Transaction createTransactionBySms(Context context, String pkg, String addr, String fullSmsBody, TransactionStatus status, boolean updateNote) {
+        return process(context, pkg, addr, fullSmsBody, status, updateNote).transaction;
+    }
+
+    /** 同 {@link #createTransactionBySms}，但回報「為什麼沒記成」——給要對人解釋的 UI 用。 */
+    public Result process(Context context, String pkg, String addr, String fullSmsBody, TransactionStatus status, boolean updateNote) {
+        return process(context, pkg, addr, fullSmsBody, status, updateNote, 0);
+    }
+
+    /**
+     * @param pkg 通知來源套件名（上游 v251 起樣板可用套件名比對；實體簡訊沒有，傳 null）
+     * @param fallbackDateTime 樣板沒抽到 {@code {{g}}} 時間戳時，要記成的交易時間
+     *        （0＝用交易物件預設的「當下」）。
+     *
+     *        給「事後拿一則舊通知來記帳」用：通知日誌留 7 天，從列表點三天前那則通知套樣板，
+     *        交易時間該是通知發出的時間、不是按下去的當下。背景自動入帳不需要（收到就記，
+     *        當下 ≈ 通知時間），所以走上面那個不帶時間的版本。
+     *        樣板自己抽到的 {{g}} 優先——那是銀行給的，比通知時間準。
+     */
+    public Result process(Context context, String pkg, String addr, String fullSmsBody, TransactionStatus status,
+                          boolean updateNote, long fallbackDateTime) {
+        Result res = new Result();
         List<SmsTemplate> addrTemplates = db.getSmsTemplatesByPkgTitle(pkg, addr);
+        // 逐條記下每個候選樣板的下場（AiLog kind=tmatch）。比不中是靜默失敗，而使用者
+        // 常在失望之下把樣板刪掉——不當場留樣板全文，事後連錯在哪都無從重建。
+        JSONArray trace = new JSONArray();
         for (final SmsTemplate template : addrTemplates) {
             String[] match = findTemplateMatches(template.template, fullSmsBody);
+            if (match == null) {
+                trace.put(traceEntry(template, "比不中"));
+            }
             if (match != null) {
                 Log.d(TAG, format("Found template \"%s\" with matches \"%s\"", template, Arrays.toString(match)));
+                res.matched = true;
 
                 String account = match[ACCOUNT.ordinal()];
+                if (res.accountDigits == null) res.accountDigits = account;
                 String account_name = match[ACCOUNT_NAME.ordinal()];
                 String transfer_to_account_name = match[TRANSFER_TO_ACCOUNT_NAME.ordinal()];
                 String parsedPrice = match[PRICE.ordinal()];
                 String text = match[TEXT.ordinal()];
                 String greedy_text = match[GREEDY_TEXT.ordinal()];
-                // {{e}} now accepts merchant names containing spaces (see Placeholder.PAYEE),
-                // and the price of that is picking up the surrounding whitespace as well
-                // (a trailing space after the merchant name is common). A payee is created
-                // when it is not found, so without trimming we end up with two payees that
-                // differ only by a space — and the payee is what carries lastCategoryId, so
-                // splitting it in two loses the remembered category.
+                // {{e}} 允許商家名含空白（見 Placeholder.PAYEE），代價是前後的空白也會被
+                // 抓進來（例：「商店名稱：甲壽保費 」的尾空白）。收款人是「找不到就新建」，
+                // 不修掉會建出「甲壽保費 」這種只差一個空白的重複收款人，而收款人正是
+                // lastCategoryId 的載體——分裂成兩筆就等於分類記憶失憶。
                 String payeeText = match[PAYEE.ordinal()];
                 if (payeeText != null) {
                     payeeText = payeeText.trim();
@@ -69,6 +113,7 @@ public class SmsTransactionProcessor {
                 String projectText = match[PROJECT.ordinal()];
                 String currencyText = match[CURRENCY.ordinal()];
                 String timestampMillisText = match[TIMESTAMP_MILLIS.ordinal()];
+                String categoryIdText = match[CATEGORY_ID.ordinal()];
                 if (text == null && greedy_text != null) {
                     text = greedy_text;
                 }
@@ -87,14 +132,48 @@ public class SmsTransactionProcessor {
                 }
                 try {
                     BigDecimal price = toBigDecimal(parsedPrice);
-                    return createNewTransaction(context, addr, fullSmsBody, template, currencyText, price, account, account_name,
-                            transfer_to_account_name, payeeText, projectText, note, timestampMillisText, status);
+                    Transaction t = createNewTransaction(context, addr, fullSmsBody, template, currencyText, price, account, account_name,
+                            transfer_to_account_name, payeeText, projectText, note, timestampMillisText, categoryIdText,
+                            status, fallbackDateTime);
+                    if (t != null) {
+                        res.transaction = t;
+                        trace.put(traceEntry(template, "記成 _id=" + t.id));
+                        logMatchTrace(context, addr, fullSmsBody, trace, "created");
+                        return res;
+                    }
+                    // 比中卻建不成（多半是對不到帳戶）時**繼續試下一條樣板**：原本這裡直接
+                    // return，於是同一個標題下第一條比中的樣板會把後面的全擋掉——舊的壞樣板
+                    // 讓新存的好樣板永遠沒機會跑，是實際踩過的坑
+                    trace.put(traceEntry(template, "比中但建不成交易"
+                            + (account != null ? "（末四碼 " + account + " 對不到帳戶）" : "")));
                 } catch (Exception e) {
                     Log.e(TAG, format("Failed to parse price value: \"%s\"", parsedPrice), e);
+                    trace.put(traceEntry(template, "比中但金額「" + parsedPrice + "」解析失敗"));
                 }
             }
         }
-        return null;
+        logMatchTrace(context, addr, fullSmsBody, trace, res.matched ? "matched_no_tx" : "no_match");
+        return res;
+    }
+
+    /** 一條候選樣板的下場。樣板全文一定要進紀錄——DB 裡那條隨時可能被使用者刪掉。 */
+    private static org.json.JSONObject traceEntry(SmsTemplate template, String result) {
+        org.json.JSONObject o = new org.json.JSONObject();
+        try {
+            o.put("id", template.id);
+            o.put("title", template.title);
+            o.put("tpl", template.template);
+            o.put("res", result);
+        } catch (org.json.JSONException ignored) {}
+        return o;
+    }
+
+    /** 有候選才記；標題本來就查不到樣板的通知交給 NotificationJournal，不進這裡。 */
+    private static void logMatchTrace(Context context, String addr, String body,
+                                      JSONArray trace, String outcome) {
+        if (context != null && trace.length() > 0) {
+            AiLog.recordTemplateMatch(context, addr, body, trace, outcome);
+        }
     }
 
     /**
@@ -167,7 +246,9 @@ public class SmsTransactionProcessor {
         String projectText,
         String note,
         String timestampMillis,
-        TransactionStatus status)
+        String categoryIdText,
+        TransactionStatus status,
+        long fallbackDateTime)
     {
         Transaction res = null;
         long accountId = 0;
@@ -184,23 +265,31 @@ public class SmsTransactionProcessor {
         if (transferToAccountId == 0 && smsTemplate.toAccountId != -1) {
             transferToAccountId = smsTemplate.toAccountId;
         }
-        Payee payee = null;
-        Project project = null;
-        if (payeeText != null) {
-            payee = db.findOrInsertEntityByTitle(Payee.class, payeeText);
-        }
-        if (projectText != null) {
-            project = db.findOrInsertEntityByTitle(Project.class, projectText);
-        }
-        Log.d(TAG, format("payee=%s project=%s template.payeeId=%s template.projectId=%s",
-                payee, project, smsTemplate.payeeId, smsTemplate.projectId));
         if (price.compareTo(ZERO) > 0 && accountId > 0) {
+            // 收款人／專案是「找不到就新建」，所以必須等確定要記帳了才做：擺在帳戶檢查
+            // 之前的話，每一則比中但記不成的通知都會在收款人表塞一筆垃圾（{{e}} 抓歪時
+            // 更明顯——NeoShop 抓成 N 也照樣建出一個叫「N」的收款人）
+            Payee payee = null;
+            Project project = null;
+            if (payeeText != null) {
+                payee = db.findOrInsertEntityByTitle(Payee.class, payeeText);
+            }
+            if (projectText != null) {
+                project = db.findOrInsertEntityByTitle(Project.class, projectText);
+            }
+            Log.d(TAG, format("payee=%s project=%s template.payeeId=%s template.projectId=%s",
+                    payee, project, smsTemplate.payeeId, smsTemplate.projectId));
+
             res = new Transaction();
             res.isTemplate = 0;
             res.fromAccountId = accountId;
 
+            // {{g}}（銀行給的時間戳）優先；沒有才用呼叫端給的時間；兩者都沒有就留預設的當下
             if (timestampMillis != null) {
                 res.dateTime = Long.parseLong(timestampMillis);
+            }
+            else if (fallbackDateTime > 0) {
+                res.dateTime = fallbackDateTime;
             }
 
             if (payee != null) {
@@ -246,6 +335,17 @@ public class SmsTransactionProcessor {
             if (smsTemplate.categoryId != 0) {
                 res.categoryId = smsTemplate.categoryId;
             }
+            // {{k}} 帶的分類最優先：它是「這一筆」的判斷，比樣板綁死的那個與受款人記著的
+            // 上一次都具體。抓到的 id 必須是帳本裡真的存在的分類——訊息產生端讀的是帳本
+            // 備份，備份比 app 舊一點的時候可能指到已刪掉的分類。
+            //
+            // 對不到就當作沒帶（留空），交易照記：分類錯不影響金額與帳戶，而留空正好退回
+            // 原本的行為（分類事後在 blotter 篩出來補），在畫面上看得見。相對地「整筆不記」
+            // 對記帳的代價太大——為了一個分類丟掉一整筆是不划算的交換。
+            long placeholderCategoryId = parseCategoryId(categoryIdText);
+            if (placeholderCategoryId > 0 && db.getCategory(placeholderCategoryId) != null) {
+                res.categoryId = placeholderCategoryId;
+            }
             res.status = status;
             long id = db.insertOrUpdate(res);
             res.id = id;
@@ -255,6 +355,23 @@ public class SmsTransactionProcessor {
             db.log(context.getString(R.string.sms_tpl_error_log, sender, body, smsTemplate.template));
         }
         return res;
+    }
+
+    /**
+     * {@code {{k}}} 抓到的字串 → 分類 id。0 / 空 / 不是數字都回 0＝不指定。
+     *
+     * 全形與其他書寫系統的數字會照數值解讀（Android 的 regex 是 ICU 實作、{@code \d} 抓的是
+     * Unicode Nd，而 {@code parseLong} 走 {@code Character.digit} 一樣解得出來）——這是
+     * 安全的方向，不要改嚴。try/catch 是為了「真的不是數字」時不讓整筆交易掉在例外裡不見。
+     */
+    static long parseCategoryId(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        try {
+            return Long.parseLong(text.trim());
+        } catch (NumberFormatException e) {
+            Log.w(TAG, format("{{k}} 抓到不是十進位數字的內容：\"%s\"，當作沒帶分類", text));
+            return 0;
+        }
     }
 
     private long findAccount(String accountLastDigits, long defaultId) {
@@ -386,6 +503,11 @@ public class SmsTransactionProcessor {
         PAYEE("<:E:>", "([^\\r\\n]+?)", "{{e}}"),
         CURRENCY("<:F:>", "([A-Z]{3})", "{{f}}"),
         TIMESTAMP_MILLIS("<:G:>", "(\\d{1,13})", "{{g}}"),
+        // 分類 id（不是分類名）。給「訊息由會判斷的一端產生」的來源用——它讀得到帳本、
+        // 挑得出確切那一個分類，所以直接帶 id：分類名在樹的不同分支可以重複，而全路徑
+        // 含空白（"數位服務 > 訂閱服務"），(\S+?) 那類佔位符接不住。0＝不指定。
+        // 對照 app 內的 AI 記帳，那條路也是模型回 category_id（見 EntityContextBuilder）。
+        CATEGORY_ID("<:K:>", "(\\d{1,9})", "{{k}}"),
         PRICE("<:P:>", BALANCE.regexp, "{{p}}"),
         PROJECT("<:R:>", "(\\S+?)", "{{r}}"),
         TEXT("<:T:>", "(.*?)", "{{t}}"),
@@ -394,10 +516,10 @@ public class SmsTransactionProcessor {
         // those are not word characters, so the template does not match at all and no
         // transaction is created. Use (\S+?), consistent with ACCOUNT_NAME / PROJECT
         // above; \S is a superset of \w, so existing templates keep working.
-        // Left as (\S+?) rather than widened like PAYEE: an account title containing a
-        // space would break the same way, but there is no reported case, and these two
-        // are matched against existing entities rather than created on the fly. Widen
-        // them the same way if one turns up.
+        // Still (\S+?) rather than PAYEE's ([^\r\n]+?): these two capture entity titles
+        // out of messages we generate ourselves, where the field separator is a fixed
+        // character and titles with spaces have not come up. Widen them the same way if
+        // one ever does.
         // Covered by PlaceholderCaptureTest in androidTest — it has to run on a device,
         // because Android's regex is ICU-backed and a desktop JVM answers differently.
         TRANSFER_TO_ACCOUNT_NAME("<:X:>", "(\\S+?)", "{{x}}");

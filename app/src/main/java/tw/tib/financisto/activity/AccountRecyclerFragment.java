@@ -106,6 +106,11 @@ public class AccountRecyclerFragment extends AbstractRecyclerViewFragment
         ImageButton clearButton = view.findViewById(R.id.search_text_clear);
         InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
 
+        // 這個畫面的橫幅報的是「自動備份」的狀況（不是逐筆餘額，交易畫面才是），沒有一鍵
+        // 可修的東西，所以維持原本的「點一下關掉」。**不要改成跑修復資料庫**：那既修不到
+        // 備份，而且 IntegrityCheckAutobackup.check() 本身有副作用（會重設提醒時間、
+        // 吃掉一次性的失敗通知旗標），修完重跑檢查會讓橫幅消失——看起來解決了，其實只是
+        // 把備份失敗的警告吞掉。
         view.findViewById(R.id.integrity_error).setOnClickListener(v -> v.setVisibility(View.GONE));
 
         if (searchText != null) {
@@ -156,6 +161,8 @@ public class AccountRecyclerFragment extends AbstractRecyclerViewFragment
         });
 
         progressBar = view.findViewById(android.R.id.progress);
+
+        // AI 語音改走全 App 浮動鈕（AiFloatingButton），帳戶頁這顆撤掉
 
         bSearch = view.findViewById(R.id.bSearch);
         if (bSearch != null) {
@@ -534,7 +541,7 @@ public class AccountRecyclerFragment extends AbstractRecyclerViewFragment
 
     @Override
     public void integrityCheck() {
-        new IntegrityCheckTask(this).execute(new IntegrityCheckAutobackup(getContext(), TimeUnit.DAYS.toMillis(7)));
+        new IntegrityCheckTask(this, false).execute(new IntegrityCheckAutobackup(getContext(), TimeUnit.DAYS.toMillis(7)));
     }
 
     @Override

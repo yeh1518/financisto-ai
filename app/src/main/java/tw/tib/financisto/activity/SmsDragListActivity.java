@@ -62,10 +62,8 @@ public class SmsDragListActivity extends AppCompatActivity {
             return WindowInsetsCompat.CONSUMED;
         });
 
-        // Bottom insets, same as NotificationListActivity: pad the list by the navigation
-        // bar height with clipToPadding off so the last item can be scrolled clear of it.
-        // Attached to the root and not consuming, because the toolbar listener above
-        // returns CONSUMED and still needs to handle the top inset.
+        // 底部 insets：同 NotificationListActivity——清單尾端不被導航列蓋住，
+        // padding + clipToPadding=false，掛根節點、不消費（toolbar 還要 top）。
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.sms_template_list_base), (v, windowInsets) -> {
             Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
             View lv = findViewById(R.id.drag_list_view);

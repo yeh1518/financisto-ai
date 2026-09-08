@@ -87,14 +87,14 @@ public enum MenuListItem implements SummaryEntityEnum {
     GOOGLE_DRIVE_BACKUP(R.string.backup_database_online_google_drive, R.string.backup_database_online_google_drive_summary, R.drawable.actionbar_google_drive) {
         @Override
         public void call(Fragment fragment) {
-            if (!checkBackupFolderConfigured(fragment.getContext())) return;
-            GreenRobotBus_.getInstance_(fragment.getContext()).post(new MenuListFragment.StartDriveBackup());
+            // Drive 備份在本 fork 停用（package/簽章對不上上游 OAuth）。改用本機備份 + Syncthing。
+            showGoogleDriveDisabled(fragment.getContext());
         }
     },
     GOOGLE_DRIVE_RESTORE(R.string.restore_database_online_google_drive, R.string.restore_database_online_google_drive_summary, R.drawable.actionbar_google_drive) {
         @Override
         public void call(Fragment fragment) {
-            GreenRobotBus_.getInstance_(fragment.getContext()).post(new MenuListFragment.StartDriveRestore());
+            showGoogleDriveDisabled(fragment.getContext());
         }
     },
     DROPBOX_BACKUP(R.string.backup_database_online_dropbox, R.string.backup_database_online_dropbox_summary, R.drawable.actionbar_dropbox) {
@@ -160,7 +160,7 @@ public enum MenuListItem implements SummaryEntityEnum {
     MENU_INTEGRITY_FIX(R.string.integrity_fix, R.string.integrity_fix_summary, R.drawable.actionbar_flash) {
         @Override
         public void call(Fragment fragment) {
-            new IntegrityFixTask(fragment.getContext()).execute();
+            fixIntegrity(fragment.getContext(), null);
         }
     },
 //    MENU_DONATE(R.string.donate, R.string.donate_summary, R.drawable.actionbar_donate) {
@@ -340,6 +340,15 @@ public enum MenuListItem implements SummaryEntityEnum {
         new QifImportTask(activity, progressDialog, options).execute();
     }
 
+    /** Drive 備份/還原停用時的統一提示（成因與替代方案見 strings）。 */
+    private static void showGoogleDriveDisabled(Context context) {
+        new AlertDialog.Builder(context)
+                .setTitle(R.string.gdocs_backup)
+                .setMessage(R.string.google_drive_disabled_message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
     private static boolean checkBackupFolderConfigured(Context context) {
         try {
             Uri backupFolderUri = Uri.parse(MyPreferences.getDatabaseBackupFolder());
@@ -364,13 +373,25 @@ public enum MenuListItem implements SummaryEntityEnum {
         return false;
     }
 
+    /**
+     * 跑「修復資料庫」（重建逐筆餘額）。除了選單那條路，畫面上的「逐筆餘額似乎不準確」橫幅
+     * 也直接叫這裡——偵測得到卻只能叫使用者自己去翻選單，等於把已知的修法藏起來。
+     *
+     * @param onDone 修完在主執行緒跑（通常是重跑一次檢查、讓橫幅自己收掉），不需要就傳 null
+     */
+    public static void fixIntegrity(Context context, Runnable onDone) {
+        new IntegrityFixTask(context, onDone).execute();
+    }
+
     private static class IntegrityFixTask extends AsyncTask<Void, Void, Void> {
 
         private final Context context;
+        private final Runnable onDone;
         private ProgressDialog progressDialog;
 
-        IntegrityFixTask(Context context) {
+        IntegrityFixTask(Context context, Runnable onDone) {
             this.context = context;
+            this.onDone = onDone;
         }
 
         @Override
@@ -385,6 +406,9 @@ public enum MenuListItem implements SummaryEntityEnum {
                 ((MainActivity) context).refreshCurrentTab();
             }
             progressDialog.dismiss();
+            if (onDone != null) {
+                onDone.run();
+            }
         }
 
         @Override

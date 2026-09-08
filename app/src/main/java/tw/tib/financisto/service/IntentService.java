@@ -5,11 +5,11 @@ import android.content.Intent;
 
 import tw.tib.financisto.R;
 import tw.tib.financisto.activity.AccountWidget;
-import tw.tib.financisto.backup.DatabaseExport;
 import tw.tib.financisto.db.DatabaseAdapter;
 import tw.tib.financisto.model.Transaction;
 import tw.tib.financisto.model.TransactionInfo;
 import tw.tib.financisto.utils.NotificationUtils;
+import tw.tib.financisto.worker.AutoBackupWorker;
 
 public class IntentService extends android.app.IntentService {
     public static final String ACTION_NEW_TRANSACTION = "tw.tib.financisto.NEW_TRANSACTION";
@@ -44,10 +44,9 @@ public class IntentService extends android.app.IntentService {
     }
 
     private void createBackup() {
-        try {
-            new DatabaseExport(this, db.db(), true).export();
-        } catch (Exception ignore) {
-        }
+        // 上游在這裡直接 export（吞掉例外）；改走每日備份同一個 worker，
+        // 才會帶出 AI 解析紀錄、失敗也有記錄。見 AutoBackupWorker.requestImmediateBackup。
+        AutoBackupWorker.requestImmediateBackup(this);
     }
 
     private void createTransactionFromIntent(Intent intent) {

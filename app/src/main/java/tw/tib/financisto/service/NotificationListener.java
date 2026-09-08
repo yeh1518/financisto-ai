@@ -27,12 +27,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import tw.tib.financisto.ai.NotificationJournal;
+import tw.tib.financisto.ai.ProcessedNotificationLog;
 import tw.tib.financisto.db.DatabaseAdapter;
 import tw.tib.financisto.model.SmsTemplate;
 import tw.tib.financisto.utils.MyPreferences;
+import tw.tib.financisto.worker.AutoBackupWorker;
 
 public class NotificationListener extends NotificationListenerService {
     private static final String TAG = "NotificationListener";
+
+    /** 遠端觸發備份的通知指令標記，與記帳訊息同一家族（🧾 開頭、全形｜分隔）。 */
+    public static final String BACKUP_TRIGGER = "🧾備份";
 
     private static final Set<String> GOOGLE_WALLET_PACKAGES = new HashSet<>(Arrays.asList(
             // Google Wallet
@@ -43,32 +49,27 @@ public class NotificationListener extends NotificationListenerService {
     private String packageName;
     private NotificationCache notificationCache;
 
-    /** Whether the user has granted notification access to this app. */
+    /** 使用者是否已授予通知存取權（授了不代表 listener 有被系統綁上，見下）。 */
     public static boolean isAccessGranted(Context context) {
         return NotificationManagerCompat.getEnabledListenerPackages(context)
                 .contains(context.getPackageName());
     }
 
     /**
-     * Ask the system to bind the listener again.
+     * 請系統重新綁定 listener。Android 有個長年怪癖：APK 更新（或某些系統狀況）後
+     * listener 會被解綁、且**權限還顯示已授予**，但通知完全收不到，得手動關開一次
+     * 通知存取權才復活。
      *
-     * After an APK update the listener can end up unbound while the permission still
-     * shows as granted, so no notifications arrive at all and the only user-visible fix
-     * is toggling notification access off and on in system settings. Disabling and
-     * re-enabling the component does the same thing programmatically; requestRebind()
-     * alone was not enough in my testing.
+     * <p>2026-08-04 加強：原本只叫 {@code requestRebind}，但那個 API 眾所周知不可靠
+     * ——實機一天內更新四版 APK，每次都得手動關開權限才活。改成先把元件
+     * <b>停用再啟用</b>（等同「關開一次」但不需要人去設定頁），再 requestRebind。
+     * 元件的 enabled 狀態與授權是兩回事：授權存在 {@code Settings.Secure}
+     * 的 enabled_notification_listeners（以元件名為鍵），toggle enabled 不會動到它，
+     * 所以權限不會掉。
      *
-     * This is not specific to self-signed builds: the same symptom (notification list
-     * empty, access still shown as granted, off/on toggle required to recover) also
-     * reproduces with the Play Store build after a store update, observed on a Xiaomi
-     * phone running HyperOS 3 / Android 16. Vendor builds with aggressive background
-     * management appear more prone to leaving the listener unbound across updates,
-     * which is likely why it does not reproduce on every device.
-     *
-     * The component's enabled state is independent of the grant, which is stored per
-     * component name in Settings.Secure.enabled_notification_listeners, so this does not
-     * drop the permission. It is a no-op when the listener is already bound, and it does
-     * nothing at all when access was never granted.
+     * <p>沒授權時直接跳過（沒授權時做什麼都沒用，反而可能把元件留在停用狀態）；
+     * 已綁好時整串是 no-op，多叫無害——所以掛在 Application 啟動、APK 更新、
+     * 開啟通知列表三處，開一次 app 就自動修好。
      */
     public static void requestRebindIfGranted(Context context) {
         if (!isAccessGranted(context)) return;
@@ -81,19 +82,23 @@ public class NotificationListener extends NotificationListenerService {
             pm.setComponentEnabledSetting(cn,
                     PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                     PackageManager.DONT_KILL_APP);
+            Log.d(TAG, "listener component toggled off/on");
         } catch (Exception e) {
-            Log.e(TAG, "toggling listener component failed", e);
-            // never leave the component disabled
+            // 失敗也要把元件掰回啟用，不能讓它卡在停用狀態
+            Log.e(TAG, "toggle component failed", e);
             try {
                 context.getPackageManager().setComponentEnabledSetting(cn,
                         PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                         PackageManager.DONT_KILL_APP);
             } catch (Exception ignored) {}
         }
-        // requestRebind() is API 24; on API 23 the component toggle above is all we have
+        // requestRebind 是 API 24 才有的；minSdk 23，Android 6 上直接呼叫會 NoSuchMethodError
+        // ——而那是 Error 不是 Exception，catch 不到，掛在 Application.onCreate 等於開不了 app。
+        // API 23 上就只靠上面的元件 toggle（實測有效的本來也是那半）。
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 requestRebind(cn);
+                Log.d(TAG, "requestRebind sent");
             } catch (Exception e) {
                 Log.e(TAG, "requestRebind failed", e);
             }
@@ -160,7 +165,24 @@ public class NotificationListener extends NotificationListenerService {
             Log.d(TAG, "title=\"" + title + "\", body=\"" + body + "\"");
             Log.d(TAG, sbn.getNotification().extras.toString());
 
+            // 存進滾動日誌給「AI 產樣板」的通知列表用（cache 滑掉就沒了，日誌留 7 天）。
+            // body 存與樣板引擎吃到的同一格式（含 title 前綴），生成樣板回測才一致。
+            // 時間一定要傳 sbn 的 postTime、不能讓日誌自己取當下：onListenerConnected 會把
+            // 通知欄裡還掛著的舊通知整批重掃一遍，用當下時間會把它們全壓成「app 啟動那一刻」。
+            NotificationJournal.record(context, packageName, title, body, notification.postTime);
+
             if (processTemplate && (existing == null || !body.equals(existing.body))) {
+                // 遠端觸發備份：任何通知內文含這個標記（慣例是電腦端要對帳前發來的
+                // 訊息通知）→ 立刻跑一次完整備份（含 AI 解析紀錄），寫進備份資料夾，
+                // 讓資料夾同步工具把檔帶回電腦。標記後面慣例帶時間戳，讓每次內文互異、
+                // 不被上面的去重擋掉。只做字串比對所以放程式不放樣板；任何 app 發這串
+                // 都會觸發，最壞就是多備份一次，無害。
+                if (body.contains(BACKUP_TRIGGER)) {
+                    Log.i(TAG, "backup trigger notification received");
+                    AutoBackupWorker.requestImmediateBackup(context);
+                    return;
+                }
+
                 if (GOOGLE_WALLET_PACKAGES.contains(packageName)
                         && MyPreferences.isGoogleWalletTransactionEnabled())
                 {
@@ -176,6 +198,14 @@ public class NotificationListener extends NotificationListenerService {
                 List<SmsTemplate> templates = db.getSmsTemplatesByPkgTitle(pkg, title);
 
                 if (!templates.isEmpty()) {
+                    // 防重複記帳：上面那個 cache 比對只擋「同一個通知 key 的內文沒變」，而
+                    // listener 一斷線 cache 就整個清空（APK 更新後會重綁），同一則通知再被
+                    // 投遞一次就又記一筆。2026-08-20 實地記成兩筆，改用持久化的內文指紋擋
+                    // （取捨說明見 ProcessedNotificationLog）。
+                    if (!ProcessedNotificationLog.markIfNew(context, body)) {
+                        Log.i(TAG, "notification already processed, skip");
+                        return;
+                    }
                     Intent serviceIntent = new Intent(ACTION_NEW_TRANSACTION_SMS, null, context, FinancistoService.class);
                     serviceIntent.putExtra(SMS_TRANSACTION_PACKAGE, pkg);
                     serviceIntent.putExtra(SMS_TRANSACTION_NUMBER, title);
@@ -192,8 +222,8 @@ public class NotificationListener extends NotificationListenerService {
         if (extras != null) {
             StringBuilder sb = new StringBuilder();
             result = new ParsedNotification();
-            result.pkg = sbn.getPackageName();
             result.key = sbn.getKey();
+            result.pkg = sbn.getPackageName();
             result.postTime = sbn.getPostTime();
             result.title = getString(extras.getCharSequence(Notification.EXTRA_TITLE));
             String text = getString(extras.getCharSequence(Notification.EXTRA_TEXT));
@@ -215,10 +245,11 @@ public class NotificationListener extends NotificationListenerService {
 
     public static class ParsedNotification {
         public String key;
-        public String pkg;
         public String title;
         public String text;
         public String body;
+        /** 來源套件名。列表顯示 app 名稱、以及排除整個 app 都靠它。 */
+        public String pkg;
         /** When the notification was posted; used to order the notification list. */
         public long postTime;
     }

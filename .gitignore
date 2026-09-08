@@ -1,10 +1,26 @@
-.idea/**
-.gradle/**
-gradle/**
-build/**
-app/build/**
+# Build outputs
+.gradle/
+build/
+app/build/
 captures/
+
+# IDE / local config
+.idea/
 *.iml
-gradlew*
 local.properties
-CLAUDE.local.md
+
+# 注意：gradle/wrapper/ 與 gradlew* 是「要進 git」的，別加進忽略名單。
+# wrapper 進 git 才能讓乾淨 clone 直接 ./gradlew 建置（.gradle/ 是建置快取，仍然忽略）。
+
+# Secrets — 一律不進版控
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.jks
+*.keystore
+keystore.properties
+
+# Python
+__pycache__/

@@ -16,31 +16,24 @@ import org.junit.runner.RunWith;
 import tw.tib.financisto.model.Transaction;
 
 /**
- * Running balance invariants when several transactions on one account share a timestamp.
+ * 逐筆餘額（running_balance）在「同一時間有多筆」時的不變式。
  *
- * <p>The account total and the running balance are two separately maintained books; when they
- * disagree the app shows "running balance seems to be inaccurate". The statements that maintain
- * running_balance used to compare {@code datetime} alone to decide which rows to shift, while the
- * table is ordered by {@code (datetime, transaction_id)} — rows sharing the timestamp were skipped
- * and the two books drifted apart.
+ * 帳戶總額與逐筆餘額是兩條各自維護的帳，對不上時畫面會跳「逐筆餘額似乎不準確」。維護逐筆餘額
+ * 的 SQL 原本用 `datetime > ?` 決定「哪些列要跟著加減」，但這張表的排序鍵是
+ * (datetime, transaction_id) 兩欄——同一時間的其他交易因此被漏掉，帳就歪了。
  *
- * <p>Sharing an exact timestamp is not exotic: scheduled transactions have their seconds and
- * milliseconds zeroed (AbstractTransactionActivity, via DateUtils.zeroSeconds), so two schedules
- * firing at the same date and time on one account collide every period; CSV import never carries
- * milliseconds (CsvTransaction.combineToMillis), so a file with date-only or minute-precision
- * timestamps produces whole batches of identical values. Once such rows exist, editing any one of
- * them goes down the same code path, because updating a transaction is delete + insert.
+ * 同一時間同帳戶兩筆並不罕見：AI 補充模式改型別是「建新筆＋刪原筆」而且刻意沿用原本的時間，
+ * 每次都會撞上（2026-08-23 實地重現）；手動同秒記兩筆也會。
  *
- * <p>These run on a device because they need the real SQLite and the real DatabaseAdapter flow.
- * None of this is visible in the UI while it happens — only the warning afterwards. The test
- * creates and removes its own account, using a high id range to stay clear of real data.
+ * 跑在裝置上是因為要真的 SQLite 與真的 DatabaseAdapter 流程；這幾條用畫面看不出來，
+ * 只看得到事後那句「似乎不準確」。自己建帳戶、自己刪，用一段高位 id 避開既有資料。
  */
 @RunWith(AndroidJUnit4.class)
 public class RunningBalanceDbTest {
 
     private static final long BASE = 900100000L;
     private static final long ACCOUNT_ID = BASE + 1;
-    /** Fixed timestamp rather than "now": a test must not behave differently depending on when it runs. */
+    /** 固定時間戳，不用當下時間——測試不該因為跑的時刻不同而有不同行為。 */
     private static final long T = 1700000000000L;
 
     private DatabaseAdapter db;
@@ -54,7 +47,7 @@ public class RunningBalanceDbTest {
         db.db().execSQL("INSERT INTO account (_id, title, type, currency_id, total_amount,"
                 + " is_active, is_include_into_totals, sort_order, creation_date, last_transaction_date)"
                 + " VALUES (?,?,?,?,?,?,?,?,?,?)",
-                new Object[]{ACCOUNT_ID, "RunningBalanceDbTest", "CASH", currencyId(), 0L, 1L, 1L, 0L, 0L, 0L});
+                new Object[]{ACCOUNT_ID, "測試帳戶", "CASH", currencyId(), 0L, 1L, 1L, 0L, 0L, 0L});
     }
 
     @After
@@ -99,16 +92,14 @@ public class RunningBalanceDbTest {
     }
 
     /**
-     * The two books have to agree, at two levels.
+     * 兩條帳要一直對得上。
      *
-     * <p>(1) The last running balance row equals the account total — that is what the app's
-     * "seems to be inaccurate" check looks at. (2) <em>Every</em> row equals the running sum up to
-     * that transaction in {@code (datetime, transaction_id)} order. Checking only the last row
-     * would miss a wrong value in the middle that happens to cancel out by the end, and those
-     * middle rows are exactly the numbers the user reads in the transaction list.
+     * 兩層都驗：(1) 最後一列＝帳戶總額，這是 app 那句「逐筆餘額似乎不準確」在檢查的東西；
+     * (2) **每一列**都等於依 (datetime, transaction_id) 累加到該筆為止的金額——只驗最後一列
+     * 會漏掉「中間某列算錯、但最後一列剛好對」的情況，而中間那幾列正是使用者在明細上看到的數字。
      */
     private void assertBooksAgree(String when) {
-        assertEquals(when + ": last running balance row should equal the account total",
+        assertEquals(when + "：逐筆餘額的最後一列應等於帳戶總額",
                 accountTotal(), lastRunningBalance());
         long expected = 0;
         try (Cursor c = db.db().rawQuery(
@@ -119,7 +110,7 @@ public class RunningBalanceDbTest {
                 new String[]{String.valueOf(ACCOUNT_ID)})) {
             while (c.moveToNext()) {
                 expected += c.getLong(1);
-                assertEquals(when + ": running balance of transaction " + c.getLong(0),
+                assertEquals(when + "：交易 " + c.getLong(0) + " 那一列的逐筆餘額",
                         expected, c.getLong(2));
             }
         }
@@ -129,14 +120,13 @@ public class RunningBalanceDbTest {
     public void twoTransactionsAtTheSameTimeStayInSync() {
         insertTx(-50000, T);
         insertTx(-30000, T);
-        assertBooksAgree("two transactions at the same time");
+        assertBooksAgree("同一時間記兩筆");
         assertEquals(-80000L, accountTotal());
     }
 
     /**
-     * Minimal reproduction of the reported drift: two transactions at the same time, delete the
-     * one that sorts <em>first</em>. Before the fix the later row was not shifted, so the account
-     * total and the running balance stayed apart by the deleted amount from then on.
+     * 這條是實地那個 bug 的最小重現：同一時間兩筆，刪掉**排在前面**那筆。
+     * 修好之前，後面那筆的逐筆餘額不會跟著減，帳戶總額與逐筆餘額就從此差一個被刪的金額。
      */
     @Test
     public void deletingTheEarlierOfTwoAtTheSameTimeKeepsBooksInSync() {
@@ -145,11 +135,11 @@ public class RunningBalanceDbTest {
 
         db.deleteTransaction(first);
 
-        assertBooksAgree("deleted the earlier of two at the same time");
+        assertBooksAgree("刪掉同一時間的前一筆");
         assertEquals(-30000L, accountTotal());
     }
 
-    /** Deleting the later one was always fine (nothing sorts after it); pinned so a fix cannot cover only one side. */
+    /** 刪後面那筆本來就沒事（沒有「更後面的列」要調整），一起釘住免得修法只顧一邊。 */
     @Test
     public void deletingTheLaterOfTwoAtTheSameTimeKeepsBooksInSync() {
         insertTx(-50000, T);
@@ -157,11 +147,11 @@ public class RunningBalanceDbTest {
 
         db.deleteTransaction(second);
 
-        assertBooksAgree("deleted the later of two at the same time");
+        assertBooksAgree("刪掉同一時間的後一筆");
         assertEquals(-50000L, accountTotal());
     }
 
-    /** Control: distinct timestamps were always correct — this pins that the fix does not break them. */
+    /** 對照組：時間不同時本來就是對的，確認修法沒把原本正常的情況弄壞。 */
     @Test
     public void transactionsAtDifferentTimesStayInSync() {
         long first = insertTx(-50000, T);
@@ -169,29 +159,27 @@ public class RunningBalanceDbTest {
 
         db.deleteTransaction(first);
 
-        assertBooksAgree("deleted the earlier of two at different times");
+        assertBooksAgree("刪掉較早的一筆");
         assertEquals(-30000L, accountTotal());
     }
 
-    /** Inserting next to an existing row at the same time: the new row must not take its base from a neighbour that sorts after it. */
+    /** 在「已經有一筆」的同一時間插新筆，新筆的餘額基準不能取到排在自己後面的鄰居。 */
     @Test
     public void insertingAtTheSameTimeAsAnExistingOneKeepsBooksInSync() {
         insertTx(-50000, T);
         insertTx(-30000, T);
         insertTx(-20000, T);
 
-        assertBooksAgree("third transaction at the same time");
+        assertBooksAgree("同一時間第三筆");
         assertEquals(-100000L, accountTotal());
     }
 
     /**
-     * Move an <em>older</em> transaction onto the timestamp of a <em>newer</em> one.
+     * 改時間讓一筆**舊 id** 撞上一筆**新 id** 的時間。
      *
-     * <p>This covers the other half of the fix: computing the balance of the moved row means
-     * taking the row that sorts immediately before it, which also needs the two-column
-     * comparison. With {@code datetime} alone the same-timestamp neighbour that sorts after it
-     * would be picked as the previous row — and having the smaller id is exactly the shape that
-     * triggers it.
+     * 這條打的是另外半邊：算新列餘額時要取「排在自己前面那一列」，同樣得用
+     * (datetime, transaction_id) 比。只比 datetime 的話，會把「同時間但排在自己後面」的鄰居
+     * 當成前一筆，基準就取錯了——而這筆的 id 比鄰居小，正是會踩到的形狀。
      */
     @Test
     public void movingAnOlderTransactionOntoALaterOnesTimeKeepsBooksInSync() {
@@ -202,7 +190,7 @@ public class RunningBalanceDbTest {
         moved.dateTime = T + 60000;
         db.insertOrUpdate(moved);
 
-        assertBooksAgree("moved the older transaction onto the newer one's timestamp");
+        assertBooksAgree("把舊 id 那筆的時間改到與新 id 那筆相同");
         assertEquals(-80000L, accountTotal());
     }
 }

@@ -15,8 +15,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextWatcher;
 import android.text.format.DateUtils;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -70,11 +73,13 @@ import tw.tib.financisto.filter.Criterion;
 import tw.tib.financisto.filter.DateTimeCriterion;
 import tw.tib.financisto.filter.WhereFilter;
 import tw.tib.financisto.db.DatabaseAdapter;
+import tw.tib.financisto.ai.AiPreferences;
 import tw.tib.financisto.model.Account;
 import tw.tib.financisto.model.AccountType;
 import tw.tib.financisto.model.Budget;
 import tw.tib.financisto.model.Transaction;
 import tw.tib.financisto.model.TransactionAttribute;
+import tw.tib.financisto.model.TransactionStatus;
 import tw.tib.financisto.rates.ExchangeRate;
 import tw.tib.financisto.utils.IntegrityCheckRunningBalance;
 import tw.tib.financisto.utils.MenuItemInfo;
@@ -97,6 +102,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     private static final int MONTHLY_VIEW_REQUEST = 6;
     private static final int BILL_PREVIEW_REQUEST = 7;
     private static final int SHOW_TOTALS_REQUEST = 8;
+    private static final int MASS_OP_REQUEST = 9;
 
     protected static final int FILTER_REQUEST = 6;
     private static final int MENU_DUPLICATE = MENU_ADD + 1;
@@ -111,6 +117,11 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     protected ProgressBar progressBar;
 
     protected ImageButton bFilter;
+    protected ImageButton bPending;
+    /** 批次異動入口。只有 blotter 版面有這顆（MassOpFragment 等子類的版面沒有），一律 null-guard。 */
+    protected TextView bMassOp;
+    /** 目前篩選出的筆數，顯示在批次異動列上。-1＝還沒載入完，那時只顯示標題不顯示筆數。 */
+    private int massOpRowCount = -1;
     protected ImageButton bTransfer;
     protected ImageButton bTemplate;
     protected ImageButton bSearch;
@@ -252,6 +263,14 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
             });
         }
 
+        // 這個畫面本來沒給橫幅接任何事件（帳戶列表那兩個有，只是關掉它）——所以在交易畫面
+        // 點它完全沒反應。改成點了直接修，修完重跑檢查讓它自己收掉。
+        View integrityError = view.findViewById(R.id.integrity_error);
+        if (integrityError != null) {
+            integrityError.setOnClickListener(v ->
+                    MenuListItem.fixIntegrity(getContext(), this::integrityCheck));
+        }
+
         integrityCheck();
 
         backCallback = new OnBackPressedCallback(false) {
@@ -286,6 +305,8 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 bTemplate.setVisibility(View.VISIBLE);
                 bTemplate.setOnClickListener(v -> createFromTemplate());
             }
+
+            // AI 語音改走全 App 浮動鈕（AiFloatingButton），Blotter 這顆撤掉
         }
 
         bFilter = view.findViewById(R.id.bFilter);
@@ -295,6 +316,25 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 blotterFilter.toIntent(intent);
                 intent.putExtra(BlotterFilterActivity.IS_ACCOUNT_FILTER, isAccountBlotter && blotterFilter.getAccountId() > 0);
                 startActivityForResult(intent, FILTER_REQUEST);
+            });
+        }
+
+        // 只看擱置：自動記進來的交易是擱置狀態，這顆把「篩出來逐筆過目」變成一次點擊。
+        // 開關在 AI 設定（它服務的是自動記帳的收尾，不是原生記帳的偏好）。
+        bPending = view.findViewById(R.id.bPending);
+        if (bPending != null) {
+            bPending.setOnClickListener(v -> togglePendingFilter());
+        }
+
+        // 批次異動：把當下的篩選整個交給批次畫面（MassOpActivity 本來就會把 intent extras
+        // 當 fragment args 餵給 MassOpFragment，那邊 WhereFilter.fromBundle 收）。
+        // 一般篩選與「只看擱置」都住在同一個 blotterFilter，所以這裡不必分別處理。
+        bMassOp = view.findViewById(R.id.bMassOp);
+        if (bMassOp != null) {
+            bMassOp.setOnClickListener(v -> {
+                Intent intent = new Intent(getContext(), MassOpActivity.class);
+                blotterFilter.toIntent(intent);
+                startActivityForResult(intent, MASS_OP_REQUEST);
             });
         }
 
@@ -631,15 +671,15 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         }
     };
 
+    // AI 一句話記帳的 quick-action 位置（隨是否含 template 動態決定）
     private void prepareAddButtonActionGrid() {
         addButtonActionGrid = new QuickActionGrid(getContext());
         addButtonActionGrid.addQuickAction(new MyQuickAction(getContext(), R.drawable.actionbar_add_big, R.string.transaction));
         addButtonActionGrid.addQuickAction(new MyQuickAction(getContext(), R.drawable.ic_action_transfer, R.string.transfer));
         if (addTemplateToAddButton()) {
             addButtonActionGrid.addQuickAction(new MyQuickAction(getContext(), R.drawable.actionbar_tiles_large, R.string.template));
-        } else {
-            addButtonActionGrid.setNumColumns(2);
         }
+        // AI 語音改走全 App 浮動鈕（AiFloatingButton），quick-action grid 的 AI 項也撤掉
         addButtonActionGrid.setOnQuickActionClickListener(addButtonActionListener);
     }
 
@@ -660,6 +700,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 break;
         }
     };
+
 
     private void restoreTransaction(long selectedId) {
         new BlotterOperations(getContext(), this, db, selectedId).restoreTransaction();
@@ -921,6 +962,14 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         return newId;
     }
 
+    /**
+     * 供 AI 浮動鈕取用：這是「單一帳戶明細」時回該帳戶 id，否則 -1。
+     * 只認 isAccountBlotter＋有帳戶 filter 的情況，避免主 blotter 的殘留帳戶 filter 也被當預設。
+     */
+    public long getAiDefaultAccountId() {
+        return isAccountBlotter ? blotterFilter.getAccountId() : -1;
+    }
+
     @Override
     protected void addItem() {
         if (showAllBlotterButtons) {
@@ -1018,6 +1067,9 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
                 Log.d(TAG, "createAdapter: " + format("%,d", System.nanoTime() - t1) + " ns");
 
                 updatePeriodDisplay();
+                // 筆數只有在 cursor 載完才知道，所以在這裡更新（applyFilter 那次會早於載入完成）
+                massOpRowCount = count;
+                updateMassOpButton();
 
                 if (isNewAdapter) {
                     setListAdapterKeepScrollState(adapter);
@@ -1158,32 +1210,100 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     protected void updateFilterImage() {
         FilterState.updateFilterColor(getContext(), blotterFilter, bFilter,
                 isNavigationOnlyFilter(isAccountBlotter, blotterFilter));
+        updatePendingButton();
+        updateMassOpButton();
     }
 
     /**
-     * Whether everything in this filter came from navigation rather than from the user
-     * picking it in the filter screen.
+     * 批次異動只在**有篩選**時出現。
      *
-     * Opening an account from the account list lands on a blotter that shows only that
-     * account: the account criterion is part of "show me this account", not a filter the
-     * user expressed. It lives in the same WhereFilter as real filters though, so
-     * isEmpty() is false and the filter icon lights up the moment the screen opens —
-     * claiming "what you see is not everything" before the user has done anything, which
-     * also costs the icon its meaning when a filter really is applied. Adding any further
-     * criterion (category, date, ...) makes it the user's intent again. Picking an account
-     * from the transactions screen through the filter UI is intentional and unaffected.
+     * 用的是 app 自己對「有篩選」的定義（{@code WhereFilter.isEmpty()}，跟篩選鈕變藍的判斷
+     * 同一個），所以一般篩選與「只看擱置」都算——後者就是把 STATUS=PN 塞進同一個篩選物件。
      *
-     * The test is on the filter's *contents*, not on "has the filter screen been opened":
-     * in the account blotter the filter screen's clear button restores "just this account"
-     * (see BlotterFilterActivity.bNoFilter), so a has-been-opened flag would leave the icon
-     * lit after the user cleared everything. The account criterion also cannot be removed
-     * there (its minus button is hidden), which is what makes "exactly one criterion, and
-     * it is the account" a stable shape.
+     * 隱藏不只是版面考量：批次操作真正會出大事的情境是「對全部交易做」，而沒篩選時這顆
+     * 不存在，那個情境就不在路徑上。
+     */
+    private void updateMassOpButton() {
+        if (bMassOp == null) return;
+        if (blotterFilter.isEmpty() || isNavigationOnlyFilter(isAccountBlotter, blotterFilter)) {
+            bMassOp.setVisibility(View.GONE);
+            return;
+        }
+        bMassOp.setVisibility(View.VISIBLE);
+        String label = getString(R.string.mass_operations);
+        if (massOpRowCount < 0) {
+            bMassOp.setText(label);
+            return;
+        }
+        // 筆數用較暗的灰：標題是動作、筆數是附註，兩個同色會讀成一整串
+        String count = getString(R.string.blotter_mass_op_count, massOpRowCount);
+        SpannableString s = new SpannableString(label + "  " + count);
+        s.setSpan(new ForegroundColorSpan(getResources().getColor(R.color.mass_op_bar_count)),
+                label.length(), s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        bMassOp.setText(s);
+    }
+
+    /**
+     * 這個篩選是不是**純粹由導覽帶進來的**，而不是使用者在篩選介面點出來的。
+     *
+     * 從帳戶列表點進某個帳戶的明細時，畫面本來就只給那一個帳戶看——那個帳戶條件是「我要看
+     * 這個帳戶」這個導覽動作的一部分，不是使用者表達的篩選意圖。這種畫面**批次異動不出現、
+     * 篩選圖示也不亮**（亮起來的意思是「你現在看到的不是全部」，一進來就亮等於在說謊）；
+     * 等他真的再加條件（分類、日期、只看擱置…）才算數。反過來，從交易畫面用篩選介面挑帳戶
+     * 是有意的，兩者照常。
+     *
+     * 判準看**篩選內容**而不是「有沒有開過篩選介面」：篩選介面的「清除篩選」在帳戶明細下會
+     * 還原成「只剩這個帳戶」（見 BlotterFilterActivity.bNoFilter），用開沒開過判斷的話，
+     * 使用者清完篩選反而還留著這顆鈕。
      */
     static boolean isNavigationOnlyFilter(boolean isAccountBlotter, WhereFilter filter) {
         return isAccountBlotter
                 && filter.getAccountId() > 0
                 && filter.criteriaCount() == 1;
+    }
+
+    /** 目前的篩選是不是「剛好只篩擱置」——只有這種情況才算這顆鈕是開著的。 */
+    private boolean isPendingOnlyFilter() {
+        Criterion c = blotterFilter.get(BlotterFilter.STATUS);
+        if (c == null) return false;
+        String[] values = c.getValues();
+        return values != null && values.length == 1
+                && TransactionStatus.PN.name().equals(values[0]);
+    }
+
+    /**
+     * 切換「只看擱置」。開＝把狀態篩選設成單一 PN；關＝移除狀態篩選（不動其他條件，
+     * 所以它跟一般篩選可以疊著用：篩了某帳戶再按這顆，是「該帳戶的擱置」）。
+     */
+    private void togglePendingFilter() {
+        if (isPendingOnlyFilter()) {
+            blotterFilter.remove(BlotterFilter.STATUS);
+        } else {
+            blotterFilter.put(Criterion.in(BlotterFilter.STATUS, TransactionStatus.PN.name()));
+        }
+        recreateCursor();
+        applyFilter();
+        saveFilter();
+    }
+
+    /**
+     * 顯示與否照 AI 設定（在 applyFilter 走，所以從設定頁回來會跟著更新）。
+     *
+     * 開＝拿掉濾色，露出圖檔原本的橘色驚嘆號——也就是「擱置」在這個 app 裡本來的
+     * 長相（清單、編輯頁的狀態圖示都是它）；關＝跟其他底排按鈕一樣的灰。
+     * 用同一個圖示改變飽和度而不是換圖示：換成「未對帳」的圖示會讀成「篩未對帳」，
+     * 那是另一個動作，而不是這個動作的關閉態。
+     */
+    private void updatePendingButton() {
+        if (bPending == null || getContext() == null) return;
+        boolean show = AiPreferences.isShowPendingFilterButton(getContext());
+        bPending.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (!show) return;
+        if (isPendingOnlyFilter()) {
+            bPending.clearColorFilter();
+        } else {
+            bPending.setColorFilter(getResources().getColor(R.color.bottom_bar_tint));
+        }
     }
 
     @Override
@@ -1209,7 +1329,7 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     @Override
     public void integrityCheck() {
         Log.d(TAG, "integrityCheck");
-        new IntegrityCheckTask(this).execute(new IntegrityCheckRunningBalance(getContext()));
+        new IntegrityCheckTask(this, true).execute(new IntegrityCheckRunningBalance(getContext()));
     }
 
     public boolean onBackPressed()
@@ -1227,6 +1347,8 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
     public void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        // 從 AI 設定頁改完開關回來要立刻反映（顯示與否只由那個設定決定）
+        updatePendingButton();
         if (lastTxId != BEFORE_INITIAL_LOAD) {
             Application.getExecutor().execute(() -> {
                 long t1 = System.nanoTime();

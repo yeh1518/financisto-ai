@@ -130,9 +130,8 @@ public class MenuListFragment extends ListFragment {
         super.onResume();
         PinProtection.unlock(getContext());
         bus.register(this);
-        // See ReportsListFragment.onResume(): after ViewPager2 detaches and re-attaches the
-        // fragment view, AbsListView's mDataChanged stays true until a layout pass, and the first
-        // tap is swallowed.
+        // 見 ReportsListFragment.onResume() 的說明：ViewPager2 卸下／重掛 fragment view 之後
+        // AbsListView 的 mDataChanged 會卡在 true，不強制一次 layout 的話第一次點擊會被吞掉。
         getListView().requestLayout();
     }
 
