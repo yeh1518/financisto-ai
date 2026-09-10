@@ -175,7 +175,9 @@ public class TransactionActivity extends AbstractTransactionActivity {
 
     private void unsplitAdjustAmount() {
         long splitAmount = calculateSplitAmount();
-        rateView.setFromAmount(splitAmount);
+        // 調整餘額模式的金額欄是「新餘額」：把各份加總對回去要加上目前餘額，
+        // 不然會把「新餘額」直接設成分割加總（差額瞬間變成加總減舊餘額）。
+        rateView.setFromAmount(isUpdateBalanceMode ? currentBalance + splitAmount : splitAmount);
         updateUnsplitAmount();
     }
 
@@ -215,7 +217,9 @@ public class TransactionActivity extends AbstractTransactionActivity {
 
     @Override
     protected void fetchCategories() {
-        categorySelector.fetchCategories(!isUpdateBalanceMode);
+        // 調整餘額模式也列出「分割」偽分類：兩個查詢只差 _id >= 0 這個條件，而負 id 只有
+        // SPLIT_CATEGORY_ID(-1) 一個。分割掛在「差額」上（見 calculateUnsplitAmount）。
+        categorySelector.fetchCategories(true);
     }
 
     /** 補充模式切換型別時要知道是否在調整餘額模式（切出時金額不沿用「新餘額」）。 */
@@ -255,10 +259,14 @@ public class TransactionActivity extends AbstractTransactionActivity {
         // difference
         if (isUpdateBalanceMode) {
             differenceText = x.addInfoNode(layout, -1, R.string.difference, "0");
+            // 分割容器放在「差額」下面：使用者的心智是「上面填數到的結果、下面是這筆的金額」，
+            // 分割拆的是那個差額。
+            createSplitsLayout(layout);
             rateView.setFromAmount(currentBalance);
             rateView.setAmountFromChangeListener((oldAmount, newAmount) -> {
                 long balanceDifference = newAmount - currentBalance;
                 u.setAmountText(differenceText, rateView.getCurrencyFrom(), balanceDifference, true);
+                updateUnsplitAmount();
             });
             if (currentBalance > 0) {
                 rateView.setIncome();
@@ -328,7 +336,13 @@ public class TransactionActivity extends AbstractTransactionActivity {
 
     private long calculateUnsplitAmount() {
         long splitAmount = calculateSplitAmount();
-        return rateView.getFromAmount() - splitAmount;
+        // 調整餘額模式：金額欄是「新餘額」，這筆真正的金額是差額（新餘額 − 目前餘額），
+        // 分割各份分的是差額。與 updateTransactionFromUI 存檔時 amount -= currentBalance 同一個基準。
+        long amount = rateView.getFromAmount();
+        if (isUpdateBalanceMode) {
+            amount -= currentBalance;
+        }
+        return amount - splitAmount;
     }
 
     private long calculateSplitAmount() {
@@ -493,10 +507,6 @@ public class TransactionActivity extends AbstractTransactionActivity {
                     setSplitData(v, t);
                 }
             }
-            if (!viewToSplitMap.isEmpty()) {
-                updateUnsplitAmount();   // 子項帳戶剛被 remap，未分配金額要跟著重算
-            }
-
             u.setAccountTitleBalance(a, accountText, accountBalanceText, accountLimitText);
 
             // 調整餘額模式下，差額＝新餘額 − 該帳戶目前餘額。currentBalance 原本只在 onCreate
@@ -510,8 +520,15 @@ public class TransactionActivity extends AbstractTransactionActivity {
                             rateView.getFromAmount() - currentBalance, true);
                 }
             }
-
             selectedAccount = a;
+
+            // 未分配金額要等 selectedAccount 與 currentBalance 都換成新帳戶後才能算：
+            // calculateSplitAmount 用 getSelectedAccountId() 判斷子項的方向，還指著舊帳戶時
+            // 剛 remap 過的子項會全部漏算（未分配顯示成整個金額）；調整餘額模式又多一個
+            // 「差額基準要用新帳戶餘額」的理由。所以放在這裡一次重算。
+            if (!viewToSplitMap.isEmpty()) {
+                updateUnsplitAmount();
+            }
 
             if (selectLast && !isShowPayee && isRememberLastCategory) {
                 categorySelector.selectCategory(a.lastCategoryId);
