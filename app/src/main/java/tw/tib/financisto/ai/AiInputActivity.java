@@ -681,13 +681,24 @@ public class AiInputActivity extends ComponentActivity {
         intent.putExtra(AbstractTransactionActivity.ACCOUNT_ID_EXTRA, accountId);
         intent.putExtra(TransactionActivity.CURRENT_BALANCE_EXTRA, account.totalAmount);
         putDateTimeIfSpoken(intent, t);
+        Long newBalance = null;
         if (t.amount != null) {
             // 餘額可能是負的（如信用卡），這裡不取絕對值後硬給正號
-            long newBalance = toMinorUnits(t.amount, accountId, ctx);
-            intent.putExtra(TransactionActivity.NEW_BALANCE_EXTRA, t.amount < 0 ? -newBalance : newBalance);
+            long minor = toMinorUnits(t.amount, accountId, ctx);
+            newBalance = t.amount < 0 ? -minor : minor;
+            intent.putExtra(TransactionActivity.NEW_BALANCE_EXTRA, (long) newBalance);
+        }
+        // 「剩下752其中80是早餐剩下的是食材」：各份分的是差額（新餘額 − 目前餘額），殘額份由 planner 補。
+        // 沒報新餘額就算不出差額，分割放棄、退回單一分類。
+        boolean splitApplied = false;
+        if (newBalance != null && t.hasSplits()) {
+            int scale = ctx.accountScale.containsKey(accountId) ? ctx.accountScale.get(accountId) : 2;
+            splitApplied = AbstractTransactionActivity.putAiPrefillSplits(intent,
+                    BalanceSplitPlanner.plan(t.splits, newBalance - account.totalAmount, scale));
         }
         // 「電子錢包剩下895，飲食買炸春捲」：balance 也可能講出用途——分類/備註/專案帶進表單
-        if (t.category.resolved()) {
+        // （有分割時分類由各份決定，頂層分類不帶）
+        if (!splitApplied && t.category.resolved()) {
             intent.putExtra(AbstractTransactionActivity.AI_PREFILL_CATEGORY_ID_EXTRA, t.category.id);
         }
         if (!TextUtils.isEmpty(t.note)) {

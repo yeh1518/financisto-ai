@@ -34,6 +34,7 @@ import greendroid.widget.QuickActionWidget;
 import tw.tib.financisto.Application;
 import tw.tib.financisto.R;
 import tw.tib.financisto.ai.AiPreferences;
+import tw.tib.financisto.ai.BalanceSplitPlanner;
 import tw.tib.financisto.ai.BookkeepingParser;
 import tw.tib.financisto.ai.VoiceCaptureActivity;
 import tw.tib.financisto.ai.EntityContextBuilder;
@@ -98,6 +99,12 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	public static final String AI_PREFILL_CATEGORY_ID_EXTRA = "aiPrefillCategoryId";
 	public static final String AI_PREFILL_NOTE_EXTRA = "aiPrefillNote";
 	public static final String AI_PREFILL_PROJECT_ID_EXTRA = "aiPrefillProjectId";
+	/** 調整餘額 + 分割：三個等長陣列，一份一格（分類 id / 帶號 minor 金額 / 備註可 null）。
+	 *  由 {@link #putAiPrefillSplits} 寫、{@link #applyAiPrefillSplits} 讀；有這組時分類固定是分割，
+	 *  AI_PREFILL_CATEGORY_ID_EXTRA 不看。 */
+	public static final String AI_PREFILL_SPLIT_CATEGORY_IDS_EXTRA = "aiPrefillSplitCategoryIds";
+	public static final String AI_PREFILL_SPLIT_AMOUNTS_EXTRA = "aiPrefillSplitAmounts";
+	public static final String AI_PREFILL_SPLIT_NOTES_EXTRA = "aiPrefillSplitNotes";
 
 	private static final int RECURRENCE_REQUEST = 4003;
 	private static final int NOTIFICATION_REQUEST = 4004;
@@ -863,12 +870,39 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	/** 套 AI_PREFILL_* extras（目前只有調整餘額的兩個啟動點會帶）。 */
 	private void applyAiPrefillExtras(Intent intent) {
 		if (intent == null) return;
-		long catId = intent.getLongExtra(AI_PREFILL_CATEGORY_ID_EXTRA, -1);
-		if (catId >= 0) categorySelector.selectCategory(catId, false);
+		long[] splitAmounts = intent.getLongArrayExtra(AI_PREFILL_SPLIT_AMOUNTS_EXTRA);
+		if (splitAmounts != null && splitAmounts.length > 0) {
+			applyAiPrefillSplits(intent.getLongArrayExtra(AI_PREFILL_SPLIT_CATEGORY_IDS_EXTRA), splitAmounts,
+					intent.getStringArrayExtra(AI_PREFILL_SPLIT_NOTES_EXTRA));
+		} else {
+			long catId = intent.getLongExtra(AI_PREFILL_CATEGORY_ID_EXTRA, -1);
+			if (catId >= 0) categorySelector.selectCategory(catId, false);
+		}
 		String note = intent.getStringExtra(AI_PREFILL_NOTE_EXTRA);
 		if (!TextUtils.isEmpty(note)) noteText.setText(note);
 		long projId = intent.getLongExtra(AI_PREFILL_PROJECT_ID_EXTRA, -1);
 		if (projId > 0) projectSelector.selectEntity(projId);
+	}
+
+	/** 把 planner 算好的各份寫成 AI_PREFILL_SPLIT_* extras；空清單什麼都不寫、回 false（呼叫端改帶單一分類）。 */
+	public static boolean putAiPrefillSplits(Intent intent, List<BalanceSplitPlanner.Share> shares) {
+		if (shares == null || shares.isEmpty()) return false;
+		long[] cats = new long[shares.size()];
+		long[] amounts = new long[shares.size()];
+		String[] notes = new String[shares.size()];
+		for (int i = 0; i < shares.size(); i++) {
+			cats[i] = shares.get(i).categoryId;
+			amounts[i] = shares.get(i).amountMinor;
+			notes[i] = shares.get(i).note;
+		}
+		intent.putExtra(AI_PREFILL_SPLIT_CATEGORY_IDS_EXTRA, cats);
+		intent.putExtra(AI_PREFILL_SPLIT_AMOUNTS_EXTRA, amounts);
+		intent.putExtra(AI_PREFILL_SPLIT_NOTES_EXTRA, notes);
+		return true;
+	}
+
+	/** 分割是 TransactionActivity 才有的能力，這裡預設不做；它 override 後把各份建成分割子項。 */
+	protected void applyAiPrefillSplits(long[] categoryIds, long[] amounts, String[] notes) {
 	}
 
 	/**
@@ -899,9 +933,18 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		}
 		Long spoken = t.resolveDateTimeMillis();
 		if (spoken != null) intent.putExtra(DATETIME_EXTRA, (long) spoken);
+		// 「剩下752其中80是早餐剩下的是食材」：各份分的是差額（新餘額 − 目前餘額），殘額份由 planner 補。
+		// 沒報新餘額就算不出差額，分割放棄、退回單一分類。
+		boolean splitApplied = false;
+		if (t.amount != null && t.hasSplits()) {
+			long minor = toMinor(t.amount, accountId);
+			long newBalance = t.amount < 0 ? -minor : minor;
+			splitApplied = putAiPrefillSplits(intent, BalanceSplitPlanner.plan(
+					t.splits, newBalance - account.totalAmount, accountScale(accountId)));
+		}
 		// 分類/備註/專案帶去調整餘額表單：這句話講到的優先，沒講到的沿用當前表單已填的（切模式不丟資料）
 		long catId = t.category.resolved() ? t.category.id : categorySelector.getSelectedCategoryId();
-		if (catId > 0) intent.putExtra(TransactionActivity.AI_PREFILL_CATEGORY_ID_EXTRA, catId);
+		if (!splitApplied && catId > 0) intent.putExtra(TransactionActivity.AI_PREFILL_CATEGORY_ID_EXTRA, catId);
 		String note = !TextUtils.isEmpty(t.note) ? t.note
 				: (noteText != null ? noteText.getText().toString().trim() : "");
 		if (!TextUtils.isEmpty(note)) intent.putExtra(TransactionActivity.AI_PREFILL_NOTE_EXTRA, note);

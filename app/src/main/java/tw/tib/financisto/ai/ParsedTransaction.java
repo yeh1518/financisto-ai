@@ -51,8 +51,9 @@ public class ParsedTransaction {
 
     /**
      * 分割明細：一筆付款拆成多個分類時每份一項；沒拆＝空。
-     * 有 splits 時父交易走 SPLIT，金額以各份加總為準（頂層 amount 僅參考）。
-     * 只用於 expense/income（transfer/balance 不拆）。
+     * 有 splits 時父交易走 SPLIT。expense/income：金額以各份加總為準（頂層 amount 僅參考）。
+     * balance：頂層 amount 仍是新餘額，各份分的是**差額**；amount=null 的份＝殘額份
+     * （「剩下的是食材」），由 {@link BalanceSplitPlanner} 用差額扣掉已知份補上。transfer 不拆。
      */
     public List<Split> splits = new ArrayList<>();
 

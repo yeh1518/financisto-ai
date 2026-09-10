@@ -144,9 +144,18 @@ public class BookkeepingParser {
             + "  觸發＝使用者在同一筆裡列出多個「分類＋金額」，如「好市多1500，食物1000、日用品500」、\n"
             + "  「這筆5000，房租3000、水電2000」。每份填 category（對到分類清單）、amount（該份金額，主單位）、\n"
             + "  note（該份的品名/描述，沒有就 null）。\n"
-            + "  有 splits 時：頂層 category 填 null（父交易走分割）、頂層 amount 填總額或 null 皆可（app 以各份加總為準）。\n"
-            + "  **一般只有單一分類的記帳，splits 一律空陣列 []，不要硬拆**。transfer / balance 不使用 splits（splits=[]）。\n"
+            + "  有 splits 時：頂層 category 填 null（父交易走分割）。expense/income 的頂層 amount 填總額或 null 皆可（app 以各份加總為準）。\n"
+            + "  **一般只有單一分類的記帳，splits 一律空陣列 []，不要硬拆**。transfer 不使用 splits（splits=[]）。\n"
             + "  例：「全家60」→ splits=[]。「好市多刷1500其中食物1000日用品500」→ splits=[{食物,1000},{日用品,500}]。\n"
+            + "  * **balance 也可以有 splits**（數完現金報餘額、順便講花在哪）：頂層 amount 仍是「新餘額」，\n"
+            + "    各份分的是**這次的變動（差額＝新餘額−目前餘額）**，不是新餘額。你看不到目前餘額、算不出差額，\n"
+            + "    所以**只回使用者講出金額的份**；「剩下的是X」「其餘算X」這種殘額份照樣列出、但 amount 填 null，\n"
+            + "    app 會用差額補上。**絕對不要拿新餘額去減**。\n"
+            + "    例：「現金剩下752其中80是早餐剩下的是食材」→ transaction_type=balance, amount=752,\n"
+            + "    splits=[{早餐,80},{食材,null}]（不是 {食材,672}）。\n"
+            + "    例：「現金早餐59、青菜45、雞蛋38，剩下752」→ balance, amount=752,\n"
+            + "    splits=[{早餐,59},{食材,45,note=青菜},{食材,38,note=雞蛋}]（明細各自一份，note 放品名）。\n"
+            + "    只講一個用途（「剩下420全部是晚餐」「剩下300都是買菜」）**不是分割**：填頂層 category，splits=[]。\n"
             + "- date（`YYYY-MM-DD`）/ time（`HH:MM` 24 小時制）：**只在明確講到時才填，沒講一律 null**\n"
             + "  （沒講＝用記帳當下的時間，不要自己猜）。相對日期依【現在時間】換算（昨天／上週三／7月5日）。\n"
             + "  只講「早上／晚上」沒有具體鐘點**不算**講到時間；兩者各自獨立判斷。\n";
@@ -466,6 +475,8 @@ public class BookkeepingParser {
             + "呼叫端會**回頭比對這段話是否真的出現在使用者原話裡**，再決定要不要換整張表單\n"
             + "（轉帳↔一般交易↔調整餘額），所以不能自己編一段。\n"
             + "若使用者要求把這筆拆成多個分類（如「拆成房租3000水電2000」），就在 splits 回報各份，其餘欄位維持 null。\n"
+            + "調整餘額表單上也一樣：各份分的是「差額」（表單狀態會告訴你差額多少），殘額份 amount=null；\n"
+            + "這句若同時報了新的餘額，amount 填新餘額。\n"
             + "\n下方附【目前表單已填內容】＝這筆交易現在的樣子。據此判斷這句話的意圖：\n"
             + "(a) 在現有交易上「再補一個品項＋金額」（目前是單一分類「美妝316」，這句說「還有270是咖啡」\n"
             + "    或「270咖啡」）＝要變成分割：把目前表單的金額與分類當成第一份、連同新的一起放進 splits\n"
@@ -640,7 +651,10 @@ public class BookkeepingParser {
         return s.replaceAll("[\\s，,。.、；;：:！!？?（）()「」\"'~-]", "");
     }
 
-    /** 讀 splits 陣列：每份的 category 一律經清單驗證，金額不明的份直接略過（湊不成有效分割）。 */
+    /**
+     * 讀 splits 陣列：每份的 category 一律經清單驗證。amount=null 的份**保留**——expense/income 的呼叫端
+     * 會略過它，balance 則把它當殘額份（見 {@link BalanceSplitPlanner}），要不要用由呼叫端決定。
+     */
     private List<ParsedTransaction.Split> readSplits(JSONArray arr) {
         List<ParsedTransaction.Split> out = new ArrayList<>();
         if (arr == null) return out;
