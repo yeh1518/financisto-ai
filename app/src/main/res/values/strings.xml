@@ -1320,6 +1320,7 @@
     <string name="ai_voice_tap_to_stop">● Recording… tap to finish</string>
     <string name="ai_voice_need_mic">Microphone permission is required for voice input</string>
     <string name="ai_balance_need_account">Balance adjustment needs an account — please say the account name</string>
+    <string name="ai_split_counter_sign">One split goes against the difference (%1$s) — a slip, or real income?</string>
     <string name="ai_voice_supplement_prompt">Say what to add or correct</string>
     <string name="ai_voice_shortcut_short">Say it</string>
     <string name="ai_voice_shortcut_long">Voice bookkeeping</string>

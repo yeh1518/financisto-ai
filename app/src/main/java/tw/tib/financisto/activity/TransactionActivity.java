@@ -777,6 +777,27 @@ public class TransactionActivity extends AbstractTransactionActivity {
             if (notes != null && i < notes.length && notes[i] != null && !notes[i].trim().isEmpty()) split.note = notes[i];
             addOrEditSplit(split);
         }
+        warnCounterSignedShares();
+    }
+
+    /**
+     * 調整餘額分割：某一份與差額方向相反時提醒一聲。可能是口誤（講 300 但只少了 252 → 殘額 +48），
+     * 也可能真的有錢進來（花 500 買菜、收回 300 → 收入 +300）；程式分不出來，所以照建、但要讓人看見。
+     */
+    private void warnCounterSignedShares() {
+        if (!isUpdateBalanceMode) return;
+        long delta = rateView.getFromAmount() - currentBalance;
+        if (delta == 0) return;
+        long accountId = getSelectedAccountId();
+        for (Transaction s : splits.values()) {
+            if (s.fromAmount != 0 && (s.fromAmount > 0) != (delta > 0)) {
+                String cat = aiCategoryName(s.categoryId);
+                String label = (cat != null ? cat : getString(R.string.no_category)) + " "
+                        + (s.fromAmount > 0 ? "+" : "-") + aiFormatMajor(Math.abs(s.fromAmount), accountId);
+                Toast.makeText(this, getString(R.string.ai_split_counter_sign, label), Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
     }
 
     /**
@@ -852,6 +873,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
                 if (sh.note != null && !sh.note.trim().isEmpty()) split.note = sh.note;
                 addOrEditSplit(split);
             }
+            warnCounterSignedShares();
             return true;
         }
         // 正負號：明講 income 就 income；補充模式 type 通常 null → 繼承表單現有符號

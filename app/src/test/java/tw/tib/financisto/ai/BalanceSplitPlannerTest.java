@@ -79,12 +79,28 @@ public class BalanceSplitPlannerTest {
     }
 
     @Test
-    public void remainderShareDroppedWhenKnownSharesExceedDelta() {
-        // 講的份加起來 120 已超過差額 100：殘額份不建（餘數反號），未分配會顯示 +20 讓人看到
+    public void remainderShareKeepsOppositeSignWhenKnownSharesExceedDelta() {
+        // 講的份 120 超過差額 100：殘額 +20 帶號照建（口誤或真有收入，程式不替人判斷），未分配歸 0
         List<BalanceSplitPlanner.Share> out = BalanceSplitPlanner.plan(
                 shares(share(BREAKFAST, 120.0, null), share(GROCERIES, null, null)), -10000, 2);
-        assertEquals(1, out.size());
+        assertEquals(2, out.size());
         assertEquals(-12000, out.get(0).amountMinor);
+        assertEquals(GROCERIES, out.get(1).categoryId);
+        assertEquals(2000, out.get(1).amountMinor);
+    }
+
+    @Test
+    public void mixedSignSharesFromRealInflow() {
+        // 2026-09-10 實測句：「剩下300其中的500是食材剩下的是幫忙我收錢的」，帳上 500 → 300：
+        // 差額 −200 ＝ 食材 −500 ＋ 其他收入 +300
+        final long OTHER_INCOME = 9;
+        List<BalanceSplitPlanner.Share> out = BalanceSplitPlanner.plan(
+                shares(share(GROCERIES, 500.0, null), share(OTHER_INCOME, null, "幫忙收錢")), -20000, 2);
+        assertEquals(2, out.size());
+        assertEquals(-50000, out.get(0).amountMinor);
+        assertEquals(OTHER_INCOME, out.get(1).categoryId);
+        assertEquals(30000, out.get(1).amountMinor);
+        assertEquals("幫忙收錢", out.get(1).note);
     }
 
     @Test

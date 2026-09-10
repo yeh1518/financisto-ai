@@ -13,9 +13,10 @@ import java.util.List;
  * 規則（2026-09-10 定）：
  * <ul>
  *   <li>有金額的份：取絕對值、符號跟差額一致（花掉錢＝負、多出來＝正）。</li>
- *   <li>第一個 amount=null 的份＝殘額份：拿「差額 − 已知份加總」。餘數為 0 就不建這份；
- *       餘數與差額反號（已知份已經超過差額）也不建——那不是殘額，是講錯了，留在「未分配」
- *       讓使用者看到對不起來，不要吞掉。</li>
+ *   <li>第一個 amount=null 的份＝殘額份：拿「差額 − 已知份加總」，**帶號照建**，餘數為 0 才不建。
+ *       餘數與差額反號有兩種可能：口誤（講 300 但只少了 252），或真的有錢進來（「花了 500 買菜，
+ *       剩下的是幫人收的錢」＝支出 500 ＋ 收入 300）——程式分不出來，所以不替使用者丟掉，
+ *       照他講的建出來、由表單端跳提醒讓他看見（2026-09-10 實測兩種都出現過）。</li>
  *   <li>第二個以後的 null 份沒有東西可分，略過。</li>
  *   <li>全部都有金額但加總 ≠ 差額 → 照回各份、不自動平：盤點對不起來正是要暴露的資訊。</li>
  * </ul>
@@ -64,8 +65,8 @@ public final class BalanceSplitPlanner {
         }
         if (remainderShare != null) {
             long remainder = deltaMinor - known;
-            // 餘數要跟差額同方向才是殘額；反號＝已知份超過差額，留給「未分配」顯示
-            if (remainder != 0 && (remainder > 0) == (deltaMinor > 0)) {
+            // 帶號照建：反號（已知份超過差額）可能是口誤也可能是真的有收入，交給表單端提醒、不在這裡丟
+            if (remainder != 0) {
                 out.add(new Share(categoryOf(remainderShare), remainder, remainderShare.note));
             }
         }

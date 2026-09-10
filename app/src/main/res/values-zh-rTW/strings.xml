@@ -1156,6 +1156,7 @@
   <string name="ai_voice_tap_to_stop">● 錄音中…說完點一下結束</string>
   <string name="ai_voice_need_mic">需要麥克風權限才能語音記帳</string>
   <string name="ai_balance_need_account">調整餘額需要指定帳戶，請說出帳戶名稱</string>
+  <string name="ai_split_counter_sign">有一份與差額方向相反（%1$s），請確認是講錯還是真的有收入</string>
   <string name="ai_voice_supplement_prompt">說出要補充或修正的部分</string>
   <string name="ai_voice_shortcut_short">說一句</string>
   <string name="ai_voice_shortcut_long">語音記帳</string>
