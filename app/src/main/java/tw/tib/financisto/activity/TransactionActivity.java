@@ -435,8 +435,10 @@ public class TransactionActivity extends AbstractTransactionActivity {
                 ? db.getSplitsForTransaction(transaction.id)
                 : (transaction.splits != null ? transaction.splits : new ArrayList<>());
         for (Transaction split : splits) {
-            split.id = --idSequence;
+            // fetch attributes with original in-database id
             split.categoryAttributes = db.getAllAttributesForTransaction(split.id);
+            // we are going to recreate them with order
+            split.id = --idSequence;
             if (split.originalCurrencyId > 0) {
                 split.fromAmount = split.originalFromAmount;
             }
@@ -970,7 +972,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
         Category category = db.getCategory(split.categoryId);
         String payee = split.payeeId < 1 ? null : db.get(Payee.class, split.payeeId).title;
         label.setText(transactionTitleUtils.generateTransactionTitle(
-                false, payee, null, split.note, null,
+                false, payee, null, split.note, split.tags, null,
                 split.categoryId, category.title));
         Currency currency = getCurrency();
         u.setAmountText(data, currency, split.fromAmount, false);
@@ -992,7 +994,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
         Category category = db.getCategory(split.categoryId);
         label.setText(transactionTitleUtils.generateTransactionTitle(
                 true, null, u.getTransferTitleText(fromAccount, toAccount),
-                split.note, null, split.categoryId, split.categoryId == 0 ? "" : category.title));
+                split.note, split.tags, null, split.categoryId, split.categoryId == 0 ? "" : category.title));
         //u.setTransferTitleText(label, fromAccount, toAccount);
         u.setTransferAmountText(data, fromAccount.currency, split.fromAmount, toAccount.currency, split.toAmount);
     }

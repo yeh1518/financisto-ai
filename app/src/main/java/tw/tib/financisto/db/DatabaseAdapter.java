@@ -388,6 +388,9 @@ public class DatabaseAdapter extends MyEntityManager {
                 insertAttributes(transactionId, attributes);
             }
             List<Transaction> splits = getSplitsForTransaction(id);
+            for (Transaction split : splits) {
+                split.categoryAttributes = getAllAttributesForTransaction(split.id);
+            }
             if (multiplier > 1) {
                 for (Transaction split : splits) {
                     split.fromAmount *= multiplier;
@@ -1375,6 +1378,40 @@ public class DatabaseAdapter extends MyEntityManager {
             }
         }
         return new Attribute();
+    }
+
+    public List<String> getAllUniqueTags() {
+        TreeSet<String> set = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        try (Cursor c = db().rawQuery("SELECT title FROM " + DatabaseHelper.TAG_TABLE + " WHERE is_active=1", null)) {
+            while (c.moveToNext()) {
+                String title = c.getString(0);
+                if (title != null && !title.trim().isEmpty()) {
+                    set.add(title.trim());
+                }
+            }
+        } catch (Exception e) {
+            // tag table might not exist yet during migration
+        }
+        try (Cursor c = db().rawQuery("SELECT DISTINCT tags FROM " + DatabaseHelper.TRANSACTION_TABLE + " WHERE tags IS NOT NULL AND tags != ''", null)) {
+            while (c.moveToNext()) {
+                String raw = c.getString(0);
+                if (raw != null) {
+                    for (String t : raw.split("\n")) {
+                        String trimmed = t.trim();
+                        if (!trimmed.isEmpty()) {
+                            set.add(trimmed);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to get unique tags", e);
+        }
+        return new ArrayList<>(set);
+    }
+
+    public void deleteTag(long id) {
+        delete(tw.tib.financisto.model.Tag.class, id);
     }
 
     public long insertOrUpdate(Attribute attribute) {

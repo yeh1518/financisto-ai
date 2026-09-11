@@ -109,6 +109,38 @@ public class PlaceholderCaptureTest {
     }
 
     /**
+     * 樣板以 {{e}} 收尾（沒有結束標記）：以前只抓到一個字元（上游 issue #149 的形狀），現在補到行尾。
+     * 第二行的文字不會被吃進來；通知就結束在收款人時也要拿到整個名字。
+     */
+    @Test
+    public void payeeAtTemplateEndCapturesToEndOfLine() {
+        String[] match = SmsTransactionProcessor.findTemplateMatches(
+                "金額NT${{p}}元{{*}}在{{e}}",
+                "丙銀行 【刷卡通知】金額NT$205元 \n卡號末四碼5678於 2026/08/17 13:57在SHOPFAST TW\n立即查看消費明細");
+        assertNotNull("template did not match", match);
+        assertEquals("SHOPFAST TW", match[Placeholder.PAYEE.ordinal()]);
+        // （樣板一定要有 {{p}} 才會被當成樣板，見 findPlaceholderIndexes）
+        match = SmsTransactionProcessor.findTemplateMatches("金額{{p}}元在{{e}}", "丙銀行 金額205元在NeoShop");
+        assertNotNull("template did not match at end of message", match);
+        assertEquals("NeoShop", match[Placeholder.PAYEE.ordinal()]);
+    }
+
+    /**
+     * 結束標記在同一行出現不只一次（「，」後面接一長串免責聲明）：非貪婪停在第一個，收款人才是
+     * 商家名；貪婪會一路吃到最後一個「，」，把整段免責聲明塞進收款人。這是台灣銀行刷卡通知最常見
+     * 的形狀，也是 TemplateGenerator.trimTail 只留一個界字當錨的前提。
+     */
+    @Test
+    public void payeeStopsAtTheFirstDelimiterEvenWithALongTail() {
+        String[] match = SmsTransactionProcessor.findTemplateMatches(
+                "丙銀行 {{*}}末四碼{{a}}{{*}}台幣{{p}}元，商店名稱:{{e}}，",
+                "丙銀行 丙銀行信用卡末四碼4321刷卡通知1150819_20:57金額台幣1,838元，商店名稱:測試商行，"
+                        + "實際商店名稱請以信用卡帳單列示為準，實際請款金額以帳單所列為準如有疑問請撥打卡片背面服務專線，謝謝！");
+        assertNotNull("template did not match", match);
+        assertEquals("測試商行", match[Placeholder.PAYEE.ordinal()]);
+    }
+
+    /**
      * {{e}} 不跨行。這正是它用 ([^\r\n]+?) 而不是 (.+?) 的理由：pattern 是用 DOTALL 編的，
      * (.+?) 會在定界字只出現在後面幾行時把整段連換行一起吞進收款人。定界字沒出現在同一行
      * 就該比不中——寧可不記，也不要記出一個橫跨兩行的收款人。

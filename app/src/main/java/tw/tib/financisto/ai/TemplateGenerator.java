@@ -228,12 +228,13 @@ public class TemplateGenerator {
         if (price == null || !sameAmount(price, sampleAmount)) {
             return "樣板從樣本抽出的金額「" + price + "」不等於樣本金額「" + sampleAmount + "」";
         }
-        // 1.5 非貪婪捕捉的退化：{{e}} 這類是 (\S+?)，後面若直接接 {{*}}（.*?）或就是樣板
-        // 結尾，regex 求最短匹配 → 只抓得到一個字元（NeoShop 抓成 N）。比對照樣「成功」，
-        // 所以前一關擋不住，得單獨檢查。2026-08-09 實地踩到。
+        // 1.5 非貪婪捕捉沒有結束標記：{{e}} 這類後面若直接接 {{*}}（.*?），regex 求最短匹配 →
+        // 只抓得到一個字元（NeoShop 抓成 N，2026-08-09 實地踩到）。就是樣板結尾的話引擎會補到行尾
+        // （SmsTransactionProcessor.endsWithLazyCapture），但同一行後面若還有文字會整段混進收款人——
+        // 所以產樣板仍一律要求留一個結束標記。比對照樣「成功」，前一關擋不住，得單獨檢查。
         String degenerate = findDegenerateCapture(t.template);
         if (degenerate != null) {
-            return "佔位符 " + degenerate + " 後面直接接 {{*}} 或就是樣板結尾，這樣只會抓到一個字元。"
+            return "佔位符 " + degenerate + " 後面直接接 {{*}} 或就是樣板結尾，會只抓到一個字元或吃到整行。"
                     + "請在它後面補上樣本中緊接著的固定文字當結束標記（例如換行後的下一個欄位名）；"
                     + "找不到合適的結束標記就不要用這個佔位符。";
         }

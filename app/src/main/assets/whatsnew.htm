@@ -30,7 +30,12 @@
 
 <h2>Changelog</h2>
 
-<p><b>2026-09-04 b</b></p>
+<p><b>2026-09-11</b></p>
+<dl>
+    <dt><span>[+]</span> Transaction Tags support (#152, by ahmaddxb) (import/export/reporting will be added later)</dt>
+</dl>
+
+<p><b>2026-09-04 f</b></p>
 <dl>
     <dt><span>[+]</span> Payee, Location alias for search, notification matching, e.g.</dt>
     <dd>
@@ -39,14 +44,20 @@
         <p>(2) A payee named "麵屋昕家" with alias "shinga" can be searched with "sh".</p>
     </dd>
     <dt><span>[+]</span> Notification template matching by package name</dt>
+    <dt><span>[+]</span> Intent creating transaction support Unix timetamp with TIMESTAMP_MILLIS long extra (e)</dt>
+    <dt><span>[+]</span> Intent creating transaction support specifying time with TIMESTAMP_ISO8601 string extra ("2026-09-10T19:57:45+08:00") (e)</dt>
     <dt><span>[*]</span> Notification template {{e}} can match payee names containing space (#146, by yeh1518)</dt>
     <dt><span>[*]</span> Google Wallet transactions with only currency symbol will be treated as local currency</dt>
     <dt><span>[*]</span> Google Wallet transaction no longer store payee name as note (a)</dt>
+    <dt><span>[*]</span> Notification template payee {{e}} at the very end of a template now captures to the end of its line instead of a single character. Payee followed by fixed text still stops at the first occurrence of that text (this fork keeps {{e}} non-greedy; upstream made it greedy). (c)</dt>
+    <dt><span>[*]</span> Allow split in balance adjust mode (f) (#151, by yeh1518)</dt>
     <dt><span>[-]</span> Fix notification listener potentially stop working after updating app (#135, by yeh1518)</dt>
     <dt><span>[-]</span> Fix running balance after split transactions (#145, by yeh1518)</dt>
     <dt><span>[-]</span> Fix notification list last item scroll above gesture bar (#147, by yeh1518)</dt>
     <dt><span>[-]</span> Fix account blotter filter button color (#148, by yeh1518)</dt>
     <dt><span>[-]</span> Fix database restore fail (b)</dt>
+    <dt><span>[-]</span> Fix split transaction category attributes not shown (c)</dt></drt>
+    <dt><span>[-]</span> Fix duplicating split transactions copies children category attributes (d)</dt>
 </dl>
 
 <p><b>2026-08-16 b</b></p>

@@ -50,11 +50,13 @@ import tw.tib.financisto.model.Currency;
 import tw.tib.financisto.model.Payee;
 import tw.tib.financisto.model.Project;
 import tw.tib.financisto.model.SystemAttribute;
+import tw.tib.financisto.model.Tag;
 import tw.tib.financisto.model.Transaction;
 import tw.tib.financisto.model.TransactionAttribute;
 import tw.tib.financisto.model.TransactionStatus;
 import tw.tib.financisto.recur.NotificationOptions;
 import tw.tib.financisto.recur.Recurrence;
+import tw.tib.financisto.service.IntentTransactionProcessor;
 import tw.tib.financisto.utils.EnumUtils;
 import tw.tib.financisto.utils.MyPreferences;
 import tw.tib.financisto.utils.PicturesUtil;
@@ -105,6 +107,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	public static final String AI_PREFILL_SPLIT_CATEGORY_IDS_EXTRA = "aiPrefillSplitCategoryIds";
 	public static final String AI_PREFILL_SPLIT_AMOUNTS_EXTRA = "aiPrefillSplitAmounts";
 	public static final String AI_PREFILL_SPLIT_NOTES_EXTRA = "aiPrefillSplitNotes";
+	public static final String TAGS_EXTRA = "tags";
 
 	private static final int RECURRENCE_REQUEST = 4003;
 	private static final int NOTIFICATION_REQUEST = 4004;
@@ -136,6 +139,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	protected Button timeText;
 
 	protected EditText noteText;
+	protected TagSelector<AbstractTransactionActivity> tagSelector;
 	protected TextView recurText;
 	protected TextView notificationText;
 
@@ -169,6 +173,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	protected boolean isShowLocation;
 	protected boolean isShowProject;
 	protected boolean isShowNote;
+	protected boolean isShowTags;
 	protected boolean isShowTakePicture;
 	protected boolean isShowIsCCardPayment;
 	protected boolean isOpenCalculatorForTemplates;
@@ -236,6 +241,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		isShowLocation = MyPreferences.isShowLocation();
 		isShowProject = MyPreferences.isShowProject();
 		isShowNote = MyPreferences.isShowNote();
+		isShowTags = MyPreferences.isShowTags();
 		isShowTakePicture = MyPreferences.isShowTakePicture();
 		isShowIsCCardPayment = MyPreferences.isShowIsCCardPayment();
 		isOpenCalculatorForTemplates = MyPreferences.isOpenCalculatorForTemplates();
@@ -423,6 +429,21 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			applyAiPrefillExtras(intent);
 		}
 
+		if (intent != null) {
+			List<String> intentTags = IntentTransactionProcessor.extractTagsFromIntent(intent);
+			if (!intentTags.isEmpty()) {
+				for (String tag : intentTags) {
+					db.findOrInsertEntityByTitle(Tag.class, tag);
+				}
+				String intentTagsStr = String.join("\n", intentTags);
+				transaction.tags = intentTagsStr;
+				if (isShowTags && tagSelector != null) {
+					tagSelector.setSelectedTags(intentTagsStr);
+					tagSelector.fetchEntities();
+				}
+			}
+		}
+
 		if (isShowTakePicture) {
 			pickMedia =
 					registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
@@ -459,6 +480,11 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		}
 		payeeSelector.createNode(layout);
 		payeeSelector.fetchEntities();
+	}
+
+	protected void createTagsNode(LinearLayout layout) {
+		tagSelector = new TagSelector<>(this, db, x);
+		tagSelector.createNode(layout);
 	}
 
 	protected abstract void fetchCategories();
@@ -515,7 +541,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		int locationOrder = MyPreferences.getLocationOrder();
 		int noteOrder = MyPreferences.getNoteOrder();
 		int projectOrder = MyPreferences.getProjectOrder();
-		for (int i = 0; i < 6; i++) {
+		int tagsOrder = MyPreferences.getTagsOrder();
+		for (int i = 0; i < 7; i++) {
 			if (i == locationOrder) {
 				locationSelector.createNode(layout);
 			}
@@ -531,6 +558,11 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			}
 			if (i == projectOrder) {
 				projectSelector.createNode(layout);
+			}
+			if (i == tagsOrder) {
+				if (isShowTags) {
+					createTagsNode(layout);
+				}
 			}
 		}
 		if (isShowTakePicture && transaction.isNotTemplateLike()) {
@@ -563,6 +595,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		projectSelector.onClick(id);
 		categorySelector.onClick(id);
 		locationSelector.onClick(id);
+		if (tagSelector != null) tagSelector.onClick(id);
 
 		if (id == R.id.account) {
 			x.select(this, R.id.account, R.string.account, accountCursor, accountAdapter,
@@ -1298,6 +1331,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		if (locationSelector != null) locationSelector.setEnabled(enabled);
 		if (payeeSelector != null) payeeSelector.setEnabled(enabled);
 		if (noteText != null) noteText.setEnabled(enabled);
+		if (tagSelector != null) tagSelector.setEnabled(enabled);
 		if (pictureTopView != null) pictureTopView.setEnabled(enabled);
 		if (ccardPayment != null) ((View) ccardPayment.getTag()).setEnabled(enabled);
 		rateView.setEnabled(enabled);
@@ -1320,6 +1354,9 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		setDateTime(transaction.dateTime);
 		if (isShowNote) {
 			noteText.setText(transaction.note);
+		}
+		if (isShowTags && tagSelector != null) {
+			tagSelector.setSelectedTags(transaction.tags);
 		}
 		if (transaction.isTemplate()) {
 			templateName.setText(transaction.templateName);
@@ -1378,6 +1415,9 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		if (isShowNote) {
 			transaction.note = text(noteText);
 		}
+		if (isShowTags && tagSelector != null) {
+			transaction.tags = tagSelector.getSelectedTags();
+		}
 		if (transaction.isTemplate()) {
 			transaction.templateName = text(templateName);
 		}
@@ -1409,6 +1449,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		if (projectSelector != null) projectSelector.onDestroy();
 		if (locationSelector != null) locationSelector.onDestroy();
 		if (categorySelector != null) categorySelector.onDestroy();
+		if (tagSelector != null) tagSelector.onDestroy();
 		super.onDestroy();
 	}
 

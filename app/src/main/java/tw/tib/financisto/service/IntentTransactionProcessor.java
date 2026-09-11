@@ -6,6 +6,10 @@ import android.content.Intent;
 import android.util.Log;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import tw.tib.financisto.db.DatabaseAdapter;
@@ -13,6 +17,7 @@ import tw.tib.financisto.model.Account;
 import tw.tib.financisto.model.Category;
 import tw.tib.financisto.model.Payee;
 import tw.tib.financisto.model.Project;
+import tw.tib.financisto.model.Tag;
 import tw.tib.financisto.model.Transaction;
 import tw.tib.financisto.model.TransactionStatus;
 
@@ -31,6 +36,9 @@ public class IntentTransactionProcessor {
     public static final String NOTE = "NOTE";
     public static final String IS_CREDIT_CARD_PAYMENT = "IS_CREDIT_CARD_PAYMENT";
     public static final String STATUS = "STATUS"; // "RS", "PN", "UR", "CL", "RC"; see TransactionStatus
+    public static final String TIMESTAMP_MILLIS = "TIMESTAMP_MILLIS"; // Unix timestamp in milliseconds, long
+    public static final String TIMESTAMP_ISO8601 = "TIMESTAMP_ISO8601"; // "2026-09-10T19:57:45+08:00"
+    public static final String TAGS = "TAGS"; // String ("food" or "food, groceries"), String[], or ArrayList<String>
 
     private static BigDecimal HUNDRED = new BigDecimal(100);
 
@@ -133,9 +141,80 @@ public class IntentTransactionProcessor {
                 tx.isCCardPayment = 1;
             }
 
-            long id = db.insertOrUpdate(tx);
-            tx.id = id;
+            List<String> tags = extractTagsFromIntent(intent);
+            if (!tags.isEmpty()) {
+                for (String t : tags) {
+                    db.findOrInsertEntityByTitle(Tag.class, t);
+                }
+                tx.tags = String.join("\n", tags);
+            }
+
+            long timestampMillis = intent.getLongExtra(TIMESTAMP_MILLIS, 0);
+            if (timestampMillis != 0) {
+                tx.dateTime = timestampMillis;
+            }
+
+            String timeIso8601 = intent.getStringExtra(TIMESTAMP_ISO8601);
+            if (timeIso8601 != null) {
+                DateTimeFormatter timeFormatter = DateTimeFormatter.ISO_DATE_TIME;
+                try {
+                    tx.dateTime = Instant.from(timeFormatter.parse(timeIso8601)).toEpochMilli();
+                } catch (Exception ignored) {
+
+                }
+            }
+
+            tx.id = db.insertOrUpdate(tx);
+            return tx;
         }
-        return tx;
+
+        return null;
+    }
+
+    public static List<String> extractTagsFromIntent(Intent intent) {
+        if (intent == null) return Collections.emptyList();
+        List<String> result = new ArrayList<>();
+
+        // 1. Check String arrays / ArrayLists first
+        for (String key : new String[]{"TAGS", "tags"}) {
+            String[] arr = intent.getStringArrayExtra(key);
+            if (arr != null && arr.length > 0) {
+                for (String s : arr) {
+                    addTagToList(result, s);
+                }
+                return result;
+            }
+            ArrayList<String> list = intent.getStringArrayListExtra(key);
+            if (list != null && !list.isEmpty()) {
+                for (String s : list) {
+                    addTagToList(result, s);
+                }
+                return result;
+            }
+        }
+
+        // 2. Check String extra (single tag e.g. "Coffee" or newline/comma/semicolon-separated tags e.g. "Coffee, Food")
+        for (String key : new String[]{"TAGS", "tags"}) {
+            String val = intent.getStringExtra(key);
+            if (val != null && !val.trim().isEmpty()) {
+                for (String s : val.split("[\n,;]")) {
+                    addTagToList(result, s);
+                }
+                if (!result.isEmpty()) {
+                    return result;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static void addTagToList(List<String> list, String s) {
+        if (s != null) {
+            String trimmed = s.trim();
+            if (!trimmed.isEmpty() && !list.contains(trimmed)) {
+                list.add(trimmed);
+            }
+        }
     }
 }

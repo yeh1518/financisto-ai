@@ -409,6 +409,13 @@ public class SmsTransactionProcessor {
         String[] results = null;
         template = preprocessPatterns(template);
         final int[] phIndexes = findPlaceholderIndexes(template);
+        // A lazy capture at the very end of the template has no closing anchor, and find() does
+        // not require the match to reach the end of the message, so it settles for a single
+        // character ("NeoShop" -> "N"). Extend it to the end of its line instead. Captures that
+        // are followed by fixed text are unchanged: they still stop at the first occurrence of
+        // that text, which keeps "merchant, <disclaimer>, <more>" from swallowing the
+        // disclaimer into the payee (a greedy capture would run to the last delimiter).
+        final boolean endsWithLazyCapture = endsWithLazyCapture(template);
 
         if (phIndexes != null) {
             // escape regex characters (i.e. can't use regex in template)
@@ -420,6 +427,9 @@ public class SmsTransactionProcessor {
                 }
             }
             template = template.replace(ANY.code, ANY.regexp);
+            if (endsWithLazyCapture) {
+                template += "(?=[\\r\\n]|$)";
+            }
             Log.d(TAG, "template=" + template);
 
             Matcher matcher = Pattern.compile(template, DOTALL).matcher(sms);
@@ -434,6 +444,16 @@ public class SmsTransactionProcessor {
             }
         }
         return results;
+    }
+
+    /** True when the template ends with a placeholder whose pattern is a lazy capture, e.g. ([^\r\n]+?). */
+    static boolean endsWithLazyCapture(String template) {
+        for (Placeholder p : Placeholder.values()) {
+            if (template.endsWith(p.code)) {
+                return p.regexp.endsWith("?)");
+            }
+        }
+        return false;
     }
 
     private static String preprocessPatterns(String template) {
