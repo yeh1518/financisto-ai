@@ -532,6 +532,11 @@ public class SmsTransactionProcessor {
         // [^\r\n] is a superset of \S, and both are non-greedy, so they expand identically
         // until a space is needed — every template that matched before matches the same
         // way, and only previously-failing ones start to match.
+        // Non-greedy on purpose: with a fixed anchor after it the capture stops at the *first*
+        // occurrence of that anchor. A greedy capture runs to the last one on the line, so
+        // "merchant, <disclaimer>, <more>, thanks" would put the whole disclaimer into the
+        // payee. A template that ends with {{e}} (no anchor at all) is handled in
+        // findTemplateMatches() by extending the capture to the end of the line.
         // Covered by PlaceholderCaptureTest in androidTest — it has to run on a device,
         // because Android's regex is ICU-backed and a desktop JVM answers differently.
         PAYEE("<:E:>", "([^\\r\\n]+?)", "{{e}}"),
