@@ -126,6 +126,34 @@ public class PlaceholderCaptureTest {
     }
 
     /**
+     * {{e}} 後面只剩一個 {{*}}（拿來吃掉後面不管的文字）也是沒有錨：同樣補到行尾，{{*}} 接後面幾行。
+     * {{e}}{{*}}固定字 不碰——那時萬用字元得走到固定字，硬把收款人推到行尾會讓整條比不中。
+     */
+    @Test
+    public void payeeBeforeTrailingWildcardCapturesToEndOfLine() {
+        String[] match = SmsTransactionProcessor.findTemplateMatches(
+                "金額NT${{p}}元{{*}}在{{e}}{{*}}",
+                "丙銀行 【刷卡通知】金額NT$205元 \n卡號末四碼5678於 2026/08/17 13:57在SHOPFAST TW\n立即查看消費明細");
+        assertNotNull("template did not match", match);
+        assertEquals("SHOPFAST TW", match[Placeholder.PAYEE.ordinal()]);
+    }
+
+    /**
+     * 到行尾的規則看的是佔位符的 regex 形狀，不是只認 {{e}}：{{x}}／{{c}}／{{r}} 是 (\S+?)，
+     * 放在樣板結尾以前也只抓一個字。現在抓到該行最後一個詞；因為 \S 不能跨空白，值後面同一行
+     * 還有別的詞時會整條比不中——比靜默抓到一個字、對不到帳戶還好。
+     */
+    @Test
+    public void transferToAccountAtTemplateEndCapturesTheLastWord() {
+        String[] match = SmsTransactionProcessor.findTemplateMatches(
+                "transfer {{p}} to {{x}}", "transfer 100 to Visa-Gold\nthank you");
+        assertNotNull("template did not match", match);
+        assertEquals("Visa-Gold", match[Placeholder.TRANSFER_TO_ACCOUNT_NAME.ordinal()]);
+        assertNull(SmsTransactionProcessor.findTemplateMatches(
+                "transfer {{p}} to {{x}}", "transfer 100 to Visa Gold done"));
+    }
+
+    /**
      * 結束標記在同一行出現不只一次（「，」後面接一長串免責聲明）：非貪婪停在第一個，收款人才是
      * 商家名；貪婪會一路吃到最後一個「，」，把整段免責聲明塞進收款人。這是台灣銀行刷卡通知最常見
      * 的形狀，也是 TemplateGenerator.trimTail 只留一個界字當錨的前提。

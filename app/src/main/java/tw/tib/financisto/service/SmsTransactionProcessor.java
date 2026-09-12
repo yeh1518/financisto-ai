@@ -419,6 +419,10 @@ public class SmsTransactionProcessor {
         // that text, which keeps "merchant, <disclaimer>, <more>" from swallowing the
         // disclaimer into the payee (a greedy capture would run to the last delimiter).
         final boolean endsWithLazyCapture = endsWithLazyCapture(template);
+        // 收尾只剩 {{*}} 也算沒有錨（萬用字元吃掉尾巴不是結束標記）：同樣補到行尾
+        final boolean endsWithLazyCaptureThenAny = !endsWithLazyCapture
+                && template.endsWith(ANY.code)
+                && endsWithLazyCapture(template.substring(0, template.length() - ANY.code.length()));
 
         if (phIndexes != null) {
             // escape regex characters (i.e. can't use regex in template)
@@ -431,7 +435,11 @@ public class SmsTransactionProcessor {
             }
             template = template.replace(ANY.code, ANY.regexp);
             if (endsWithLazyCapture) {
-                template += "(?=[\\r\\n]|$)";
+                template += END_OF_LINE;
+            } else if (endsWithLazyCaptureThenAny) {
+                // 編好的 pattern 以 ANY 的 regex 收尾，錨要插在它前面
+                template = template.substring(0, template.length() - ANY.regexp.length())
+                        + END_OF_LINE + ANY.regexp;
             }
             Log.d(TAG, "template=" + template);
 
@@ -450,6 +458,9 @@ public class SmsTransactionProcessor {
     }
 
     /** True when the template ends with a placeholder whose pattern is a lazy capture, e.g. ([^\r\n]+?). */
+    /** 沒有錨的懶惰捕捉補上的前瞻：擴到該行結尾為止，不跨行。 */
+    private static final String END_OF_LINE = "(?=[\\r\\n]|$)";
+
     static boolean endsWithLazyCapture(String template) {
         for (Placeholder p : Placeholder.values()) {
             if (template.endsWith(p.code)) {
