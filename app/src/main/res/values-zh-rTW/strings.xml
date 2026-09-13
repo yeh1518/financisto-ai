@@ -1182,7 +1182,7 @@
   <string name="ai_notif_action_generate">AI解析產生樣板</string>
   <string name="ai_notif_action_parse">AI解析交易</string>
   <string name="ai_notif_action_reapply">套用樣板</string>
-  <string name="ai_notif_reapply_confirm">要用現有樣板把這則通知記成一筆交易嗎？\n\n重複執行會記成兩筆。</string>
+  <string name="ai_notif_reapply_confirm">要把這則通知記成一筆交易嗎？\n\n重複執行會記成兩筆。</string>
   <string name="ai_notif_reapply_done">已記一筆：%1$s</string>
   <string name="ai_notif_reapply_none">沒有樣板比中這則通知——它目前不會被自動記帳</string>
   <string name="ai_notif_template_saved_recorded">樣板已存，並依它把這則通知記起來了：%1$s</string>
@@ -1196,6 +1196,8 @@
   <string name="ai_notif_filter_applied">已套用，這次擋掉 %1$d 則</string>
   <string name="ai_notif_no_account">樣板比中了，但對不到帳戶，所以沒有記帳。\n\n內文的卡號末四碼是「%1$s」，沒有帳戶登記這組號碼，樣板本身也沒有指定帳戶。\n\n解法：到該帳戶的編輯頁把「卡號」填成後四碼（同一個帳戶有多張卡時用逗號分隔，例：1234,5678），或直接在樣板裡指定帳戶。</string>
   <string name="ai_notif_no_account_no_digits">樣板比中了，但對不到帳戶，所以沒有記帳。\n\n樣板沒有指定帳戶，內文也沒抽到卡號末四碼。請在樣板裡指定帳戶。</string>
+  <string name="ai_notif_wallet_no_account">這是 Google 錢包的付款通知，但對不到卡片「%1$s」的帳戶，所以沒有記帳。\n\n解法：把卡號末四碼填進該帳戶的「卡號」欄，或把帳戶名稱取成與錢包裡的卡片名稱一致。</string>
+  <string name="ai_notif_wallet_no_card">這是 Google 錢包的付款通知，但內文沒說用哪張卡，對不到帳戶，所以沒有記帳。</string>
   <string name="ai_api_key_missing">AI 解析尚未設定——請先到 AI 設定填 API key</string>
   <string name="ai_keys_hint">Gemini 有免費額度，個人記帳夠用（詳見說明）</string>
   <string name="ai_provider_gemini">Google AI（Gemini）</string>

@@ -157,4 +157,34 @@ public class GoogleWalletNotificationParserTest {
         assertNull(p.cardLast4);
         assertEquals("TARGET", p.merchant);
     }
+
+    // 從通知日誌重建的條目只有合併過的 body（title + " " + text），事後補記時要還原
+
+    @Test
+    public void textFromBody_stripsTitlePrefix() {
+        assertEquals("$175.00 (使用 NeoBank 御璽卡 ••1234 付款)",
+                GoogleWalletNotificationParser.textFromBody("NEO MART",
+                        "NEO MART $175.00 (使用 NeoBank 御璽卡 ••1234 付款)"));
+    }
+
+    @Test
+    public void textFromBody_keepsBodyWhenItDoesNotStartWithTheTitle() {
+        assertEquals("$175.00 with Visa ••1234",
+                GoogleWalletNotificationParser.textFromBody("NEO MART", "$175.00 with Visa ••1234"));
+        assertEquals("$175.00 with Visa ••1234",
+                GoogleWalletNotificationParser.textFromBody("", " $175.00 with Visa ••1234"));
+        assertEquals("", GoogleWalletNotificationParser.textFromBody("NEO MART", null));
+    }
+
+    @Test
+    public void restoredJournalBodyParsesLikeTheLiveNotification() {
+        String title = "NEO MART";
+        String body = title + " $175.00 (使用 NeoBank 御璽卡 ••1234 付款)";
+        ParsedPayment p = GoogleWalletNotificationParser.parse(
+                title, GoogleWalletNotificationParser.textFromBody(title, body));
+        assertNotNull(p);
+        assertEquals(new BigDecimal("175.00"), p.amount);
+        assertEquals("1234", p.cardLast4);
+        assertEquals("NEO MART", p.merchant);
+    }
 }

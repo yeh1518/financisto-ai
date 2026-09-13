@@ -1350,7 +1350,7 @@
     <string name="ai_notif_action_generate">AI template</string>
     <string name="ai_notif_action_parse">AI transaction</string>
     <string name="ai_notif_action_reapply">Apply template</string>
-    <string name="ai_notif_reapply_confirm">Record this notification as a transaction using the existing template?\n\nRunning it again will create a second transaction.</string>
+    <string name="ai_notif_reapply_confirm">Record this notification as a transaction now?\n\nRunning it again will create a second transaction.</string>
     <string name="ai_notif_reapply_done">Recorded: %1$s</string>
     <string name="ai_notif_reapply_none">No template matched — this notification would not be recorded automatically</string>
     <string name="ai_notif_template_saved_recorded">Template saved, and this notification was recorded with it: %1$s</string>
@@ -1364,6 +1364,8 @@
     <string name="ai_notif_filter_applied">Applied — %1$d hidden this time</string>
     <string name="ai_notif_no_account">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe message contains card digits \"%1$s\", no account is registered with them, and the template itself sets no account.\n\nFix: put the last four digits into the account\'s \"Card number\" field (comma-separate several cards sharing one account, e.g. 1234,5678), or set an account on the template.</string>
     <string name="ai_notif_no_account_no_digits">The template matched, but no account could be resolved, so nothing was recorded.\n\nThe template sets no account and no card digits were captured from the message. Set an account on the template.</string>
+    <string name="ai_notif_wallet_no_account">This is a Google Wallet payment notification, but no account matches the card \"%1$s\", so nothing was recorded.\n\nFix: put the card\'s last four digits into the account\'s \"Card number\" field, or name the account exactly as the card is named in Wallet.</string>
+    <string name="ai_notif_wallet_no_card">This is a Google Wallet payment notification, but it does not say which card was used, so no account could be resolved and nothing was recorded.</string>
     <string name="ai_api_key_missing">AI parsing not configured — set an API key in AI settings first</string>
     <string name="ai_keys_hint">Gemini has a free tier that\'s enough for personal use (see Help)</string>
     <string name="ai_provider_gemini">Google AI (Gemini)</string>

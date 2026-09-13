@@ -33,6 +33,19 @@ public class GoogleWalletTransactionProcessor {
     public Transaction createTransaction(Context context, ParsedPayment payment,
             String notificationText, TransactionStatus status, boolean saveNotificationToNote)
     {
+        return createTransaction(context, payment, notificationText, status,
+                saveNotificationToNote, 0);
+    }
+
+    /**
+     * @param dateTime 要記成的交易時間（0＝當下）。背景自動入帳傳 0——收到就記，當下
+     *        ≈ 通知時間；從通知列表補記一則舊通知時要傳它的 {@code postTime}，
+     *        否則三天前那筆會記在按下去的當天。
+     */
+    public Transaction createTransaction(Context context, ParsedPayment payment,
+            String notificationText, TransactionStatus status, boolean saveNotificationToNote,
+            long dateTime)
+    {
         long accountId = findAccount(payment);
         if (accountId <= 0) {
             // No matching account: skip silently. Do NOT create a log transaction
@@ -47,6 +60,9 @@ public class GoogleWalletTransactionProcessor {
         Transaction t = new Transaction();
         t.isTemplate = 0;
         t.fromAccountId = accountId;
+        if (dateTime > 0) {
+            t.dateTime = dateTime;
+        }
 
         if (payment.merchant != null) {
             Payee payee = db.findOrInsertEntityByTitle(Payee.class, payment.merchant);

@@ -89,6 +89,27 @@ public class GoogleWalletNotificationParser {
     }
 
     /**
+     * 從「標題＋內文」合併過的那一串還原出內文。
+     *
+     * <p>通知日誌只存合併後的 body（{@code title + " " + text}）——事後從列表拿一則舊通知
+     * 來記帳時，手上就只有它。而 {@link #parse} 要分開的兩半才判斷得出哪一半是付款行
+     * （金額與卡片在哪一邊會隨 Wallet 版本與語系互換）。把整串當 text 傳進去，商家那半
+     * 會連同金額被當成付款行，商家就抽不出來。
+     *
+     * @return body 去掉標題前綴後的部分；body 不是以標題開頭時原樣回傳
+     */
+    public static String textFromBody(String title, String body) {
+        if (body == null) {
+            return "";
+        }
+        if (title == null || title.isEmpty()) {
+            return body.trim();
+        }
+        String prefix = title + " ";
+        return body.startsWith(prefix) ? body.substring(prefix.length()).trim() : body.trim();
+    }
+
+    /**
      * @return parsed payment, or null if the notification is not a payment
      *         (e.g. "card added", loyalty pass updates etc.)
      */

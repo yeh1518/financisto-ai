@@ -49,6 +49,11 @@ public class NotificationListener extends NotificationListenerService {
     private String packageName;
     private NotificationCache notificationCache;
 
+    /** 這則通知是不是 Google 錢包發的——決定它走 Wallet 解析還是使用者的樣板。 */
+    public static boolean isGoogleWalletPackage(String pkg) {
+        return pkg != null && GOOGLE_WALLET_PACKAGES.contains(pkg);
+    }
+
     /** 使用者是否已授予通知存取權（授了不代表 listener 有被系統綁上，見下）。 */
     public static boolean isAccessGranted(Context context) {
         return NotificationManagerCompat.getEnabledListenerPackages(context)
@@ -183,7 +188,7 @@ public class NotificationListener extends NotificationListenerService {
                     return;
                 }
 
-                if (GOOGLE_WALLET_PACKAGES.contains(packageName)
+                if (isGoogleWalletPackage(packageName)
                         && MyPreferences.isGoogleWalletTransactionEnabled())
                 {
                     Intent serviceIntent = new Intent(ACTION_NEW_TRANSACTION_WALLET, null, context, FinancistoService.class);

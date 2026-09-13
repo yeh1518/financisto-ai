@@ -45,6 +45,8 @@ import tw.tib.financisto.ai.TemplateGenerator;
 import tw.tib.financisto.db.DatabaseAdapter;
 import tw.tib.financisto.model.Account;
 import tw.tib.financisto.model.Transaction;
+import tw.tib.financisto.service.GoogleWalletNotificationParser;
+import tw.tib.financisto.service.GoogleWalletTransactionProcessor;
 import tw.tib.financisto.service.NotificationCache;
 import tw.tib.financisto.service.NotificationListener;
 import tw.tib.financisto.service.SmsTransactionProcessor;
@@ -341,6 +343,17 @@ public class NotificationListActivity extends AppCompatActivity {
     private void reapplyTemplate(NotificationListener.ParsedNotification n, boolean afterSave) {
         final DatabaseAdapter db = new DatabaseAdapter(this);
         tw.tib.financisto.Application.getExecutor().execute(() -> {
+            // Google 錢包的付款通知不走樣板（金額與商家由 GoogleWalletNotificationParser
+            // 直接抽），所以它從來沒有樣板可套——漏記之後手動這條路等於斷掉。這裡照
+            // 背景入帳的順序來：先 Wallet 解析，不是付款通知才退回樣板。
+            // afterSave（剛存完樣板）例外：那次的用意就是驗證剛存的樣板，要走樣板那條。
+            if (!afterSave && NotificationListener.isGoogleWalletPackage(n.pkg)) {
+                WalletOutcome w = reapplyWallet(db, n);
+                if (w != null) {
+                    runOnUiThread(() -> showReapplyResult(db, w.transaction, w.problem, false));
+                    return;
+                }
+            }
             SmsTransactionProcessor.Result r = new SmsTransactionProcessor.Result();
             try {
                 r = new SmsTransactionProcessor(db).process(
@@ -354,23 +367,72 @@ public class NotificationListActivity extends AppCompatActivity {
                 Log.e("NotificationList", "套用樣板失敗", e);
             }
             final SmsTransactionProcessor.Result result = r;
-            runOnUiThread(() -> {
-                if (result.transaction != null) {
-                    AccountWidget.updateWidgets(this);
-                    String desc = describe(db, result.transaction);
-                    Toast.makeText(this, getString(afterSave
-                                    ? R.string.ai_notif_template_saved_recorded
-                                    : R.string.ai_notif_reapply_done, desc),
-                            Toast.LENGTH_LONG).show();
-                } else {
-                    new AlertDialog.Builder(this)
-                            .setTitle(R.string.ai_notification_template)
-                            .setMessage(explainNoTransaction(result, afterSave))
-                            .setPositiveButton(android.R.string.ok, null)
-                            .show();
-                }
-            });
+            runOnUiThread(() -> showReapplyResult(db, result.transaction,
+                    explainNoTransaction(result, afterSave), afterSave));
         });
+    }
+
+    /** Wallet 那條路的下場：記成了（transaction），或記不成而要對人解釋（problem）。 */
+    private static class WalletOutcome {
+        Transaction transaction;
+        String problem;
+    }
+
+    /**
+     * 拿 Google 錢包的付款通知記一筆——與背景入帳同一組解析器與偏好設定
+     * （{@link GoogleWalletNotificationParser} + {@link GoogleWalletTransactionProcessor}）。
+     *
+     * @return null＝這則不是付款通知（呼叫端接著試樣板）；否則是 Wallet 這條路的結果
+     */
+    private WalletOutcome reapplyWallet(DatabaseAdapter db,
+                                        NotificationListener.ParsedNotification n) {
+        // 日誌重建出來的條目只有合併過的 body，沒有原本的 text——要還原才分得出付款行
+        String text = n.text != null && !n.text.isEmpty()
+                ? n.text : GoogleWalletNotificationParser.textFromBody(n.title, n.body);
+        GoogleWalletNotificationParser.ParsedPayment payment =
+                GoogleWalletNotificationParser.parse(n.title, text);
+        if (payment == null) {
+            return null;
+        }
+        WalletOutcome out = new WalletOutcome();
+        try {
+            out.transaction = new GoogleWalletTransactionProcessor(db).createTransaction(
+                    this, payment, (n.body == null ? "" : n.body).trim(),
+                    MyPreferences.getGoogleWalletTransactionStatus(),
+                    MyPreferences.shouldSaveSmsToTransactionNote(),
+                    // 通知時間當交易時間，與套樣板那條一致（日誌留 7 天，補記的可能是舊的）
+                    n.postTime);
+        } catch (Exception e) {
+            Log.e("NotificationList", "套用 Google 錢包解析失敗", e);
+        }
+        if (out.transaction == null) {
+            String card = payment.cardLabel != null && !payment.cardLabel.isEmpty()
+                    ? payment.cardLabel
+                    : (payment.cardLast4 != null ? payment.cardLast4 : null);
+            out.problem = card != null
+                    ? getString(R.string.ai_notif_wallet_no_account, card)
+                    : getString(R.string.ai_notif_wallet_no_card);
+        }
+        return out;
+    }
+
+    /** 記成了就 toast 一行「記到哪、多少」，沒記成就開對話框講清楚為什麼。 */
+    private void showReapplyResult(DatabaseAdapter db, Transaction t, String problem,
+                                   boolean afterSave) {
+        if (t != null) {
+            AccountWidget.updateWidgets(this);
+            String desc = describe(db, t);
+            Toast.makeText(this, getString(afterSave
+                            ? R.string.ai_notif_template_saved_recorded
+                            : R.string.ai_notif_reapply_done, desc),
+                    Toast.LENGTH_LONG).show();
+        } else {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.ai_notification_template)
+                    .setMessage(problem)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+        }
     }
 
     /**
