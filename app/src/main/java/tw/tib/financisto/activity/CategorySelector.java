@@ -15,6 +15,7 @@ import androidx.core.util.Pair;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.view.LayoutInflater;
 import android.text.InputType;
 import android.util.Log;
 import android.view.View;
@@ -62,6 +63,17 @@ public class CategorySelector<A extends AbstractActivity> {
     private Cursor categoryCursor;
     private ListAdapter categoryAdapter;
     private LinearLayout attributesLayout;
+
+    // ===== 篩選專用：包含子分類 =====
+    // 分類篩選走 nested set，btw(category_left, left, right) 本來就把整個子樹框進去。
+    // 取消勾選時改送 btw(left, left)——只框住這個分類自己那一格，子分類不算。
+    // 這一行只有 FILTER 型別建得出來，而且只在「選到的分類裡有人有子分類」時才顯示：
+    // 選的全是葉節點時「含不含子分類」沒有意義，多出一個永遠沒作用的勾選框只會讓人猶豫。
+    private View includeSubCategoriesRow;
+    private CheckBox includeSubCategoriesCheckBox;
+    private boolean includeSubCategories = true;
+    /** 只是把 UI 同步成目前狀態時用，避免 setChecked 反過來又去重建一次 criterion。 */
+    private boolean syncingIncludeSubCategories = false;
 
     private long selectedCategoryId = NO_CATEGORY_ID;
     private Account selectedAccount;
@@ -171,6 +183,9 @@ public class CategorySelector<A extends AbstractActivity> {
                 if (c.id == NO_CATEGORY_ID) { // special case as it must include only itself
                     res.add("0");
                     res.add("0");
+                } else if (!includeSubCategories && hasSubCategories(c)) {
+                    res.add(String.valueOf(c.left));
+                    res.add(String.valueOf(c.left));
                 } else {
                     res.add(String.valueOf(c.left));
                     res.add(String.valueOf(c.right));
@@ -247,7 +262,76 @@ public class CategorySelector<A extends AbstractActivity> {
         filterAutoCompleteTxt = nodes.second;
         node = (View) categoryText.getTag();
         node.setEnabled(false);
+        if (type == SelectorType.FILTER) {
+            addIncludeSubCategoriesRow(layout);
+        }
         return categoryText;
+    }
+
+    /** 接在分類欄位下方的那一行小字，靠右。 */
+    private void addIncludeSubCategoriesRow(LinearLayout layout) {
+        includeSubCategoriesRow = LayoutInflater.from(activity)
+                .inflate(R.layout.select_entry_include_sub, layout, false);
+        includeSubCategoriesCheckBox = includeSubCategoriesRow.findViewById(R.id.category_include_sub);
+        includeSubCategoriesCheckBox.setChecked(includeSubCategories);
+        includeSubCategoriesCheckBox.setOnCheckedChangeListener((btn, checked) -> {
+            includeSubCategories = checked;
+            // 條件本身變了，要讓 activity 用新的範圍重建 criterion
+            if (!syncingIncludeSubCategories && listener != null) {
+                listener.onCategorySelected(null, false);
+            }
+        });
+        includeSubCategoriesRow.setVisibility(View.GONE);
+        // 每個節點後面都跟著一條分隔線（NodeInflater.Builder.create 加的）。插在分隔線之前，
+        // 這一行才屬於分類那一格；append 到最後會落在分隔線下面，看起來像下一個欄位的東西。
+        layout.addView(includeSubCategoriesRow, layout.indexOfChild(node) + 1);
+    }
+
+    /** nested set：葉節點的 right 一定是 left + 1，有子分類的才會更大。 */
+    private static boolean hasSubCategories(Category c) {
+        // id 0 是整棵樹的根（「未分類」借用它），它的 left/right 框住全部分類，不能當成「有子分類」
+        return c.id != NO_CATEGORY_ID && c.right - c.left > 1;
+    }
+
+    private void updateIncludeSubCategoriesRow() {
+        if (includeSubCategoriesRow == null) return;
+        boolean anyParentChecked = false;
+        for (Category c : categories) {
+            if (c.checked && hasSubCategories(c)) {
+                anyParentChecked = true;
+                break;
+            }
+        }
+        includeSubCategoriesRow.setVisibility(anyParentChecked ? View.VISIBLE : View.GONE);
+    }
+
+    /**
+     * 從篩選條件回推勾選狀態。條件是 (left, right) 成對，收起子分類時送的是 (left, left)
+     * ——兩值相等就代表當初是收起來的。("0","0") 是「未分類」的特例，不算。
+     *
+     * 狀態存在 criterion 裡、不另外存一個旗標：篩選會經 Intent / SharedPreferences 來回搬，
+     * 多一個旗標就多一個會跟條件對不起來的地方。
+     */
+    public void applyIncludeSubCategoriesFromFilter(String[] values) {
+        boolean collapsed = false;
+        if (values != null) {
+            for (int i = 0; i + 1 < values.length; i += 2) {
+                if (values[i].equals(values[i + 1]) && !"0".equals(values[i])) {
+                    collapsed = true;
+                    break;
+                }
+            }
+        }
+        setIncludeSubCategories(!collapsed);
+    }
+
+    private void setIncludeSubCategories(boolean include) {
+        includeSubCategories = include;
+        if (includeSubCategoriesCheckBox != null && includeSubCategoriesCheckBox.isChecked() != include) {
+            syncingIncludeSubCategories = true;
+            includeSubCategoriesCheckBox.setChecked(include);
+            syncingIncludeSubCategories = false;
+        }
     }
 
     private void initAutoCompleteFilter(final AutoCompleteTextView filterTxt) { // init only after it's toggled
@@ -310,6 +394,7 @@ public class CategorySelector<A extends AbstractActivity> {
         selectedCategoryId = NO_CATEGORY_ID;
         for (MyEntity e : categories) e.setChecked(false);
         showHideMinusBtn(false);
+        updateIncludeSubCategoriesRow();
         if (listener != null) {
             listener.onCategorySelected(Category.noCategory(), false);
         }
@@ -342,6 +427,7 @@ public class CategorySelector<A extends AbstractActivity> {
                 categoryTextIsEmpty = false;
                 showHideMinusBtn(true);
             }
+            updateIncludeSubCategoriesRow();
         }
     }
     

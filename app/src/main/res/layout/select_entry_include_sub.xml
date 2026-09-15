@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  篩選畫面「分類」欄位下方那一行：要不要連子分類一起算。
+  只有選到的分類裡有人有子分類時才顯示（見 CategorySelector.updateIncludeSubCategoriesRow）。
+
+  刻意用 wrap_content + layout_gravity=end 而不是 match_parent：這個篩選畫面是 dialog 主題、
+  視窗寬度是 wrap_content 量出來的，讓這一行完全不參與寬度量測最保險。
+-->
+<LinearLayout xmlns:a="http://schemas.android.com/apk/res/android"
+	a:id="@+id/category_include_sub_row"
+	a:layout_width="wrap_content"
+	a:layout_height="wrap_content"
+	a:layout_gravity="end"
+	a:orientation="horizontal"
+	a:gravity="center_vertical"
+	a:paddingLeft="8dp"
+	a:paddingRight="12dp"
+	a:paddingBottom="6dp">
+
+	<CheckBox a:id="@+id/category_include_sub"
+		a:layout_width="wrap_content"
+		a:layout_height="wrap_content"
+		a:minWidth="0dp"
+		a:minHeight="0dp"
+		a:checked="true"
+		a:textAppearance="?android:attr/textAppearanceSmall"
+		a:textColor="?android:attr/textColorSecondary"
+		a:text="@string/filter_include_subcategories" />
+
+</LinearLayout>

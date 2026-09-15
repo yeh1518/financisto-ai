@@ -256,6 +256,7 @@ public abstract class FilterAbstractActivity extends AbstractActivity implements
 			List<String> checkedLeftIds = getLeftCategoryNodesFromFilter(c);
 			List<Long> catIds = db.getCategoryIdsByLeftIds(checkedLeftIds);
 
+			categorySelector.applyIncludeSubCategoriesFromFilter(c.getValues());
 			categorySelector.updateCheckedEntities(catIds);
 			categorySelector.fillCategoryInUI();
 		}
