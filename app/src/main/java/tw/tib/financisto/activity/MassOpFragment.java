@@ -270,11 +270,14 @@ public class MassOpFragment extends BlotterFragment {
     }
 
     /**
-     * 最後一關：講清楚要對幾筆做什麼，並告知**會先存一份備份**。
+     * 最後一關：講清楚要對幾筆做什麼，並讓使用者決定這一次要不要先備份。
      *
-     * 備份不分操作種類一律做（2026-08-13 定案）。理由是「哪些操作算破壞性」很難劃線
-     * ——把一批交易的分類改錯，事後也不知道原本各自是什麼。而每日備份只到昨天，
-     * 今天已記的那些一起回不來。備份的成本是一次幾百 KB 的寫檔，換掉的是「不可回復」。
+     * 「異動前先備份」**每次開都預設勾起來**，不記住上次的選擇：取消備份是「這一次」
+     * 的例外決定（剛手動備過、或確定這次改錯了自己改得回來），沒理由沿用到下一次。
+     *
+     * 預設要備份的理由（2026-08-13 定案）：「哪些操作算破壞性」很難劃線——把一批交易的
+     * 分類改錯，事後也不知道原本各自是什麼。而每日備份只到昨天，今天已記的那些一起回不來。
+     * 備份的成本是一次幾百 KB 的寫檔，換掉的是「不可回復」。
      */
     private void confirmAndApply(final MassOp op, final Param param) {
         final long[] ids = pendingIds;
@@ -283,16 +286,20 @@ public class MassOpFragment extends BlotterFragment {
         if (param.label != null) {
             what = what + "「" + param.label + "」";
         }
+        View v = LayoutInflater.from(getContext()).inflate(R.layout.mass_op_confirm, null);
+        ((TextView) v.findViewById(R.id.mass_op_confirm_message))
+                .setText(getString(R.string.apply_mass_op, what, ids.length));
+        final CheckBox backupFirst = v.findViewById(R.id.mass_op_backup_first);
+        backupFirst.setChecked(true);
         new AlertDialog.Builder(getContext())
-                .setMessage(getString(R.string.apply_mass_op, what, ids.length)
-                        + "\n\n" + getString(R.string.mass_operations_backup_first))
-                .setPositiveButton(R.string.yes, (d, w) -> runMassOp(op, param, ids))
+                .setView(v)
+                .setPositiveButton(R.string.yes, (d, w) -> runMassOp(op, param, ids, backupFirst.isChecked()))
                 .setNegativeButton(R.string.no, null)
                 .show();
     }
 
-    /** 備份 → 套用 → 重讀清單。都在背景執行緒，備份是寫檔、不能卡 UI。 */
-    private void runMassOp(final MassOp op, final Param param, final long[] ids) {
+    /** 備份（使用者沒取消勾選的話）→ 套用 → 重讀清單。都在背景執行緒，備份是寫檔、不能卡 UI。 */
+    private void runMassOp(final MassOp op, final Param param, final long[] ids, final boolean backupFirst) {
         Log.d("Financisto", "Will apply " + op + " on " + Arrays.toString(ids));
         final ProgressDialog progress = ProgressDialog.show(getContext(), null,
                 getString(R.string.mass_operations_working), true, false);
@@ -301,16 +308,18 @@ public class MassOpFragment extends BlotterFragment {
         final Context appContext = requireContext().getApplicationContext();
         tw.tib.financisto.Application.getExecutor().execute(() -> {
             String backupError = null;
-            try {
-                new DatabaseExport(appContext, db.db(), true).export();
-            } catch (Exception e) {
-                Log.e("Financisto", "批次操作前的備份失敗", e);
-                backupError = e.getMessage();
+            if (backupFirst) {
+                try {
+                    new DatabaseExport(appContext, db.db(), true).export();
+                } catch (Exception e) {
+                    Log.e("Financisto", "批次操作前的備份失敗", e);
+                    backupError = e.getMessage();
+                }
             }
             final String err = backupError;
             if (err != null) {
-                // 備份失敗就**不做**：這個操作的安全性完全建立在「出錯還原得回來」上面，
-                // 沒備份還做下去等於偷偷取消使用者剛才同意的那個條件。
+                // 要了備份卻備不成就**不做**：使用者同意的是「出錯還原得回來」這個前提，
+                // 沒備份還做下去等於偷偷取消他剛才同意的那個條件。
                 runOnUi(() -> {
                     progress.dismiss();
                     new AlertDialog.Builder(getContext())
