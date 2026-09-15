@@ -221,6 +221,7 @@ public class ScheduledListAdapter extends BaseAdapter {
 			v.bottomView = view.findViewById(R.id.bottom);
 			v.rightCenterView = view.findViewById(R.id.right_center);
 			v.iconView = view.findViewById(R.id.right_top);
+            hideTagsView(view);
             removeRightView(view);
 			view.setTag(v);
 			return v;
@@ -228,6 +229,12 @@ public class ScheduledListAdapter extends BaseAdapter {
 
         private static void removeRightView(View view) {
             view.findViewById(R.id.right).setVisibility(View.GONE);
+        }
+
+        /** 這份清單不顯示標籤；不藏起來會露出 blotter_list_item 的設計期佔位字 "top3"。 */
+        private static void hideTagsView(View view) {
+            View tags = view.findViewById(R.id.top3);
+            if (tags != null) tags.setVisibility(View.GONE);
         }
 
     }

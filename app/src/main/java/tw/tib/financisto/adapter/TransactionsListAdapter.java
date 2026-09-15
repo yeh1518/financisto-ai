@@ -160,6 +160,8 @@ public class TransactionsListAdapter extends BlotterListAdapter {
             }
         }
 
+        bindTags(v, context, cursor);
+
         long balance = cursor.getLong(BlotterColumns.from_account_balance.ordinal());
         v.rightView.setText(Utils.amountToString(c, balance, false));
         removeRightViewIfNeeded(v);

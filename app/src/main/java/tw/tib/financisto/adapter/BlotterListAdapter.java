@@ -126,6 +126,40 @@ public class BlotterListAdapter extends ResourceCursorAdapter {
         return showRunningBalance;
     }
 
+    /**
+     * 標籤列（blotter_list_item 的 top3）。
+     *
+     * **凡是吃 blotter_list_item 的清單都得處理它**，即使那個清單根本沒有標籤可顯示——
+     * 那個 TextView 的 android:text 是設計期佔位字 "top3"，沒人動它就會原樣畫出來
+     * （2026-09-15：分類選擇器與排程/規劃清單就是這樣每一列都掛著一個 "top3"）。
+     * 所以這裡抽成 protected，覆寫 bindView 的子類別直接呼叫，不要各自重寫。
+     */
+    protected void bindTags(final BlotterViewHolder v, Context context, Cursor cursor) {
+        if (v.top3View == null) return;
+        String tags = cursor.getString(BlotterColumns.tags.ordinal());
+        if (tags != null) {
+            var ssb = new SpannableStringBuilder();
+            boolean started = false;
+            for (String tag : tags.split("\n")) {
+                String trimmed = tag.trim();
+                if (!trimmed.isEmpty()) {
+                    if (started) {
+                        ssb.append(" ");
+                    }
+                    else {
+                        started = true;
+                    }
+                    ssb.append(" " + trimmed + " ", new BackgroundColorSpan(context.getColor(R.color.tag_pill_stroke)), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+            v.top3View.setVisibility(View.VISIBLE);
+            v.top3View.setText(ssb);
+        }
+        else {
+            v.top3View.setVisibility(View.GONE);
+        }
+    }
+
     @Override
     public View newView(Context context, Cursor cursor, ViewGroup parent) {
         View view = super.newView(context, cursor, parent);
@@ -271,31 +305,7 @@ public class BlotterListAdapter extends ResourceCursorAdapter {
             }
         }
 
-        if (v.top3View != null) {
-            Set<String> selectedTags = new HashSet<>();
-            String tags = cursor.getString(BlotterColumns.tags.ordinal());
-            if (tags != null) {
-                var ssb = new SpannableStringBuilder();
-                boolean started = false;
-                for (String tag : tags.split("\n")) {
-                    String trimmed = tag.trim();
-                    if (!trimmed.isEmpty()) {
-                        if (started) {
-                            ssb.append(" ");
-                        }
-                        else {
-                            started = true;
-                        }
-                        ssb.append(" " + trimmed + " ", new BackgroundColorSpan(context.getColor(R.color.tag_pill_stroke)), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    }
-                }
-                v.top3View.setVisibility(View.VISIBLE);
-                v.top3View.setText(ssb);
-            }
-            else {
-                v.top3View.setVisibility(View.GONE);
-            }
-        }
+        bindTags(v, context, cursor);
 
         setIndicatorColor(v, cursor);
         if (isTemplate == 1) {

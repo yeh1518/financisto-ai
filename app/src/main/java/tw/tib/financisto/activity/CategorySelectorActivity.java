@@ -295,6 +295,8 @@ public class CategorySelectorActivity extends AbstractListActivity<Cursor> {
                 v.layout.setBackgroundResource(0);
             }
             v.top2View.setVisibility(View.INVISIBLE);
+            // 分類列表沒有標籤；不藏起來會露出 blotter_list_item 的設計期佔位字 "top3"
+            if (v.top3View != null) v.top3View.setVisibility(View.GONE);
             return convertView;
         }
 
