@@ -1168,6 +1168,10 @@
   <string name="ai_voice_tap_to_stop">● 錄音中…說完點一下結束</string>
   <string name="ai_voice_need_mic">需要麥克風權限才能語音記帳</string>
   <string name="ai_balance_need_account">調整餘額需要指定帳戶，請說出帳戶名稱</string>
+  <string name="ai_balance_need_amount">沒聽到餘額數字，請說出新的餘額</string>
+  <string name="ai_balance_existing_unsupported">這筆不能用餘額修金額（轉帳、分割子項或外幣原幣別交易）</string>
+  <string name="ai_balance_existing_other_account">講的帳戶與這筆的帳戶不同，沒有改動</string>
+  <string name="ai_balance_restated">金額 %1$s → %2$s（餘額 %3$s → %4$s）</string>
   <string name="ai_split_counter_sign">有一份與差額方向相反（%1$s），請確認是講錯還是真的有收入</string>
   <string name="ai_voice_supplement_prompt">說出要補充或修正的部分</string>
   <string name="ai_voice_shortcut_short">說一句</string>

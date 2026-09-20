@@ -134,4 +134,46 @@ public class BalanceSplitPlannerTest {
                 shares(share(BREAKFAST, 80.0, null)), -163, 0);   // 零小數位幣別
         assertEquals(-80, out.get(0).amountMinor);
     }
+
+    // ---- 既有交易上講餘額＝修這筆（restatedAmount） ----
+
+    @Test
+    public void restatedAmount_expenseGrowsWhenBalanceLower() {
+        // 記了午餐 −150、帳上 700，數完說「剩下 680」→ 這筆改成 −170
+        assertEquals(-17000, BalanceSplitPlanner.restatedAmount(-15000, 70000, 68000));
+    }
+
+    @Test
+    public void restatedAmount_expenseShrinksWhenBalanceHigher() {
+        // 記多了：帳上 700、說「剩下 730」→ 這筆從 −150 變 −120
+        assertEquals(-12000, BalanceSplitPlanner.restatedAmount(-15000, 70000, 73000));
+    }
+
+    @Test
+    public void restatedAmount_flipsSignWhenOvershoot() {
+        // 差額大到把支出翻成收入：帳上 700、說「剩下 900」→ −150 + 200 = +50，照算不擋（表單端看得見）
+        assertEquals(5000, BalanceSplitPlanner.restatedAmount(-15000, 70000, 90000));
+    }
+
+    @Test
+    public void restatedAmount_unchangedWhenBalanceAlreadyMatches() {
+        assertEquals(-15000, BalanceSplitPlanner.restatedAmount(-15000, 70000, 70000));
+    }
+
+    @Test
+    public void restatedAmount_negativeBalanceAccount() {
+        // 信用卡：帳上 −3200、這筆 −500、說「餘額負 3350」→ −500 + (−3350 − −3200) = −650
+        assertEquals(-65000, BalanceSplitPlanner.restatedAmount(-50000, -320000, -335000));
+    }
+
+    @Test
+    public void restatedAmount_feedsPlannerAsDelta() {
+        // 修完的新金額就是分割要分的整筆：−170 拆 早餐 80、殘額食材 → −80 / −90
+        long amount = BalanceSplitPlanner.restatedAmount(-15000, 70000, 68000);
+        List<BalanceSplitPlanner.Share> out = BalanceSplitPlanner.plan(
+                shares(share(BREAKFAST, 80.0, null), share(GROCERIES, null, null)), amount, 2);
+        assertEquals(2, out.size());
+        assertEquals(-8000, out.get(0).amountMinor);
+        assertEquals(-9000, out.get(1).amountMinor);
+    }
 }

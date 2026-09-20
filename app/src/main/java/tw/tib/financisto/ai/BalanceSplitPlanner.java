@@ -41,6 +41,22 @@ public final class BalanceSplitPlanner {
     }
 
     /**
+     * 在「已存在的交易」上講餘額（「剩下X」）＝修這筆的金額，讓存檔後帳戶餘額剛好等於講的數。
+     * 這筆已經算在帳戶總餘額裡，所以不必切模式、也不另開新筆：
+     * <pre>新金額 ＝ 這筆在資料庫的舊金額 ＋（新餘額 − 帳戶目前總餘額）</pre>
+     * 例：記了午餐 −150、帳戶總額 700，講「剩下 680」→ −150 + (680 − 700) = −170。
+     * 一律用資料庫裡的值算（舊金額與總餘額都是），表單上未存檔的改動不影響結果。
+     *
+     * @param oldAmountMinor    這筆在資料庫的帶號金額（minor units）
+     * @param accountTotalMinor 帳戶目前總餘額（含這筆；minor units、帶號）
+     * @param newBalanceMinor   使用者講的新餘額（minor units、帶號，信用卡可為負）
+     * @return 這筆該改成的帶號金額（minor units）
+     */
+    public static long restatedAmount(long oldAmountMinor, long accountTotalMinor, long newBalanceMinor) {
+        return oldAmountMinor + (newBalanceMinor - accountTotalMinor);
+    }
+
+    /**
      * @param spoken     模型回的各份（category 已經過清單驗證；amount 為主單位、可為 null）
      * @param deltaMinor 差額＝新餘額 − 目前餘額（minor units、帶號）
      * @param scale      帳戶幣別的小數位數

@@ -17,6 +17,7 @@ import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ListAdapter;
 import android.widget.TextView;
+import android.text.TextUtils;
 import android.widget.Toast;
 import greendroid.widget.QuickActionGrid;
 import greendroid.widget.QuickActionWidget;
@@ -847,17 +848,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
         Long spoken = t.resolveDateTimeMillis();
         if (spoken != null) setDateTime(spoken);
 
-        // 重建分割清單
-        boolean wasSplit = categorySelector.isSplitCategorySelected();
-        viewToSplitMap.clear();
-        splits.clear();
-        resetSplitsLayout();
-        categorySelector.selectCategory(Category.SPLIT_CATEGORY_ID, false);
-        // selectCategory 對「同一個分類」是 no-op、不會觸發 listener → resetSplitsLayout 清掉的
-        // 「未分配」node 不會被 addOrRemoveSplits 補回。已是分割時要自己補（重講分割的情境）。
-        if (wasSplit) {
-            addOrRemoveSplits();
-        }
+        clearSplitsForRebuild();
 
         long accountId = getSelectedAccountId();
         if (balancePlan != null) {
@@ -866,15 +857,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
                 if (newBalance < 0) rateView.setExpense(); else rateView.setIncome();
                 rateView.setFromAmount(newBalance);
             }
-            for (BalanceSplitPlanner.Share sh : balancePlan) {
-                Transaction split = new Transaction();
-                split.id = --idSequence;
-                split.fromAccountId = accountId;
-                split.fromAmount = sh.amountMinor;
-                if (sh.categoryId > 0) split.categoryId = sh.categoryId;
-                if (sh.note != null && !sh.note.trim().isEmpty()) split.note = sh.note;
-                addOrEditSplit(split);
-            }
+            addPlannedShares(balancePlan, accountId);
             warnCounterSignedShares();
             return true;
         }
@@ -898,6 +881,99 @@ public class TransactionActivity extends AbstractTransactionActivity {
         }
         rateView.setFromAmount(total);   // 父金額＝加總，unsplit 歸零
         return true;
+    }
+
+    /** 把表單切成分割、清空現有子項，準備照 AI 各份重建。 */
+    private void clearSplitsForRebuild() {
+        boolean wasSplit = categorySelector.isSplitCategorySelected();
+        viewToSplitMap.clear();
+        splits.clear();
+        resetSplitsLayout();
+        categorySelector.selectCategory(Category.SPLIT_CATEGORY_ID, false);
+        // selectCategory 對「同一個分類」是 no-op、不會觸發 listener → resetSplitsLayout 清掉的
+        // 「未分配」node 不會被 addOrRemoveSplits 補回。已是分割時要自己補（重講分割的情境）。
+        if (wasSplit) {
+            addOrRemoveSplits();
+        }
+    }
+
+    /** 把 planner 算好的各份（帶號金額）建成分割子項。 */
+    private void addPlannedShares(List<BalanceSplitPlanner.Share> plan, long accountId) {
+        for (BalanceSplitPlanner.Share sh : plan) {
+            Transaction split = new Transaction();
+            split.id = --idSequence;
+            split.fromAccountId = accountId;
+            split.fromAmount = sh.amountMinor;
+            if (sh.categoryId > 0) split.categoryId = sh.categoryId;
+            if (sh.note != null && !sh.note.trim().isEmpty()) split.note = sh.note;
+            addOrEditSplit(split);
+        }
+    }
+
+    /**
+     * 既有交易上講餘額（「剩下X」）＝修這筆的金額，讓存檔後帳戶餘額剛好等於講的數；不切模式、不另開新筆
+     * （公式見 {@link BalanceSplitPlanner#restatedAmount}）。一律用資料庫裡的值算（這筆的舊金額、
+     * 帳戶總餘額），表單上未存檔的改動不影響結果；算好填進表單，使用者按存檔才生效、看不對就取消。
+     * 同時講分割時各份分的是這筆的新金額（同一個 planner）；分割母筆沒講分割時子項不動、
+     * 「未分配」露出來、存檔由原生擋——盤點對不起來是要暴露的資訊，不自動平。
+     */
+    @Override
+    protected boolean restateExistingBalance(ParsedTransaction t) {
+        if (t.amount == null) {
+            Toast.makeText(this, R.string.ai_balance_need_amount, Toast.LENGTH_LONG).show();
+            return true;
+        }
+        // 分割子項、外幣原幣別交易：金額欄與帳戶餘額不是同一個數，不硬算
+        if (transaction.parentId > 0 || transaction.originalCurrencyId > 0 || selectedOriginCurrencyId > 0) {
+            Toast.makeText(this, R.string.ai_balance_existing_unsupported, Toast.LENGTH_LONG).show();
+            return true;
+        }
+        long accountId = transaction.fromAccountId;
+        // 這句話點名了別的帳戶、或表單上已把帳戶換掉（未存）：分不清是要換帳戶還是講錯，不動
+        if ((t.account.resolved() && t.account.id != accountId) || getSelectedAccountId() != accountId) {
+            Toast.makeText(this, R.string.ai_balance_existing_other_account, Toast.LENGTH_LONG).show();
+            return true;
+        }
+        Account account = db.getAccount(accountId);
+        if (account == null) {
+            Toast.makeText(this, R.string.ai_balance_need_account, Toast.LENGTH_LONG).show();
+            return true;
+        }
+        int scale = account.currency != null ? account.currency.getScale() : 2;
+        long minor = Math.round(Math.abs(t.amount) * Math.pow(10, scale));
+        long newBalance = t.amount < 0 ? -minor : minor;   // 餘額可能為負（信用卡），依講的定號
+        long oldAmount = transaction.fromAmount;
+        long newAmount = BalanceSplitPlanner.restatedAmount(oldAmount, account.totalAmount, newBalance);
+
+        // 金額欄用帶號值設（AmountInput 以正負決定收入/支出；差額大到翻號就照翻，表單看得見）
+        rateView.setFromAmount(newAmount);
+        boolean splitApplied = false;
+        if (t.hasSplits()) {
+            List<BalanceSplitPlanner.Share> plan = BalanceSplitPlanner.plan(t.splits, newAmount, scale);
+            if (!plan.isEmpty()) {
+                clearSplitsForRebuild();
+                addPlannedShares(plan, accountId);
+                splitApplied = true;
+            }
+        }
+        // 這句話順帶講到的分類/備註/專案/日期照套（帳戶與金額已在上面處理）
+        if (!splitApplied && t.category.resolved()) categorySelector.selectCategory(t.category.id, false);
+        if (t.project.resolved()) projectSelector.selectEntity(t.project.id);
+        if (!TextUtils.isEmpty(t.note)) noteText.setText(t.note);
+        Long spoken = t.resolveDateTimeMillis();
+        if (spoken != null) setDateTime(spoken);
+
+        Toast.makeText(this, getString(R.string.ai_balance_restated,
+                aiFormatSigned(oldAmount, accountId), aiFormatSigned(newAmount, accountId),
+                aiFormatSigned(account.totalAmount, accountId), aiFormatSigned(newBalance, accountId)),
+                Toast.LENGTH_LONG).show();
+        return true;
+    }
+
+    /** 帶號主單位字串（負數帶 -，正數不帶 +；給「金額 A → B」那類提示用）。 */
+    private String aiFormatSigned(long minor, long accountId) {
+        String s = aiFormatMajor(Math.abs(minor), accountId);
+        return minor < 0 ? "-" + s : s;
     }
 
     /**

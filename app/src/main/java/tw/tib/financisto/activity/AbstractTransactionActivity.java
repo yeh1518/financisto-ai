@@ -939,16 +939,26 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	}
 
 	/**
-	 * 補充模式講到餘額（「剩下X」）→ 切到「調整餘額」模式：帶入帳戶目前餘額 + 講出來的新餘額，
+	 * 既有交易上講餘額（「剩下X」）：預設不支援、跳提示（轉帳分不清是轉出還是轉入方的餘額）；
+	 * TransactionActivity 覆寫成「修這筆的金額」（見 {@link BalanceSplitPlanner#restatedAmount}）。
+	 * 回 true＝已接手（有動表單或已跳提示）。
+	 */
+	protected boolean restateExistingBalance(ParsedTransaction t) {
+		Toast.makeText(this, R.string.ai_balance_existing_unsupported, Toast.LENGTH_LONG).show();
+		return true;
+	}
+
+	/**
+	 * 補充模式講到餘額（「剩下X」）→ 新交易切到「調整餘額」模式：帶入帳戶目前餘額 + 講出來的新餘額，
 	 * 差額由 TransactionActivity 自己算。走 CURRENT_BALANCE / NEW_BALANCE extra（同 AiInputActivity
 	 * .launchBalanceAdjust，不需 draft）；回來的結果轉發沿用型別切換那條 onActivityResult 路徑。
 	 * 回 true＝已接手（切走或跳錯誤）。
 	 */
 	private boolean switchToBalanceAdjust(ParsedTransaction t) {
-		// 已存在的交易不切（比照型別切換：改型別會另開新筆、原筆不動，語義混亂）
+		// 已存在的交易不切模式、不另開新筆：這筆已算在帳戶餘額裡，講餘額＝修這筆的金額
+		// （TransactionActivity 覆寫；轉帳分不清講的是哪一方的餘額，預設跳提示）
 		if (transaction != null && transaction.id > 0) {
-			Toast.makeText(this, R.string.ai_type_switch_cancelled, Toast.LENGTH_SHORT).show();
-			return true;
+			return restateExistingBalance(t);
 		}
 		long accountId = t.account.resolved() ? t.account.id : getSelectedAccountId();
 		Account account = accountId > 0 ? db.getAccount(accountId) : null;
