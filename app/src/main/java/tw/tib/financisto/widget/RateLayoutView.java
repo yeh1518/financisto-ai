@@ -170,6 +170,15 @@ public class RateLayoutView implements RateNodeOwner {
         amountInputTo.disableIncomeExpenseButton();
     }
 
+    /**
+     * 調整餘額模式：金額欄填的是「數到的新餘額」不是變動額，標籤就叫「最新餘額 (幣別)」，
+     * 否則這張表單跟一般交易長得一模一樣、看不出自己在哪個模式（Gary 2026-09-21 指出）。
+     */
+    public void createBalanceUI() {
+        createUI(R.string.new_balance, R.string.new_balance);
+        amountInputTo.disableIncomeExpenseButton();
+    }
+
     public void setIncome() {
         amountInputFrom.setIncome();
         amountInputTo.setIncome();

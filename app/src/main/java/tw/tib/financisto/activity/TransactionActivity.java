@@ -257,7 +257,13 @@ public class TransactionActivity extends AbstractTransactionActivity {
         } else {
             currencyText = new TextView(this);
         }
-        rateView.createTransactionUI();
+        // 調整餘額模式的金額欄是「最新餘額」，標籤與畫面標題都要講出來（表單其餘部分與一般交易相同）
+        if (isUpdateBalanceMode) {
+            rateView.createBalanceUI();
+            setTitle(R.string.update_balance);
+        } else {
+            rateView.createTransactionUI();
+        }
         // difference
         if (isUpdateBalanceMode) {
             differenceText = x.addInfoNode(layout, -1, R.string.difference, "0");
