@@ -919,7 +919,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
     /**
      * 既有交易上講餘額（「剩下X」）＝修這筆的金額，讓存檔後帳戶餘額剛好等於講的數；不切模式、不另開新筆
      * （公式見 {@link BalanceSplitPlanner#restatedAmount}）。一律用資料庫裡的值算（這筆的舊金額、
-     * 帳戶總餘額），表單上未存檔的改動不影響結果；算好填進表單，使用者按存檔才生效、看不對就取消。
+     * 帳戶總餘額），表單上未存檔的改動不影響結果；算好填進表單、Toast 只回聽到的餘額，使用者按存檔才生效。
      * 同時講分割時各份分的是這筆的新金額（同一個 planner）；分割母筆沒講分割時子項不動、
      * 「未分配」露出來、存檔由原生擋——盤點對不起來是要暴露的資訊，不自動平。
      */
@@ -969,17 +969,12 @@ public class TransactionActivity extends AbstractTransactionActivity {
         Long spoken = t.resolveDateTimeMillis();
         if (spoken != null) setDateTime(spoken);
 
-        Toast.makeText(this, getString(R.string.ai_balance_restated,
-                aiFormatSigned(oldAmount, accountId), aiFormatSigned(newAmount, accountId),
-                aiFormatSigned(account.totalAmount, accountId), aiFormatSigned(newBalance, accountId)),
+        // 只回講出來的餘額（Gary 2026-09-21 定）：金額改成多少表單本身看得到，Toast 不重複；
+        // 顯示餘額是讓人確認「聽到的數字對不對」
+        String bal = aiFormatMajor(Math.abs(newBalance), accountId);
+        Toast.makeText(this, getString(R.string.ai_balance_restated, newBalance < 0 ? "-" + bal : bal),
                 Toast.LENGTH_LONG).show();
         return true;
-    }
-
-    /** 帶號主單位字串（負數帶 -，正數不帶 +；給「金額 A → B」那類提示用）。 */
-    private String aiFormatSigned(long minor, long accountId) {
-        String s = aiFormatMajor(Math.abs(minor), accountId);
-        return minor < 0 ? "-" + s : s;
     }
 
     /**
