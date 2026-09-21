@@ -99,15 +99,14 @@ public class TransactionsListAdapter extends BlotterListAdapter {
         if (categoryId != 0) {
             category = cursor.getString(BlotterColumns.category_title.ordinal());
         }
-        String tags = cursor.getString(BlotterColumns.tags.ordinal());
-        CharSequence text = transactionTitleUtils.generateTransactionTitle(toAccountId > 0, payee, transfer, note, tags, location, categoryId, category);
+        CharSequence text = transactionTitleUtils.generateTransactionTitle(toAccountId > 0, payee, transfer, note, location, categoryId, category);
         v.centerView.setText(text);
         sb.setLength(0);
 
         long projectId = cursor.getLong(BlotterColumns.project_id.ordinal());
 
         if (projectId == NO_PROJECT_ID || showProject == false) {
-            v.top2View.setVisibility(View.INVISIBLE);
+            v.top2View.setVisibility(View.GONE);
         }
         else {
             v.top2View.setVisibility(View.VISIBLE);

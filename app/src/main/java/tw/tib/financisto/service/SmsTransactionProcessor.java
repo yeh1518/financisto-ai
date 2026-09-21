@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static java.lang.String.format;
 import static java.math.BigDecimal.ZERO;
@@ -409,7 +410,6 @@ public class SmsTransactionProcessor {
     public static String[] findTemplateMatches(String template, final String sms) {
         Log.d(TAG, "findTemplateMatches template=\"" + template + "\", sms=\"" + sms + "\"");
 
-        String[] results = null;
         template = preprocessPatterns(template);
         final int[] phIndexes = findPlaceholderIndexes(template);
         // A lazy capture at the very end of the template has no closing anchor, and find() does
@@ -426,7 +426,7 @@ public class SmsTransactionProcessor {
 
         if (phIndexes != null) {
             // escape regex characters (i.e. can't use regex in template)
-            template = template.replaceAll("([.\\[\\]{}()*+\\-?^$|])", "\\\\$1");
+            template = template.replaceAll("([.\\[\\]{}()*+\\-?^$|\\\\])", "\\\\$1");
             for (int i = 0; i < phIndexes.length; i++) {
                 if (phIndexes[i] != -1) {
                     Placeholder placeholder = Placeholder.values()[i];
@@ -443,24 +443,29 @@ public class SmsTransactionProcessor {
             }
             Log.d(TAG, "template=" + template);
 
-            Matcher matcher = Pattern.compile(template, DOTALL).matcher(sms);
-            if (matcher.find()) {
-                results = new String[Placeholder.values().length];
-                for (int i = 0; i < phIndexes.length; i++) {
-                    final int groupNum = phIndexes[i] + 1;
-                    if (groupNum > 0) {
-                        results[i] = matcher.group(groupNum);
+            try {
+                Matcher matcher = Pattern.compile(template, DOTALL).matcher(sms);
+                if (matcher.find()) {
+                    var results = new String[Placeholder.values().length];
+                    for (int i = 0; i < phIndexes.length; i++) {
+                        final int groupNum = phIndexes[i] + 1;
+                        if (groupNum > 0) {
+                            results[i] = matcher.group(groupNum);
+                        }
                     }
+                    return results;
                 }
+            } catch (PatternSyntaxException ignored) {
+                return null;
             }
         }
-        return results;
+        return null;
     }
 
-    /** True when the template ends with a placeholder whose pattern is a lazy capture, e.g. ([^\r\n]+?). */
     /** 沒有錨的懶惰捕捉補上的前瞻：擴到該行結尾為止，不跨行。 */
     private static final String END_OF_LINE = "(?=[\\r\\n]|$)";
 
+    /** True when the template ends with a placeholder whose pattern is a lazy capture, e.g. ([^\r\n]+?). */
     static boolean endsWithLazyCapture(String template) {
         for (Placeholder p : Placeholder.values()) {
             if (template.endsWith(p.code)) {

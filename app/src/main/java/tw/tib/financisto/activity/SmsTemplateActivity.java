@@ -15,7 +15,10 @@ import android.content.Intent;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
@@ -110,8 +113,8 @@ public class SmsTemplateActivity extends AbstractActivity {
         Button bOK = findViewById(R.id.bOK);
         bOK.setOnClickListener(arg0 -> {
             updateSmsTemplateFromUI();
-            if (Utils.checkEditText(smsNumber, "sms number", true, 30)
-                && Utils.checkEditText(templateTxt, "sms template", true, 160)) {
+            if (Utils.checkEditText(smsNumber, "sms number", true, 0)
+                && Utils.checkEditText(templateTxt, "sms template", true, 0)) {
                 long id = db.saveOrUpdate(smsTemplate);
                 if (fromGenerator) {
                     // 會來產樣板，通常就是因為現有那條接得不對。新樣板往往比舊的短
@@ -371,7 +374,7 @@ public class SmsTemplateActivity extends AbstractActivity {
                 exampleTxt.setBackgroundColor(resources.getColor(R.color.negative_amount));
                 parseResult.setText("");
             } else {
-                StringBuilder sb = new StringBuilder();
+                var sb = new SpannableStringBuilder();
                 exampleTxt.setBackgroundColor(resources.getColor(R.color.cleared_transaction_color));
 
                 // dump match result to help debugging
@@ -385,13 +388,17 @@ public class SmsTemplateActivity extends AbstractActivity {
                         // price will be converted to big decimal
                         // show converted result instead of raw input
                         try {
-                            sb.append(SmsTransactionProcessor.toBigDecimal(matches[p.ordinal()]));
+                            sb.append(SmsTransactionProcessor.toBigDecimal(matches[p.ordinal()]).toString(),
+                                    new ForegroundColorSpan(getColor(R.color.cleared_transaction_color)),
+                                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                         } catch (Exception e) {
                             sb.append(getString(R.string.tpl_failed_to_parse, matches[p.ordinal()]));
                         }
                     }
                     else {
-                        sb.append(matches[p.ordinal()]);
+                        sb.append(matches[p.ordinal()],
+                                new ForegroundColorSpan(getColor(R.color.cleared_transaction_color)),
+                                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     }
                     sb.append("\n");
                 }
@@ -408,7 +415,7 @@ public class SmsTemplateActivity extends AbstractActivity {
      * 這裡把同一套解法照跑一遍講給人聽——原本編輯器只驗比不比中，於是亮綠燈存檔、
      * 實際永遠不會記帳，而且失敗訊息還說是「比不中」（2026-08-09 踩到）。
      */
-    private void appendAccountCheck(StringBuilder sb, String accountDigits, String accountName) {
+    private void appendAccountCheck(SpannableStringBuilder sb, String accountDigits, String accountName) {
         long resolved = 0;
         if (accountName != null) {
             resolved = db.getEntityIdByTitle(Account.class, accountName);
