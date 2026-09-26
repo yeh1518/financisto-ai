@@ -12,6 +12,8 @@ package tw.tib.financisto.dialog;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.text.format.DateUtils;
 import android.view.LayoutInflater;
@@ -123,18 +125,31 @@ public class TransactionInfoDialog {
             u.setTransferAmountText(amountView, fromAccount.currency, split.fromAmount, toAccount.currency, split.toAmount);
             topLayout.setPadding(splitPadding, 0, 0, 0);
         } else {
+            // split child category, amount
             Category c = db.getCategoryWithParent(split.categoryId);
             StringBuilder sb = new StringBuilder();
             if (c != null && c.id > 0) {
                 sb.append(c.title);
             }
-            if (isNotEmpty(split.note)) {
-                sb.append(" (").append(split.note).append(")");
-            }
-            LinearLayout topLayout = add(layout, sb.toString(), "");
+            LinearLayout topLayout = add(layout, sb.toString(), "", true);
             TextView amountView = topLayout.findViewById(R.id.data);
             u.setAmountText(amountView, fromAccount.currency, split.fromAmount, true);
             topLayout.setPadding(splitPadding, 0, 0, 0);
+            // split child attributes
+            List<TransactionAttributeInfo> attributes = db.getAttributesForTransaction(split.id);
+            for (TransactionAttributeInfo tai : attributes) {
+                String value = tai.getValue(context);
+                if (isNotEmpty(value)) {
+                    LinearLayout attr = add(layout, tai.name, value, true);
+                    attr.setPadding(splitPadding, 0, 0, 0);
+                }
+            }
+            // split child note
+            if (isNotEmpty(split.note)) {
+                LinearLayout note = add(layout, context.getString(R.string.note), split.note, true);
+                note.setPadding(splitPadding, 0, 0, 0);
+            }
+            inflater.addDivider(layout);
         }
     }
 
@@ -198,8 +213,10 @@ public class TransactionInfoDialog {
                         : (ti.toAccount == null ? R.string.transaction : R.string.transfer);
                 titleLabel.setText(titleId);
                 add(layout, R.string.date, DateUtils.formatDateTime(context, ti.dateTime,
-                        DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_TIME | DateUtils.FORMAT_SHOW_YEAR),
-                        ti.attachedPicture);
+                        DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_TIME | DateUtils.FORMAT_SHOW_YEAR));
+                if (ti.attachedPicture != null) {
+                    add(layout, R.string.attach_picture, ti.attachedPicture, ti.attachedPicture);
+                }
             }
         }
         TransactionStatus status = ti.status;
@@ -228,13 +245,26 @@ public class TransactionInfoDialog {
     }
 
     private void add(LinearLayout layout, int labelId, String data, AccountType accountType) {
-        inflater.new Builder(layout, R.layout.select_entry_simple_icon)
+        View v = inflater.new Builder(layout, R.layout.select_entry_simple_icon)
                 .withIcon(accountType.iconId).withLabel(labelId).withData(data).create();
+
+        v.findViewById(R.id.top_layout).setOnClickListener(vi -> {
+            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText(context.getString(labelId), ((TextView) vi.findViewById(R.id.data)).getText());
+            clipboard.setPrimaryClip(clip);
+        });
     }
 
     private TextView add(LinearLayout layout, int labelId, String data) {
         View v = inflater.new Builder(layout, R.layout.select_entry_simple).withLabel(labelId)
                 .withData(data).create();
+
+        v.findViewById(R.id.top_layout).setOnClickListener(vi -> {
+            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText(context.getString(labelId), ((TextView) vi.findViewById(R.id.data)).getText());
+            clipboard.setPrimaryClip(clip);
+        });
+
         return (TextView)v.findViewById(R.id.data);
     }
 
@@ -247,13 +277,39 @@ public class TransactionInfoDialog {
         v.setClickable(false);
         v.setFocusable(false);
         v.setFocusableInTouchMode(false);
+        v.findViewById(R.id.album).setVisibility(View.GONE);
+        v.findViewById(R.id.camera).setVisibility(View.GONE);
+        v.findViewById(R.id.plus_minus).setVisibility(View.GONE);
         ImageView pictureView = v.findViewById(R.id.picture);
         pictureView.setTag(pictureFileName);
     }
 
     private LinearLayout add(LinearLayout layout, String label, String data) {
-        return (LinearLayout) inflater.new Builder(layout, R.layout.select_entry_simple).withLabel(label)
+        LinearLayout r = (LinearLayout) inflater.new Builder(layout, R.layout.select_entry_simple).withLabel(label)
                 .withData(data).create();
+
+        r.findViewById(R.id.top_layout).setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText(label, ((TextView) v.findViewById(R.id.data)).getText());
+            clipboard.setPrimaryClip(clip);
+        });
+
+        return r;
     }
 
+    private LinearLayout add(LinearLayout layout, String label, String data, boolean noDivider) {
+        var builder = inflater.new Builder(layout, R.layout.select_entry_simple).withLabel(label)
+                .withData(data);
+        if (noDivider) builder.withNoDivider();
+
+        LinearLayout r = (LinearLayout) builder.create();
+
+        r.findViewById(R.id.top_layout).setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText(label, ((TextView) v.findViewById(R.id.data)).getText());
+            clipboard.setPrimaryClip(clip);
+        });
+
+        return r;
+    }
 }
