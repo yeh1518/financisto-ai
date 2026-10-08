@@ -479,7 +479,10 @@ public class NotificationListActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     progress.dismiss();
                     Intent intent = new Intent(this, SmsTemplateActivity.class);
-                    intent.putExtra(SmsTemplateActivity.EXTRA_PREFILL_TITLE, t.titleKey);
+                    // 標題空的通知（某些銀行 app 只給內文）沒有標題可當查找鍵，編輯器又規定這欄
+                    // 必填、存不進去；改填來源套件名，走 getSmsTemplatesByPkgTitle 的套件名比對。
+                    String key = t.titleKey.isEmpty() && n.pkg != null ? n.pkg : t.titleKey;
+                    intent.putExtra(SmsTemplateActivity.EXTRA_PREFILL_TITLE, key);
                     intent.putExtra(SmsTemplateActivity.EXTRA_PREFILL_TEMPLATE, t.template);
                     intent.putExtra(SmsTemplateActivity.EXTRA_PREFILL_EXAMPLE, n.body);
                     if (t.accountId != null) {

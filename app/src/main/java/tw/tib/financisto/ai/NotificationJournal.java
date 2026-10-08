@@ -52,7 +52,8 @@ public class NotificationJournal {
 
     /**
      * 記一則通知。呼叫端（NotificationListener）在每次 onNotificationPosted 都呼叫，
-     * 這裡自行判斷值不值得留：標題或內文空的、內文沒有數字的都略過。
+     * 這裡自行判斷值不值得留：內文空的、內文沒有數字的都略過。標題空的照收——有銀行 app
+     * 的消費通知就是只給內文，略過它們等於這些通知一滑掉就再也拿不來產樣板。
      * 同標題+內文重複（同一則通知更新多次）也略過，避免灌爆。
      *
      * @param postTime 通知發出的時間（{@code StatusBarNotification.getPostTime()}）。
@@ -61,7 +62,8 @@ public class NotificationJournal {
      *                 傳 0 或負數才退回當下。
      */
     public static void record(Context context, String pkg, String title, String body, long postTime) {
-        if (title == null || title.isEmpty() || body == null || body.isEmpty()) return;
+        if (title == null) title = "";
+        if (body == null || body.isEmpty()) return;
         if (!HAS_DIGIT.matcher(body).find()) return;
         // 使用者的排除清單擋掉的不必留。「含數字」那關對限時動態這種東西沒用
         // （「和另外 2 人」照樣有數字），雜訊會把真正的銀行通知擠出這 100 筆額度。
