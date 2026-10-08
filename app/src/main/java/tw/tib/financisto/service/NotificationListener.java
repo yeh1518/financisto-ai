@@ -21,8 +21,10 @@ import android.service.notification.StatusBarNotification;
 import android.text.SpannableString;
 import android.util.Log;
 
+import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -164,6 +166,16 @@ public class NotificationListener extends NotificationListenerService {
                 existing = notificationCache.cache.put(notification.key, notification);
             }
 
+            // 疊起來的前幾則裡，上一次這則通知發出時就已經在的，當時要嘛是內文（已處理）、
+            // 要嘛更早——都不重來。這層靠時間、不靠字面，Telegram 的內文欄與訊息清單
+            // 寫法若有出入，指紋擋不住，這裡擋得住。cache 被清空（listener 重綁）時沒有
+            // existing，就只剩指紋那一層。
+            if (existing != null && !notification.earlierMessages.isEmpty()) {
+                for (Iterator<EarlierMessage> it = notification.earlierMessages.iterator(); it.hasNext(); ) {
+                    if (it.next().time <= existing.postTime) it.remove();
+                }
+            }
+
             Context context = getApplicationContext();
             String pkg = notification.pkg;
             String title = notification.title;
@@ -180,6 +192,9 @@ public class NotificationListener extends NotificationListenerService {
             // 群組摘要不進日誌：它多半是同一則通知的複本（上游 #157 的 monobank），
             // 進了日誌列表就是兩則一模一樣的，產樣板也只會挑到預設不比對摘要的那種。
             if (!isGroupSummary) {
+                for (EarlierMessage m : notification.earlierMessages) {
+                    NotificationJournal.record(context, packageName, title, m.body, m.time);
+                }
                 NotificationJournal.record(context, packageName, title, body, notification.postTime);
             }
 
@@ -189,10 +204,16 @@ public class NotificationListener extends NotificationListenerService {
                 // 讓資料夾同步工具把檔帶回電腦。標記後面慣例帶時間戳，讓每次內文互異、
                 // 不被上面的去重擋掉。只做字串比對所以放程式不放樣板；任何 app 發這串
                 // 都會觸發，最壞就是多備份一次，無害。
-                if (body.contains(BACKUP_TRIGGER)) {
+                // 疊在同一則通知裡的前幾則也要看（見 earlierMessages）：備份指令與記帳訊息
+                // 一起到時，誰都不能把對方吃掉。
+                boolean backupRequested = body.contains(BACKUP_TRIGGER);
+                for (EarlierMessage m : notification.earlierMessages) {
+                    if (m.body.contains(BACKUP_TRIGGER)) backupRequested = true;
+                }
+                if (backupRequested) {
                     Log.i(TAG, "backup trigger notification received");
                     AutoBackupWorker.requestImmediateBackup(context);
-                    return;
+                    if (notification.earlierMessages.isEmpty()) return;
                 }
 
                 // 摘要不走 Wallet 解析：上游 v265 以前摘要在 extractNotification 就被丟掉，
@@ -220,20 +241,31 @@ public class NotificationListener extends NotificationListenerService {
                 }
 
                 if (!templates.isEmpty()) {
-                    // 防重複記帳：上面那個 cache 比對只擋「同一個通知 key 的內文沒變」，而
-                    // listener 一斷線 cache 就整個清空（APK 更新後會重綁），同一則通知再被
-                    // 投遞一次就又記一筆。2026-08-20 實地記成兩筆，改用持久化的內文指紋擋
-                    // （取捨說明見 ProcessedNotificationLog）。
-                    if (!ProcessedNotificationLog.markIfNew(context, body)) {
-                        Log.i(TAG, "notification already processed, skip");
-                        return;
+                    // 疊在同一則通知裡、比最新那則早的訊息先送（見 earlierMessages），
+                    // 最後才是這次的內文——依發出順序入帳。
+                    List<String> bodies = new ArrayList<>();
+                    for (EarlierMessage m : notification.earlierMessages) {
+                        bodies.add(m.body);
                     }
-                    Intent serviceIntent = new Intent(ACTION_NEW_TRANSACTION_SMS, null, context, FinancistoService.class);
-                    serviceIntent.putExtra(SMS_TRANSACTION_PACKAGE, pkg);
-                    serviceIntent.putExtra(SMS_TRANSACTION_NUMBER, title);
-                    serviceIntent.putExtra(SMS_TRANSACTION_BODY, body);
-                    serviceIntent.putExtra(SMS_TRANSACTION_IS_GROUP_SUMMARY, isGroupSummary);
-                    FinancistoService.enqueueWork(context, serviceIntent);
+                    bodies.add(body);
+                    for (String b : bodies) {
+                        if (b.contains(BACKUP_TRIGGER)) continue;
+                        // 防重複記帳：上面那個 cache 比對只擋「同一個通知 key 的內文沒變」，而
+                        // listener 一斷線 cache 就整個清空（APK 更新後會重綁），同一則通知再被
+                        // 投遞一次就又記一筆。2026-08-20 實地記成兩筆，改用持久化的內文指紋擋
+                        // （取捨說明見 ProcessedNotificationLog）。疊起來的訊息也靠它：前一則
+                        // 若早已單獨跳過通知、記過了，這裡組出的 body 跟當時一字不差，會被擋下。
+                        if (!ProcessedNotificationLog.markIfNew(context, b)) {
+                            Log.i(TAG, "notification already processed, skip");
+                            continue;
+                        }
+                        Intent serviceIntent = new Intent(ACTION_NEW_TRANSACTION_SMS, null, context, FinancistoService.class);
+                        serviceIntent.putExtra(SMS_TRANSACTION_PACKAGE, pkg);
+                        serviceIntent.putExtra(SMS_TRANSACTION_NUMBER, title);
+                        serviceIntent.putExtra(SMS_TRANSACTION_BODY, b);
+                        serviceIntent.putExtra(SMS_TRANSACTION_IS_GROUP_SUMMARY, isGroupSummary);
+                        FinancistoService.enqueueWork(context, serviceIntent);
+                    }
                 }
             }
         }
@@ -268,8 +300,67 @@ public class NotificationListener extends NotificationListenerService {
             }
             result.text = sb.toString();
             result.body = result.title + " " + sb;
+            result.earlierMessages = earlierMessages(notification, result.title, result.postTime);
         }
         return result;
+    }
+
+    /** 疊起來的訊息只回溯這麼久：協助「同時到達被疊在一起」的情況，不重掃整串聊天。 */
+    static final long EARLIER_MESSAGE_WINDOW_MS = 30L * 60 * 1000;
+
+    /**
+     * 同一個對話的通知裡，比最新那則更早、但還沒被當成內文送過的訊息。
+     *
+     * 聊天 app（Telegram 等）一個對話只掛一則通知，新訊息到了是「更新」那則通知：
+     * EXTRA_TEXT 只放最新一則，之前的訊息只留在 MessagingStyle 的訊息清單裡。平常一則
+     * 一則到，每則都輪過一次 EXTRA_TEXT，各自被記到；但手機睡著時幾則訊息會一起到，
+     * app 只跳一次通知，前面幾則就從沒當過 EXTRA_TEXT——**靜默漏記**。2026-10-08 實地：
+     * Finn 隔 4 秒發的兩筆記帳只記到第 2 筆，第 1 筆連 0 元殘骸都沒有（從沒進樣板比對）。
+     *
+     * 回傳的 body 用與 {@link #extractNotification} 完全相同的組法（「標題 空格 內文 空格」——
+     * 沒有 big text 時 {@link #getString} 給空字串，結尾就多一個空格），這樣一則訊息不論是
+     * 自己跳過通知、還是後來疊在別則裡被翻出來，指紋都一樣，{@code ProcessedNotificationLog}
+     * 才擋得住重複。
+     *
+     * 刻意保守的三點：
+     * <ul>
+     *   <li>清單最後一則一律跳過——它就是 EXTRA_TEXT 那則，已經由主內文處理；就算兩邊
+     *       字面有出入，也不能讓同一則訊息從兩條路各記一筆。</li>
+     *   <li>只回溯 {@link #EARLIER_MESSAGE_WINDOW_MS}：通知沒被滑掉時，對話裡未讀訊息會
+     *       一直累積，過了指紋的保存期就會被當成新的再記一次。</li>
+     *   <li>讀不出 MessagingStyle 就回空清單，行為與以前相同。</li>
+     * </ul>
+     */
+    static List<EarlierMessage> earlierMessages(Notification notification, String title, long postTime) {
+        List<EarlierMessage> out = new ArrayList<>();
+        NotificationCompat.MessagingStyle style;
+        try {
+            style = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(notification);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "cannot read messaging style", e);
+            return out;
+        }
+        if (style == null) return out;
+        List<NotificationCompat.MessagingStyle.Message> messages = style.getMessages();
+        for (int i = 0; i < messages.size() - 1; i++) {
+            NotificationCompat.MessagingStyle.Message m = messages.get(i);
+            CharSequence text = m.getText();
+            if (text == null || text.length() == 0) continue;
+            long time = m.getTimestamp();
+            if (time > 0 && postTime - time > EARLIER_MESSAGE_WINDOW_MS) continue;
+            out.add(new EarlierMessage(title + " " + text + " ", time > 0 ? time : postTime));
+        }
+        return out;
+    }
+
+    public static class EarlierMessage {
+        public final String body;
+        public final long time;
+
+        EarlierMessage(String body, long time) {
+            this.body = body;
+            this.time = time;
+        }
     }
 
     public static class ParsedNotification {
@@ -282,6 +373,8 @@ public class NotificationListener extends NotificationListenerService {
         public boolean isGroupSummary;
         /** When the notification was posted; used to order the notification list. */
         public long postTime;
+        /** 疊在這則通知裡、比內文那則更早的訊息（見 {@link #earlierMessages}）。 */
+        public List<EarlierMessage> earlierMessages = new ArrayList<>();
     }
 
     private static String getString(Object s) {
