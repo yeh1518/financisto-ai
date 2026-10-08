@@ -17,13 +17,24 @@
         android:textAppearance="?android:attr/textAppearanceMedium"
         android:textColor="@color/material_teal" />
 
+    <!-- 群組摘要（上游 v265 起保留、並標出來）。預設樣板不比對摘要，見 SmsTemplate.matchGroupSummary。 -->
+    <TextView android:id="@+id/is_group_summary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/sms_tpl_group_summary"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/meta"
+        android:textAppearance="?android:attr/textAppearanceSmall"
+        android:textColor="@color/material_brown" />
+
     <TextView android:id="@+id/body"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="5dp"
         android:text="Body"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/meta"
+        app:layout_constraintTop_toBottomOf="@id/is_group_summary"
         android:textAppearance="?android:attr/textAppearanceSmall" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -128,7 +128,7 @@
   <string name="note">備註</string>
   <string name="tag">標籤</string>
   <string name="tags">標籤</string>
-  <string name="no_tags">沒有標籤</string>
+  <string name="no_tags">無標籤</string>
   <string name="select_tags">選擇標籤…</string>
   <string name="new_tag">新標籤</string>
   <string name="enter_tag_name">輸入標籤名稱</string>
@@ -146,6 +146,7 @@
   <string name="no_reports">無報告</string>
   <string name="select_report">請選擇報告…</string>
   <string name="overall">全體</string>
+
   <string name="report_by_period">以期間統計</string>
   <string name="report_by_period_summary">以期間分別統計的交易報告</string>
   <string name="report_by_category">依分類</string>
@@ -154,6 +155,9 @@
   <string name="report_by_location_summary">以地點分別統計的交易報告</string>
   <string name="report_by_project">以專案統計</string>
   <string name="report_by_project_summary">以專案分別統計的交易報告</string>
+  <string name="report_by_tag">以標籤統計</string>
+  <string name="report_by_tag_summary">以標籤分別統計的交易報告</string>
+
   <string name="report_by_account_by_period">以帳戶 / 期間統計</string>
   <string name="report_by_account_by_period_summary">以帳戶與期間統計的交易報告</string>
   <string name="report_by_category_by_period">以分類 / 期間統計</string>
@@ -162,6 +166,8 @@
   <string name="report_by_location_by_period_summary">以地點與期間統計的交易報告</string>
   <string name="report_by_project_by_period">以專案 / 期間統計</string>
   <string name="report_by_project_by_period_summary">以專案與期間統計的交易報告</string>
+  <string name="report_by_tag_by_period">以標籤 / 期間統計</string>
+  <string name="report_by_tag_by_period_summary">以標籤與期間統計的交易報告</string>
   <string name="report_by_account_balance_by_period">以帳戶結餘 / 期間統計</string>
   <string name="report_by_account_balance_by_period_summary">以帳戶餘額與期間統計的報告</string>
   <string name="report_total_balance_by_period">總餘額 / 期間統計</string>
@@ -180,6 +186,7 @@
   <string name="report_no_project">沒有專案可供過濾報告內容。</string>
   <string name="report_no_account">沒有帳戶可供過濾報告內容。</string>
   <string name="report_no_location">沒有地點可供過濾報告內容。</string>
+  <string name="report_no_tag">沒有標籤可供過濾報告內容。</string>
   <string name="no_account">沒有帳戶</string>
   <string name="period_today">今天</string>
   <string name="period_yesterday">昨天</string>
@@ -334,6 +341,10 @@
   <string name="show_project_summary">顯示專案下拉選單</string>
   <string name="show_project_order">專案順序</string>
   <string name="show_project_order_summary">專案下拉選單的相對位置</string>
+  <string name="show_tags">顯示標籤</string>
+  <string name="show_tags_summary">顯示標籤選單</string>
+  <string name="show_tags_order">標籤順序</string>
+  <string name="show_tags_order_summary">標籤選單的相對位置</string>
   <string name="remember_selection">記憶選取內容</string>
   <string name="remember_last_account">上次帳戶</string>
   <string name="remember_last_account_summary">記住上次選擇的帳戶</string>
@@ -923,6 +934,9 @@
   <string name="sms_tpl_title">模板 (?)</string>
   <string name="sms_tpl_desc">佔位標籤: \n{{p}} - 金額\n{{a}} - 帳號/卡號片段\n{{c}} - 帳號名稱\n{{x}} - 轉帳對象帳號名稱\n{{f}} - ISO 4217 貨幣代碼\n{{e}} - 受款人名稱\n{{r}} - 專案名稱 (不能有空白)\n{{t}} - 交易內容敘述 (盡可能短)\n{{u}} - 交易內容敘述 (盡可能長)\n{{g}} - UNIX 時間戳記 (毫秒)\n{{*}} - 任意內容 (不處理)</string>
   <string name="sms_tpl_hint">在此輸入模板，並以佔位標籤標記資料</string>
+  <string name="sms_tpl_group_summary">群組摘要</string>
+  <string name="sms_tpl_match_group_summary">匹配群組摘要通知</string>
+  <string name="sms_tpl_match_normal">匹配一般通知</string>
   <string name="sms_note_title">備註 (?)</string>
   <string name="sms_note_desc">佔位標籤: \n{{t}} - 會被換成模板取得的交易內容敘述</string>
   <string name="sms_note_hint">輸入產生交易時填寫的備註</string>
@@ -1091,6 +1105,8 @@
   <string name="project_selector_type_summary">設定選取 專案 的時候主要用搜尋還是顯示清單</string>
   <string name="location_selector_type_title">地點 選取方式</string>
   <string name="location_selector_type_summary">設定選取 地點 的時候主要用搜尋還是顯示清單</string>
+  <string name="tags_selector_type_title">標籤 選取方式</string>
+  <string name="tags_selector_type_summary">設定選取 標籤 的時候主要用搜尋還是顯示清單</string>
   <string name="selector_type_summary">選取實體的方式</string>
   <string-array name="selector_type_entries">
         <item>左邊按鈕: 搜尋, 中間: 清單</item>
@@ -1108,6 +1124,7 @@
   <string name="export_running_balance">匯出逐筆餘額</string>
   <string name="export_transfer_as_single_line">以一行匯出轉帳交易</string>
   <string name="export_use_currency_specific_decimals">使用貨幣定義的小數位數</string>
+  <string name="export_tags">匯出標籤</string>
 
   <string name="transfer_current_balance">轉出所有餘額</string>
   <string name="show_transfer_current_balance">顯示「轉出目前餘額」</string>
@@ -1287,4 +1304,10 @@
   <string name="ai_rec_transcribing">辨識中…</string>
   <string name="ai_rec_retry">重試</string>
   <string name="ai_voice_recording_label">● %1$s　點麥克風完成</string>
+  <string name="tags_op">標籤篩選</string>
+  <string name="tags_op_default">所有 (AND)</string>
+  <string-array name="tags_op_entries">
+    <item>所有 (AND)</item>
+    <item>任一個 (OR)</item>
+  </string-array>
 </resources>

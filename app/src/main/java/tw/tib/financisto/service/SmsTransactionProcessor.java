@@ -9,6 +9,7 @@ import tw.tib.financisto.R;
 import tw.tib.financisto.ai.AiLog;
 import tw.tib.financisto.db.DatabaseAdapter;
 import tw.tib.financisto.model.Account;
+import tw.tib.financisto.model.MyLocation;
 import tw.tib.financisto.model.Payee;
 import tw.tib.financisto.model.Project;
 import tw.tib.financisto.model.SmsTemplate;
@@ -58,17 +59,19 @@ public class SmsTransactionProcessor {
      * Parses sms and adds new transaction if it matches any sms template
      * @return new transaction or null if not matched/parsed
      */
-    public Transaction createTransactionBySms(Context context, String pkg, String addr, String fullSmsBody, TransactionStatus status, boolean updateNote) {
-        return process(context, pkg, addr, fullSmsBody, status, updateNote).transaction;
-    }
-
-    /** 同 {@link #createTransactionBySms}，但回報「為什麼沒記成」——給要對人解釋的 UI 用。 */
-    public Result process(Context context, String pkg, String addr, String fullSmsBody, TransactionStatus status, boolean updateNote) {
-        return process(context, pkg, addr, fullSmsBody, status, updateNote, 0);
+    public Transaction createTransactionBySms(
+            Context context, String pkg, String addr, String fullSmsBody, boolean isGroupSummary,
+            TransactionStatus status, boolean updateNote)
+    {
+        return process(context, pkg, addr, fullSmsBody, isGroupSummary, status, updateNote, 0).transaction;
     }
 
     /**
+     * 同 {@link #createTransactionBySms}，但回報「為什麼沒記成」——給要對人解釋的 UI 用。
+     *
      * @param pkg 通知來源套件名（上游 v251 起樣板可用套件名比對；實體簡訊沒有，傳 null）
+     * @param isGroupSummary 這則是不是群組摘要（上游 v265）。只有 {@code matchGroupSummary}
+     *        與它相同的樣板才參與比對。
      * @param fallbackDateTime 樣板沒抽到 {@code {{g}}} 時間戳時，要記成的交易時間
      *        （0＝用交易物件預設的「當下」）。
      *
@@ -77,14 +80,18 @@ public class SmsTransactionProcessor {
      *        當下 ≈ 通知時間），所以走上面那個不帶時間的版本。
      *        樣板自己抽到的 {{g}} 優先——那是銀行給的，比通知時間準。
      */
-    public Result process(Context context, String pkg, String addr, String fullSmsBody, TransactionStatus status,
-                          boolean updateNote, long fallbackDateTime) {
+    public Result process(Context context, String pkg, String addr, String fullSmsBody, boolean isGroupSummary,
+                          TransactionStatus status, boolean updateNote, long fallbackDateTime) {
         Result res = new Result();
         List<SmsTemplate> addrTemplates = db.getSmsTemplatesByPkgTitle(pkg, addr);
         // 逐條記下每個候選樣板的下場（AiLog kind=tmatch）。比不中是靜默失敗，而使用者
         // 常在失望之下把樣板刪掉——不當場留樣板全文，事後連錯在哪都無從重建。
         JSONArray trace = new JSONArray();
         for (final SmsTemplate template : addrTemplates) {
+            if (isGroupSummary != template.matchGroupSummary) {
+                continue;
+            }
+
             String[] match = findTemplateMatches(template.template, fullSmsBody);
             if (match == null) {
                 trace.put(traceEntry(template, "比不中"));
@@ -315,6 +322,11 @@ public class SmsTransactionProcessor {
                 if (templateProject != null) {
                     res.projectId = smsTemplate.projectId;
                 }
+            }
+
+            if (smsTemplate.locationId != MyLocation.CURRENT_LOCATION_ID
+                    && db.get(MyLocation.class, smsTemplate.locationId) != null) {
+                res.locationId = smsTemplate.locationId;
             }
 
             long fromAmount = (smsTemplate.isIncome ? 1 : -1) * Math.abs(price.multiply(HUNDRED).longValue());

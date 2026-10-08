@@ -3,6 +3,7 @@ package tw.tib.financisto.service;
 import static tw.tib.financisto.service.FinancistoService.ACTION_NEW_TRANSACTION_SMS;
 import static tw.tib.financisto.service.FinancistoService.ACTION_NEW_TRANSACTION_WALLET;
 import static tw.tib.financisto.service.FinancistoService.SMS_TRANSACTION_BODY;
+import static tw.tib.financisto.service.FinancistoService.SMS_TRANSACTION_IS_GROUP_SUMMARY;
 import static tw.tib.financisto.service.FinancistoService.SMS_TRANSACTION_NUMBER;
 import static tw.tib.financisto.service.FinancistoService.SMS_TRANSACTION_PACKAGE;
 import static tw.tib.financisto.service.FinancistoService.WALLET_TRANSACTION_TEXT;
@@ -24,6 +25,7 @@ import androidx.core.app.NotificationManagerCompat;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -166,15 +168,20 @@ public class NotificationListener extends NotificationListenerService {
             String pkg = notification.pkg;
             String title = notification.title;
             String body = notification.body;
+            boolean isGroupSummary = notification.isGroupSummary;
 
-            Log.d(TAG, "title=\"" + title + "\", body=\"" + body + "\"");
+            Log.d(TAG, "title=\"" + title + "\", body=\"" + body + "\", isGroupSummary=" + isGroupSummary);
             Log.d(TAG, sbn.getNotification().extras.toString());
 
             // 存進滾動日誌給「AI 產樣板」的通知列表用（cache 滑掉就沒了，日誌留 7 天）。
             // body 存與樣板引擎吃到的同一格式（含 title 前綴），生成樣板回測才一致。
             // 時間一定要傳 sbn 的 postTime、不能讓日誌自己取當下：onListenerConnected 會把
             // 通知欄裡還掛著的舊通知整批重掃一遍，用當下時間會把它們全壓成「app 啟動那一刻」。
-            NotificationJournal.record(context, packageName, title, body, notification.postTime);
+            // 群組摘要不進日誌：它多半是同一則通知的複本（上游 #157 的 monobank），
+            // 進了日誌列表就是兩則一模一樣的，產樣板也只會挑到預設不比對摘要的那種。
+            if (!isGroupSummary) {
+                NotificationJournal.record(context, packageName, title, body, notification.postTime);
+            }
 
             if (processTemplate && (existing == null || !body.equals(existing.body))) {
                 // 遠端觸發備份：任何通知內文含這個標記（慣例是電腦端要對帳前發來的
@@ -188,7 +195,10 @@ public class NotificationListener extends NotificationListenerService {
                     return;
                 }
 
-                if (isGoogleWalletPackage(packageName)
+                // 摘要不走 Wallet 解析：上游 v265 以前摘要在 extractNotification 就被丟掉，
+                // Wallet 那條路從來沒看過摘要；保留時不擋，一則消費就可能記兩筆。
+                if (!isGroupSummary
+                        && isGoogleWalletPackage(packageName)
                         && MyPreferences.isGoogleWalletTransactionEnabled())
                 {
                     Intent serviceIntent = new Intent(ACTION_NEW_TRANSACTION_WALLET, null, context, FinancistoService.class);
@@ -201,6 +211,13 @@ public class NotificationListener extends NotificationListenerService {
 
                 final DatabaseAdapter db = new DatabaseAdapter(context);
                 List<SmsTemplate> templates = db.getSmsTemplatesByPkgTitle(pkg, title);
+                // 只留「摘要與否」對得上的樣板（同 SmsTransactionProcessor 的篩法）。一定要在
+                // 下面寫指紋之前篩：摘要與本體內文相同，摘要若先到、沒有樣板會收它卻照樣寫下指紋，
+                // 隨後到的本體就被當成「已處理」擋掉，這筆帳整個漏記。
+                // （不用 removeIf：minSdk 23，那是 API 24 的。）
+                for (Iterator<SmsTemplate> it = templates.iterator(); it.hasNext(); ) {
+                    if (it.next().matchGroupSummary != isGroupSummary) it.remove();
+                }
 
                 if (!templates.isEmpty()) {
                     // 防重複記帳：上面那個 cache 比對只擋「同一個通知 key 的內文沒變」，而
@@ -215,6 +232,7 @@ public class NotificationListener extends NotificationListenerService {
                     serviceIntent.putExtra(SMS_TRANSACTION_PACKAGE, pkg);
                     serviceIntent.putExtra(SMS_TRANSACTION_NUMBER, title);
                     serviceIntent.putExtra(SMS_TRANSACTION_BODY, body);
+                    serviceIntent.putExtra(SMS_TRANSACTION_IS_GROUP_SUMMARY, isGroupSummary);
                     FinancistoService.enqueueWork(context, serviceIntent);
                 }
             }
@@ -226,15 +244,16 @@ public class NotificationListener extends NotificationListenerService {
         Notification notification = sbn.getNotification();
         Bundle extras = notification.extras;
         // skip group summary notifications
-        if ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0) {
-            return null;
-        }
+//        if ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0) {
+//            return null;
+//        }
         if (extras != null) {
             StringBuilder sb = new StringBuilder();
             result = new ParsedNotification();
             result.key = sbn.getKey();
             result.pkg = sbn.getPackageName();
             result.postTime = sbn.getPostTime();
+            result.isGroupSummary = ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0);
             result.title = getString(extras.getCharSequence(Notification.EXTRA_TITLE));
             String text = getString(extras.getCharSequence(Notification.EXTRA_TEXT));
             if (text != null) {
@@ -260,6 +279,7 @@ public class NotificationListener extends NotificationListenerService {
         public String body;
         /** 來源套件名。列表顯示 app 名稱、以及排除整個 app 都靠它。 */
         public String pkg;
+        public boolean isGroupSummary;
         /** When the notification was posted; used to order the notification list. */
         public long postTime;
     }

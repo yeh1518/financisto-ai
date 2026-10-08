@@ -357,7 +357,7 @@ public class NotificationListActivity extends AppCompatActivity {
             SmsTransactionProcessor.Result r = new SmsTransactionProcessor.Result();
             try {
                 r = new SmsTransactionProcessor(db).process(
-                        this, n.pkg, n.title, n.body,
+                        this, n.pkg, n.title, n.body, n.isGroupSummary,
                         MyPreferences.getSmsTransactionStatus(),
                         MyPreferences.shouldSaveSmsToTransactionNote(),
                         // 通知時間當交易時間（樣板自己抽到 {{g}} 時以那個為準）：日誌留 7 天，
@@ -522,7 +522,13 @@ public class NotificationListActivity extends AppCompatActivity {
                 // 挑選模式補上日誌裡的歷史通知（滑掉的還找得回來）；同標題+內文去重
                 Set<String> seen = new HashSet<>();
                 for (NotificationListener.ParsedNotification n : list) {
-                    seen.add(n.title + "\n" + n.body);
+                    if (!n.isGroupSummary) seen.add(n.title + "\n" + n.body);
+                }
+                // 群組摘要跟本體內文相同時只留本體：挑來產樣板的該是本體
+                // （樣板預設不比對摘要），兩則一模一樣並排只會讓人猶豫要點哪個。
+                for (Iterator<NotificationListener.ParsedNotification> it = list.iterator(); it.hasNext(); ) {
+                    NotificationListener.ParsedNotification n = it.next();
+                    if (n.isGroupSummary && seen.contains(n.title + "\n" + n.body)) it.remove();
                 }
                 for (NotificationJournal.Entry e : NotificationJournal.read(context)) {
                     if (seen.add(e.title + "\n" + e.body)) {
@@ -615,11 +621,13 @@ public class NotificationListActivity extends AppCompatActivity {
     static class NotificationViewHolder {
         public TextView body;
         public TextView meta;
+        public TextView isGroupSummary;
         public NotificationListener.ParsedNotification notification;
 
         public NotificationViewHolder(@NonNull View itemView) {
             body = itemView.findViewById(R.id.body);
             meta = itemView.findViewById(R.id.meta);
+            isGroupSummary = itemView.findViewById(R.id.is_group_summary);
         }
 
         public void bindView(NotificationListener.ParsedNotification notification, String metaText) {
@@ -627,6 +635,7 @@ public class NotificationListActivity extends AppCompatActivity {
             body.setText(notification.body);
             meta.setText(metaText);
             meta.setVisibility(metaText.isEmpty() ? View.GONE : View.VISIBLE);
+            isGroupSummary.setVisibility(notification.isGroupSummary ? View.VISIBLE : View.GONE);
         }
     }
 }

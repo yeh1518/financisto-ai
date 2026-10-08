@@ -28,6 +28,7 @@ import tw.tib.financisto.R;
 import tw.tib.financisto.db.DatabaseAdapter;
 import tw.tib.financisto.db.DatabaseHelper.BlotterColumns;
 import tw.tib.financisto.model.Currency;
+import tw.tib.financisto.model.Tag;
 import tw.tib.financisto.utils.CurrencyCache;
 import tw.tib.financisto.utils.MyPreferences;
 import tw.tib.financisto.utils.Utils;
@@ -161,7 +162,7 @@ public class TransactionsListAdapter extends BlotterListAdapter {
         if (v.iconView2 != null) {
             long parentId = cursor.getLong(BlotterColumns.parent_id.ordinal());
             if (parentId == 0) {
-                v.iconView2.setVisibility(View.INVISIBLE);
+                v.iconView2.setVisibility(View.GONE);
             } else {
                 v.iconView2.setVisibility(View.VISIBLE);
                 v.iconView2.setImageDrawable(icBlotterSplit);

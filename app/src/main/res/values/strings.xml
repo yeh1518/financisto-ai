@@ -172,6 +172,8 @@
     <string name="report_by_location_summary">Transactions report by location</string>
     <string name="report_by_project">By Project</string>
     <string name="report_by_project_summary">Transactions report by project</string>
+    <string name="report_by_tag">By Tag</string>
+    <string name="report_by_tag_summary">Transactions report by tag</string>
 
     <string name="report_by_account_by_period">By Account / Period</string>
     <string name="report_by_account_by_period_summary">Transactions report by account and period</string>
@@ -181,6 +183,8 @@
     <string name="report_by_location_by_period_summary">Transactions report by location and period</string>
     <string name="report_by_project_by_period">By Project / Period</string>
     <string name="report_by_project_by_period_summary">Transactions report by project and period</string>
+    <string name="report_by_tag_by_period">By Tag / Period</string>
+    <string name="report_by_tag_by_period_summary">Transactions report by tag and period</string>
     <string name="report_by_account_balance_by_period">By Account Balance / Period</string>
     <string name="report_by_account_balance_by_period_summary">Account balance report by period</string>
     <string name="report_total_balance_by_period">Total Balance / Period</string>
@@ -199,6 +203,7 @@
     <string name="report_no_project">There is no project available for filtering in the report.</string>
     <string name="report_no_account">There is no account available for filtering in the report.</string>
     <string name="report_no_location">There is no location available for filtering in the report.</string>
+    <string name="report_no_tag">There is no tag available for filtering in the report.</string>
     <string name="no_account">No account</string>
     <string name="filter_transfer">Transfer</string>
     <string name="filter_transfer_exclude">Exclude</string>
@@ -359,6 +364,7 @@
     <string name="duplicate_success_with_multiplier">Transaction has been duplicated with the current date and time (x%d)</string>
     <string name="no_category">No category</string>
     <string name="no_project">No project</string>
+    <string name="no_location">No location</string>
     <string name="no_period">No period</string>
     <string name="current_location">Current location</string>
     <string name="protection">Protection</string>
@@ -1137,6 +1143,9 @@
     <string name="sms_tpl_title">Template (?)</string>
     <string name="sms_tpl_desc">Placeholders: \n{{p}} - price\n{{a}} - account last digits\n{{c}} - account name\n{{x}} - transfer to account name\n{{f}} - ISO 4217 currency code\n{{e}} - payee title\n{{r}} - project title (can\'t contain space)\n{{t}} - note text (non-greedy)\n{{u}} - note text (greedy)\n{{g}} - Unix timestamp in milliseconds\n{{*}} - any symbols/words</string>
     <string name="sms_tpl_hint">Specify template with placeholders here</string>
+    <string name="sms_tpl_group_summary">Group Summary</string>
+    <string name="sms_tpl_match_group_summary">Match group summary notifications</string>
+    <string name="sms_tpl_match_normal">Match normal notifications</string>
     <string name="sms_note_title">Note (?)</string>
     <string name="sms_note_desc">Placeholders: \n{{t}} - note text extracted by template</string>
     <string name="sms_note_hint">Specify note to apply to generated transaction</string>
@@ -1256,6 +1265,8 @@
     <string name="project_selector_type_summary">Configure primarily using search or showing list when choosing project.</string>
     <string name="location_selector_type_title">Location selector type</string>
     <string name="location_selector_type_summary">Configure primarily using search or showing list when choosing location.</string>
+    <string name="tags_selector_type_title">Tags selector type</string>
+    <string name="tags_selector_type_summary">Configure primarily using search or showing list when choosing tags.</string>
     <string name="selector_type_summary">Selector type for entities</string>
     <string-array name="selector_type_entries">
         <item>Button on left: Search, Center: List</item>
@@ -1277,6 +1288,7 @@
     <string name="export_running_balance">Export running balance</string>
     <string name="export_transfer_as_single_line">Export transfer in single line</string>
     <string name="export_use_currency_specific_decimals">Use decimal places specified by currencies</string>
+    <string name="export_tags">Export Tags</string>
 
     <string name="transfer_current_balance">Transfer current balance</string>
     <string name="show_transfer_current_balance">Show \'Transfer current balance\'</string>
@@ -1456,4 +1468,10 @@
     <string name="ai_rec_transcribing">Transcribing…</string>
     <string name="ai_rec_retry">Retry</string>
     <string name="ai_voice_recording_label">● %1$s — tap mic to finish</string>
+    <string name="tags_op">Tags filtering</string>
+    <string name="tags_op_default">All of selected (AND)</string>
+    <string-array name="tags_op_entries">
+        <item>All of selected (AND)</item>
+        <item>Any of selected (OR)</item>
+    </string-array>
 </resources>

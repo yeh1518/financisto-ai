@@ -66,6 +66,7 @@ public class DatabaseHelper extends DatabaseSchemaEvolution {
     public static final String V_REPORT_LOCATIONS = "v_report_location";
     public static final String V_REPORT_PROJECTS = "v_report_project";
     public static final String V_REPORT_PAYEES = "v_report_payee";
+    public static final String V_REPORT_TAGS = "v_report_tag";
     public static final String V_EXCHANGE_RATE = "v_exchange_rate";
 
     public static enum TransactionColumns {
@@ -308,10 +309,12 @@ public class DatabaseHelper extends DatabaseSchemaEvolution {
         title,
         description,
         template,
+        match_group_summary,
         note,
         category_id,
         payee_id,
         project_id,
+        location_id,
         account_id,
         to_account_id,
         is_income,
@@ -324,7 +327,8 @@ public class DatabaseHelper extends DatabaseSchemaEvolution {
         cat_name,
         cat_level,
         payee_name,
-        project_name
+        project_name,
+        location_name
     }
 
     public static class TransactionAttributeColumns {

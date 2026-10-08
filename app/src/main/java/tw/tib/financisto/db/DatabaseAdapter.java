@@ -28,6 +28,7 @@ import tw.tib.financisto.datetime.DateUtils;
 import tw.tib.financisto.filter.Criterion;
 import tw.tib.financisto.filter.WhereFilter;
 import tw.tib.financisto.model.Currency;
+import tw.tib.financisto.model.Tag;
 import tw.tib.financisto.utils.ArrUtils;
 import tw.tib.financisto.utils.MyPreferences;
 import tw.tib.financisto.utils.StringUtil;
@@ -1287,21 +1288,25 @@ public class DatabaseAdapter extends MyEntityManager {
 
     public Cursor getSmsTemplatesWithFullInfo(final String filter) {
         String nativeQuery = String.format(
-                "select %s, c.%s as %s, c.%s as %s, e.%s as %s, p.%s as %s " +
+                "select %s, c.%s as %s, c.%s as %s, e.%s as %s, p.%s as %s, l.%s as %s " +
                         "from %s t left outer join %s c on t.%s = c.%s " +
                         "left outer join %s e on t.%s = e.%s " +
-                        "left outer join %s p on t.%s = p.%s ",
+                        "left outer join %s p on t.%s = p.%s " +
+                        "left outer join %s l on t.%s = l.%s ",
                 DatabaseUtils.generateSelectClause(DatabaseHelper.SmsTemplateColumns.NORMAL_PROJECTION, "t"),
                 DatabaseHelper.CategoryViewColumns.title, DatabaseHelper.SmsTemplateListColumns.cat_name, DatabaseHelper.CategoryViewColumns.level, DatabaseHelper.SmsTemplateListColumns.cat_level,
                 DatabaseHelper.EntityColumns.TITLE, DatabaseHelper.SmsTemplateListColumns.payee_name,
                 DatabaseHelper.EntityColumns.TITLE, DatabaseHelper.SmsTemplateListColumns.project_name,
+                DatabaseHelper.EntityColumns.TITLE, DatabaseHelper.SmsTemplateListColumns.location_name,
                 DatabaseHelper.SMS_TEMPLATES_TABLE,
                 DatabaseHelper.V_CATEGORY,
                 DatabaseHelper.SmsTemplateColumns.category_id, DatabaseHelper.CategoryViewColumns._id,
                 DatabaseHelper.PAYEE_TABLE,
                 DatabaseHelper.SmsTemplateColumns.payee_id, DatabaseHelper.EntityColumns.ID,
                 DatabaseHelper.PROJECT_TABLE,
-                DatabaseHelper.SmsTemplateColumns.project_id, DatabaseHelper.EntityColumns.ID);
+                DatabaseHelper.SmsTemplateColumns.project_id, DatabaseHelper.EntityColumns.ID,
+                DatabaseHelper.LOCATIONS_TABLE,
+                DatabaseHelper.SmsTemplateColumns.location_id, DatabaseHelper.EntityColumns.ID);
         if (!StringUtil.isEmpty(filter)) {
             nativeQuery += String.format("where t.%s like '%%%s%%' or t.%s like '%%%2$s%%' ",
                     DatabaseHelper.CategoryViewColumns.title, filter, DatabaseHelper.SmsTemplateColumns.template);
@@ -1381,37 +1386,22 @@ public class DatabaseAdapter extends MyEntityManager {
     }
 
     public List<String> getAllUniqueTags() {
-        TreeSet<String> set = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        var tags = new ArrayList<String>();
         try (Cursor c = db().rawQuery("SELECT title FROM " + DatabaseHelper.TAG_TABLE + " WHERE is_active=1", null)) {
             while (c.moveToNext()) {
                 String title = c.getString(0);
                 if (title != null && !title.trim().isEmpty()) {
-                    set.add(title.trim());
+                    tags.add(title.trim());
                 }
             }
         } catch (Exception e) {
             // tag table might not exist yet during migration
         }
-        try (Cursor c = db().rawQuery("SELECT DISTINCT tags FROM " + DatabaseHelper.TRANSACTION_TABLE + " WHERE tags IS NOT NULL AND tags != ''", null)) {
-            while (c.moveToNext()) {
-                String raw = c.getString(0);
-                if (raw != null) {
-                    for (String t : raw.split("\n")) {
-                        String trimmed = t.trim();
-                        if (!trimmed.isEmpty()) {
-                            set.add(trimmed);
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to get unique tags", e);
-        }
-        return new ArrayList<>(set);
+        return tags;
     }
 
     public void deleteTag(long id) {
-        delete(tw.tib.financisto.model.Tag.class, id);
+        delete(Tag.class, id);
     }
 
     public long insertOrUpdate(Attribute attribute) {
