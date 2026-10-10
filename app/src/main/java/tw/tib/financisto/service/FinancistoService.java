@@ -49,6 +49,8 @@ public class FinancistoService extends JobIntentService {
     public static final String SMS_TRANSACTION_BODY = "SMS_TRANSACTION_BODY";
     public static final String SMS_TRANSACTION_IS_GROUP_SUMMARY = "SMS_TRANSACTION_IS_GROUP_SUMMARY";
     public static final String ACTION_NEW_TRANSACTION_WALLET = "tw.tib.financisto.NEW_TRANSACTION_WALLET";
+    /** 自家 bot 的分割訊息（🧾分割）：一則通知記成一筆分割交易，不走樣板引擎。 */
+    public static final String ACTION_NEW_TRANSACTION_SPLIT = "tw.tib.financisto.NEW_TRANSACTION_SPLIT";
     public static final String WALLET_TRANSACTION_TITLE = "WALLET_TRANSACTION_TITLE";
     public static final String WALLET_TRANSACTION_TEXT = "WALLET_TRANSACTION_TEXT";
 
@@ -97,7 +99,23 @@ public class FinancistoService extends JobIntentService {
                 case ACTION_NEW_TRANSACTION_WALLET:
                     processWalletTransaction(intent);
                     break;
+                case ACTION_NEW_TRANSACTION_SPLIT:
+                    processSplitTransaction(intent);
+                    break;
             }
+        }
+    }
+
+    private void processSplitTransaction(Intent intent) {
+        String number = intent.getStringExtra(SMS_TRANSACTION_NUMBER);
+        String body = intent.getStringExtra(SMS_TRANSACTION_BODY);
+        if (number == null || body == null) return;
+        Transaction t = new SplitTransactionProcessor(db).process(this, number, body, getSmsTransactionStatus());
+        if (t != null) {
+            TransactionInfo transactionInfo = db.getTransactionInfo(t.id);
+            Notification notification = createSmsTransactionNotification(transactionInfo, number);
+            NotificationUtils.notifyUser(this, notification, (int) t.id);
+            AccountWidget.updateWidgets(this);
         }
     }
 

@@ -1,6 +1,7 @@
 package tw.tib.financisto.service;
 
 import static tw.tib.financisto.service.FinancistoService.ACTION_NEW_TRANSACTION_SMS;
+import static tw.tib.financisto.service.FinancistoService.ACTION_NEW_TRANSACTION_SPLIT;
 import static tw.tib.financisto.service.FinancistoService.ACTION_NEW_TRANSACTION_WALLET;
 import static tw.tib.financisto.service.FinancistoService.SMS_TRANSACTION_BODY;
 import static tw.tib.financisto.service.FinancistoService.SMS_TRANSACTION_IS_GROUP_SUMMARY;
@@ -240,32 +241,36 @@ public class NotificationListener extends NotificationListenerService {
                     if (it.next().matchGroupSummary != isGroupSummary) it.remove();
                 }
 
-                if (!templates.isEmpty()) {
-                    // 疊在同一則通知裡、比最新那則早的訊息先送（見 earlierMessages），
-                    // 最後才是這次的內文——依發出順序入帳。
-                    List<String> bodies = new ArrayList<>();
-                    for (EarlierMessage m : notification.earlierMessages) {
-                        bodies.add(m.body);
+                // 疊在同一則通知裡、比最新那則早的訊息先送（見 earlierMessages），
+                // 最後才是這次的內文——依發出順序入帳。
+                List<String> bodies = new ArrayList<>();
+                for (EarlierMessage m : notification.earlierMessages) {
+                    bodies.add(m.body);
+                }
+                bodies.add(body);
+                for (String b : bodies) {
+                    if (b.contains(BACKUP_TRIGGER)) continue;
+                    // 分割訊息（🧾分割）不走樣板引擎：由程式直接切欄位、記成一筆分割交易。
+                    // 摘要不收（同樣板路線的預設），其餘與樣板路線同一套去重。
+                    boolean split = !isGroupSummary && SplitMessage.isSplitMessage(b);
+                    if (!split && templates.isEmpty()) continue;
+                    // 防重複記帳：上面那個 cache 比對只擋「同一個通知 key 的內文沒變」，而
+                    // listener 一斷線 cache 就整個清空（APK 更新後會重綁），同一則通知再被
+                    // 投遞一次就又記一筆。2026-08-20 實地記成兩筆，改用持久化的內文指紋擋
+                    // （取捨說明見 ProcessedNotificationLog）。疊起來的訊息也靠它：前一則
+                    // 若早已單獨跳過通知、記過了，這裡組出的 body 跟當時一字不差，會被擋下。
+                    if (!ProcessedNotificationLog.markIfNew(context, b)) {
+                        Log.i(TAG, "notification already processed, skip");
+                        continue;
                     }
-                    bodies.add(body);
-                    for (String b : bodies) {
-                        if (b.contains(BACKUP_TRIGGER)) continue;
-                        // 防重複記帳：上面那個 cache 比對只擋「同一個通知 key 的內文沒變」，而
-                        // listener 一斷線 cache 就整個清空（APK 更新後會重綁），同一則通知再被
-                        // 投遞一次就又記一筆。2026-08-20 實地記成兩筆，改用持久化的內文指紋擋
-                        // （取捨說明見 ProcessedNotificationLog）。疊起來的訊息也靠它：前一則
-                        // 若早已單獨跳過通知、記過了，這裡組出的 body 跟當時一字不差，會被擋下。
-                        if (!ProcessedNotificationLog.markIfNew(context, b)) {
-                            Log.i(TAG, "notification already processed, skip");
-                            continue;
-                        }
-                        Intent serviceIntent = new Intent(ACTION_NEW_TRANSACTION_SMS, null, context, FinancistoService.class);
-                        serviceIntent.putExtra(SMS_TRANSACTION_PACKAGE, pkg);
-                        serviceIntent.putExtra(SMS_TRANSACTION_NUMBER, title);
-                        serviceIntent.putExtra(SMS_TRANSACTION_BODY, b);
-                        serviceIntent.putExtra(SMS_TRANSACTION_IS_GROUP_SUMMARY, isGroupSummary);
-                        FinancistoService.enqueueWork(context, serviceIntent);
-                    }
+                    Intent serviceIntent = new Intent(
+                            split ? ACTION_NEW_TRANSACTION_SPLIT : ACTION_NEW_TRANSACTION_SMS,
+                            null, context, FinancistoService.class);
+                    serviceIntent.putExtra(SMS_TRANSACTION_PACKAGE, pkg);
+                    serviceIntent.putExtra(SMS_TRANSACTION_NUMBER, title);
+                    serviceIntent.putExtra(SMS_TRANSACTION_BODY, b);
+                    serviceIntent.putExtra(SMS_TRANSACTION_IS_GROUP_SUMMARY, isGroupSummary);
+                    FinancistoService.enqueueWork(context, serviceIntent);
                 }
             }
         }
