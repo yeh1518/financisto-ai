@@ -509,6 +509,12 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			// 但使用者自己在狀態選單挑過（含刻意挑「擱置」）就尊重他，不覆蓋。
 			if (!isNew && !statusPickedByUser && transaction.status == TransactionStatus.PN) {
 				transaction.status = TransactionStatus.UR;
+				// 子項有自己的狀態（存檔不再沿用母筆）：同樣是自動記帳寫進來、跟著母筆一起過目的，一起升
+				if (transaction.splits != null) {
+					for (Transaction split : transaction.splits) {
+						if (split.status == TransactionStatus.PN) split.status = TransactionStatus.UR;
+					}
+				}
 			}
 			long id = db.insertOrUpdate(transaction, getAttributes());
 			if (isNew) {

@@ -83,6 +83,7 @@ public class SplitTransactionProcessor {
             Transaction c = new Transaction();
             c.fromAccountId = accountId;
             c.fromAmount = sign * toMinor(p.amount);
+            c.status = status;          // 子項有自己的狀態（存檔不再沿用母筆），與母筆同樣標成「擱置」
             if (p.categoryId > 0) {
                 if (db.getCategory(p.categoryId) != null) c.categoryId = p.categoryId;
                 else unknownCategories++;

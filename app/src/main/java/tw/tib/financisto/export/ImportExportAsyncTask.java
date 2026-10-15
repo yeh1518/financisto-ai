@@ -136,7 +136,9 @@ public abstract class ImportExportAsyncTask extends AsyncTask<Uri, String, Objec
                 for (StackTraceElement e : stack) {
                     String fileName = e.getFileName();
                     if (fileName.equals("ImportExportAsyncTask.java")) break;
-                    sb.append(fileName).append(":").append(e.getLineNumber()).append("\n");
+                    sb.append(e.getClassName().substring(e.getClassName().lastIndexOf(".") + 1))
+                            .append(":").append(e.getMethodName()).append(":")
+                            .append(e.getLineNumber()).append("\n");
                 }
             }
             new AlertDialog.Builder(context)
