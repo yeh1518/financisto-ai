@@ -698,8 +698,7 @@ public class DatabaseAdapter extends MyEntityManager {
      *
      * 排序鍵是 (datetime, transaction_id) 兩欄——只用 `datetime > ?` 會漏掉**同一時間**的其他
      * 交易，那幾列就不會跟著加減，逐筆餘額從此與帳戶總額對不上（畫面跳「逐筆餘額似乎不準確」）。
-     * 同一時間同帳戶有兩筆並不罕見：AI 補充模式改型別是「建新筆＋刪原筆」且刻意沿用原本的時間，
-     * 每次都會撞上；手動同秒記兩筆也會。
+     * 同一時間同帳戶有兩筆並不罕見：排程交易的秒數歸零、CSV 匯入沒有毫秒，手動同秒記兩筆也會。
      */
     private static final String UPDATE_RUNNING_BALANCE =
             "update running_balance set balance = balance+(?) where account_id = ?"
@@ -718,11 +717,18 @@ public class DatabaseAdapter extends MyEntityManager {
         db.execSQL(UPDATE_RUNNING_BALANCE, new Object[]{deltaAmount, accountId, datetime, datetime, transactionId});
     }
 
+    /**
+     * 先把舊版的兩列（轉出側、轉入側）都刪掉，再插新版的兩列。
+     *
+     * 一列的鍵是 (account_id, transaction_id)，同一個帳戶在新舊兩版可能換了一側：轉帳甲→乙改成乙的一筆
+     * 交易、或轉帳乙→甲改成甲的收入。刪一側插一側交錯做的話，剛插好的新列會被當成舊的另一側刪掉，
+     * 帳戶總額對、這筆在逐筆餘額裡卻不見了。
+     */
     private void updateRunningBalance(Transaction oldTransaction, Transaction newTransaction) {
         deleteRunningBalance(oldTransaction.fromAccountId, oldTransaction.id, oldTransaction.fromAmount, oldTransaction.dateTime);
+        deleteRunningBalance(oldTransaction.toAccountId, oldTransaction.id, oldTransaction.toAmount, oldTransaction.dateTime);
         insertRunningBalance(newTransaction.fromAccountId, newTransaction.id, newTransaction.dateTime,
                 newTransaction.fromAmount, newTransaction.fromAmount);
-        deleteRunningBalance(oldTransaction.toAccountId, oldTransaction.id, oldTransaction.toAmount, oldTransaction.dateTime);
         insertRunningBalance(newTransaction.toAccountId, newTransaction.id, newTransaction.dateTime,
                 newTransaction.toAmount, newTransaction.toAmount);
     }
