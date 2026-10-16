@@ -78,6 +78,8 @@ public class TransactionActivity extends AbstractTransactionActivity {
     private TextView differenceText;
     private boolean isUpdateBalanceMode = false;
     private long currentBalance;
+    /** currentBalance 是哪個帳戶的餘額（-1＝開啟時沒帶帳戶，還不知道）。 */
+    private long currentBalanceAccountId = -1;
 
     private LinearLayout splitsLayout;
     private LinearLayout unsplitContainer;
@@ -106,6 +108,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
         if (intent != null) {
             if (intent.hasExtra(CURRENT_BALANCE_EXTRA)) {
                 currentBalance = intent.getLongExtra(CURRENT_BALANCE_EXTRA, 0);
+                currentBalanceAccountId = intent.getLongExtra(ACCOUNT_ID_EXTRA, -1);
                 isUpdateBalanceMode = true;
             } else if (intent.hasExtra(AMOUNT_EXTRA)) {
                 currentBalance = intent.getLongExtra(AMOUNT_EXTRA, 0);
@@ -232,6 +235,61 @@ public class TransactionActivity extends AbstractTransactionActivity {
     @Override
     protected boolean isBalanceAdjustMode() {
         return isUpdateBalanceMode;
+    }
+
+    @Override
+    protected FormSwitch.Kind formKind() {
+        return isUpdateBalanceMode ? FormSwitch.Kind.BALANCE : FormSwitch.Kind.TRANSACTION;
+    }
+
+    /** 表單現況：調整餘額模式的金額讀成差額；外幣時另記原幣；選了分割就帶子項。 */
+    @Override
+    protected Transaction readFormForSwitch() {
+        Transaction t = super.readFormForSwitch();
+        t.fromAccountId = selectedAccount != null ? selectedAccount.id : 0;
+        t.toAccountId = 0;
+        t.toAmount = 0;
+        long amount = rateView.getFromAmount();
+        if (isUpdateBalanceMode) {
+            t.fromAmount = amount - currentBalance;
+            t.originalCurrencyId = 0;
+            t.originalFromAmount = 0;
+        } else if (selectedAccount != null && isDifferentCurrency()) {
+            t.originalCurrencyId = selectedOriginCurrencyId;
+            t.originalFromAmount = amount;
+            t.fromAmount = rateView.getToAmount();
+        } else {
+            t.fromAmount = amount;
+            t.originalCurrencyId = 0;
+            t.originalFromAmount = 0;
+        }
+        t.splits = categorySelector.isSplitCategorySelected() ? new ArrayList<>(splits.values()) : null;
+        return t;
+    }
+
+    @Override
+    protected boolean hasSplitsForSwitch() {
+        return categorySelector.isSplitCategorySelected();
+    }
+
+    /**
+     * 調整餘額模式：新餘額一律明填——載入既有內容的路徑只在金額非 0 時才填，新餘額剛好是 0
+     * 的話欄位會停在目前餘額、差額變成 0。
+     * 交易：金額為 0 時表單看不出收支方向（載入時還會依分類自己翻），由原件補設。
+     */
+    @Override
+    protected void onFormSwitchLoaded(FormSwitch.Origin origin) {
+        if (isUpdateBalanceMode) {
+            rateView.setFromAmount(currentBalance + origin.signedAmount());
+            return;
+        }
+        if (origin.amount == 0 && origin.inflow != null) {
+            if (origin.inflow) {
+                rateView.setIncome();
+            } else {
+                rateView.setExpense();
+            }
+        }
     }
 
     @Override
@@ -447,7 +505,10 @@ public class TransactionActivity extends AbstractTransactionActivity {
                 : (transaction.splits != null ? transaction.splits : new ArrayList<>());
         for (Transaction split : splits) {
             // fetch attributes with original in-database id
-            split.categoryAttributes = db.getAllAttributesForTransaction(split.id);
+            // （表單切換帶過來的子項還沒進資料庫、id 是暫用的負數，屬性已在子項身上，不能拿空的蓋掉）
+            if (split.id > 0) {
+                split.categoryAttributes = db.getAllAttributesForTransaction(split.id);
+            }
             // we are going to recreate them with order
             split.id = --idSequence;
             // TODO split transactions with foreign currency
@@ -527,9 +588,18 @@ public class TransactionActivity extends AbstractTransactionActivity {
             // 調整餘額模式下，差額＝新餘額 − 該帳戶目前餘額。currentBalance 原本只在 onCreate
             // 從 intent 讀一次，換帳戶時沒跟著換，差額就會拿舊帳戶的餘額去減＝算錯。
             // （原生就有的問題，不是 AI 那條路帶進來的。）
-            // selectedAccount == null＝第一次帶入，intent 給的 currentBalance 本來就是對的
-            if (isUpdateBalanceMode && selectedAccount != null && a.id != selectedAccount.id) {
-                currentBalance = a.totalAmount;
+            // 比對的是「currentBalance 屬於哪個帳戶」而不是上一個選的帳戶：開啟時沒帶帳戶的話
+            // （語音沒講帳戶、從沒帳戶的交易切過來），第一次選帳戶也要換成那個帳戶的餘額，
+            // 否則會拿 0 當目前餘額。
+            if (isUpdateBalanceMode && a.id != currentBalanceAccountId) {
+                boolean balanceWasUnknown = currentBalanceAccountId <= 0;
+                long difference = rateView.getFromAmount() - currentBalance;
+                currentBalance = balanceExcludingThis(a);   // 既有交易：扣掉這筆在該帳戶上的金額
+                currentBalanceAccountId = a.id;
+                if (balanceWasUnknown) {
+                    // 還不知道目前餘額時，表單上有意義的是差額（從交易切過來的金額）：保留差額、新餘額跟著帳戶走
+                    rateView.setFromAmount(currentBalance + difference);
+                }
                 if (differenceText != null) {
                     u.setAmountText(differenceText, rateView.getCurrencyFrom(),
                             rateView.getFromAmount() - currentBalance, true);
@@ -953,7 +1023,9 @@ public class TransactionActivity extends AbstractTransactionActivity {
         int scale = account.currency != null ? account.currency.getScale() : 2;
         long minor = Math.round(Math.abs(t.amount) * Math.pow(10, scale));
         long newBalance = t.amount < 0 ? -minor : minor;   // 餘額可能為負（信用卡），依講的定號
-        long oldAmount = transaction.fromAmount;
+        // 「舊金額」＝這筆在這個帳戶上的金額。從既有轉帳切過來的表單，這筆在資料庫裡可能在轉入側，
+        // 取的就是那一側（balanceExcludingThis 依資料庫原樣判斷）
+        long oldAmount = account.totalAmount - balanceExcludingThis(account);
         long newAmount = BalanceSplitPlanner.restatedAmount(oldAmount, account.totalAmount, newBalance);
 
         // 金額欄用帶號值設（AmountInput 以正負決定收入/支出；差額大到翻號就照翻，表單看得見）

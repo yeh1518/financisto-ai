@@ -53,6 +53,8 @@ public class CategorySelector<A extends AbstractActivity> {
 
     private View node = null;
     private boolean loaded = false;
+    /** 已送進背景、還沒在主執行緒套上的分類選擇數（見 {@link #isSettled}）。 */
+    private int pendingSelections = 0;
     private long toSelectCategoryId = NO_CATEGORY_ID;
     private boolean toSelectLast = true;
 
@@ -454,29 +456,46 @@ public class CategorySelector<A extends AbstractActivity> {
             if (listener != null) listener.onCategorySelected(null, false);
         } else {
             if (selectedCategoryId != categoryId) {
+                synchronized (this) {
+                    pendingSelections++;
+                }
                 Application.getExecutor().execute(() -> {
                     Category category = db.getCategoryWithParent(categoryId);
                     List<String> tree = (category == null ? null : db.getFullCategoryPath(category));
                     selectedCategoryId = categoryId;
                     new Handler(Looper.getMainLooper()).post(() -> {
-                        showHideMinusBtn(true);
-                        Log.d(TAG, "selectCategory categoryId=" + categoryId);
-                        categoryTextIsEmpty = false;
-                        if (categoryId == NO_CATEGORY_ID) {
-                            clearCategory();
-                            return;
+                        try {
+                            showHideMinusBtn(true);
+                            Log.d(TAG, "selectCategory categoryId=" + categoryId);
+                            categoryTextIsEmpty = false;
+                            if (categoryId == NO_CATEGORY_ID) {
+                                clearCategory();
+                                return;
+                            }
+                            else if (categoryId == SPLIT_CATEGORY_ID) {
+                                categoryText.setText(R.string.split);
+                            }
+                            else if (tree != null) {
+                                categoryText.setText(String.join(" / ", tree));
+                            }
+                            if (listener != null) listener.onCategorySelected(category, selectLast);
+                        } finally {
+                            synchronized (CategorySelector.this) {
+                                pendingSelections--;
+                            }
                         }
-                        else if (categoryId == SPLIT_CATEGORY_ID) {
-                            categoryText.setText(R.string.split);
-                        }
-                        else if (tree != null) {
-                            categoryText.setText(String.join(" / ", tree));
-                        }
-                        if (listener != null) listener.onCategorySelected(category, selectLast);
                     });
                 });
             }
         }
+    }
+
+    /**
+     * 分類清單已載入、且沒有還在背景套用中的選擇。分類是非同步套上去的（連帶的屬性欄、分割區、
+     * 收支鈕都在套上那一刻才調整），要讀「表單載入完的樣子」得等到這裡回 true。
+     */
+    public synchronized boolean isSettled() {
+        return loaded && pendingSelections == 0;
     }
 
     public void updateCheckedEntities(String checkedCommaIds) {

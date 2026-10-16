@@ -70,6 +70,7 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 
 import static tw.tib.financisto.activity.RequestPermission.isRequestingPermission;
@@ -108,19 +109,25 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	public static final String AI_PREFILL_SPLIT_AMOUNTS_EXTRA = "aiPrefillSplitAmounts";
 	public static final String AI_PREFILL_SPLIT_NOTES_EXTRA = "aiPrefillSplitNotes";
 	public static final String TAGS_EXTRA = "tags";
+	/** 表單切換（交易／轉帳／調整餘額）帶過來的原件，見 {@link FormSwitch}。 */
+	public static final String FORM_SWITCH_ORIGIN_EXTRA = "formSwitchOrigin";
+	/** 表單切換時正在改的既有交易 id：存檔時直接更新這筆（id 不變），不另開新筆。 */
+	public static final String FORM_SWITCH_REPLACES_EXTRA = "formSwitchReplaces";
 
 	private static final int RECURRENCE_REQUEST = 4003;
 	private static final int NOTIFICATION_REQUEST = 4004;
 	private static final int PICTURE_REQUEST = 4005;
 	private static final int AI_VOICE_REQUEST = 4006;
-	private static final int AI_TYPE_SWITCH_REQUEST = 4007;
 	private static final int AI_MIC_PERMISSION_REQUEST = 4008;
 	private static final int AI_VOICE_CAPTURE_REQUEST = 4009;
 
-	/** 補充模式切換交易型別時，帶去對方表單的 draft template；回來要刪，見 cleanupTypeSwitchDraft。 */
-	private long pendingTypeSwitchDraftId = -1;
-	/** 改型別時被取代掉的原交易 id：對方表單存成功後要刪掉它，否則會變成兩筆。 */
-	private long pendingReplacedTransactionId = -1;
+	/** 切換過來的表單帶著的原件；{@code null}＝不是切換來的。 */
+	private FormSwitch.Origin switchOrigin;
+	/** 表單載入完、分類套上後讀到的值（正規化過）：判斷哪些欄位被使用者改過的基準。 */
+	private FormSwitch.Origin switchBaseline;
+	/** 切換中的既有交易 id（{@link #FORM_SWITCH_REPLACES_EXTRA}）。 */
+	private long switchReplacesId = -1;
+	private FormKindBar kindBar;
 
 	private static final TransactionStatus[] statuses = TransactionStatus.values();
 
@@ -271,6 +278,13 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 					transaction.dateTime = intent.getLongExtra(DATETIME_EXTRA, System.currentTimeMillis());
 				}
 			}
+			if (intent.hasExtra(FORM_SWITCH_ORIGIN_EXTRA)) {
+				// 從另一種表單切過來：這張表單要顯示的就是原件在這種表單上的樣子
+				switchOrigin = (FormSwitch.Origin) intent.getSerializableExtra(FORM_SWITCH_ORIGIN_EXTRA);
+				switchReplacesId = intent.getLongExtra(FORM_SWITCH_REPLACES_EXTRA, -1);
+				transaction = FormSwitch.project(switchOrigin, kindForIntent(intent),
+						intent.getLongExtra(TransactionActivity.CURRENT_BALANCE_EXTRA, 0));
+			}
 			transaction.isTemplate = intent.getIntExtra(TEMPLATE_EXTRA, transaction.isTemplate);
 		}
 
@@ -385,7 +399,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		Button bSave = findViewById(R.id.bSave);
 		bSave.setOnClickListener(arg0 -> saveAndFinish());
 
-		final boolean isEdit = transaction.id > 0;
+		// 既有交易切換型別過來的表單也算編輯：這顆是「取消」，按了原交易不動
+		final boolean isEdit = transaction.id > 0 || switchReplacesId > 0;
 		Button bSaveAndNew = findViewById(R.id.bSaveAndNew);
 		if (isEdit) {
 			bSaveAndNew.setText(R.string.cancel);
@@ -397,14 +412,16 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			} else {
 				if (saveAndFinish()) {
 					intent.putExtra(DATETIME_EXTRA, transaction.dateTime);
+					prepareIntentForNext(intent);
 					startActivityForResult(intent, -1);
 				}
 			}
 		});
 
-		if (transactionId != -1) {
+		if (transactionId != -1 || switchOrigin != null) {
 			isOpenCalculatorForTemplates &= isNewFromTemplate;
 			editTransaction(transaction);
+			if (switchOrigin != null) onFormSwitchLoaded(switchOrigin);
 		} else {
 			setDateTime(transaction.dateTime);
 			categorySelector.selectCategory(NO_CATEGORY_ID);
@@ -469,6 +486,9 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			});
 		}
 
+		installFormKindBar();
+		if (switchOrigin != null) captureSwitchBaselineWhenSettled(0);
+
 		long t1 = System.currentTimeMillis();
 		Log.i("TransactionActivity", "onCreate " + (t1 - t0) + "ms");
 	}
@@ -503,13 +523,20 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 
 	private long save() {
 		if (onOKClicked()) {
+			// 既有交易換了型別：同一張表裡交易與轉帳只差 to_account_id，原地更新那一筆即可，
+			// id 不變（附件、關聯都還在）；帳戶餘額與逐筆餘額由 updateTransaction 依新舊兩版重算
+			if (switchReplacesId > 0) {
+				transaction.id = switchReplacesId;
+			}
 			boolean isNew = transaction.id == -1;
 			// 擱置＝「還沒過目」（自動記帳寫進來的預設狀態）。人打開它按了儲存，
 			// 就是過目了——不管內容有沒有改——所以升成未對帳，不必再手動改狀態。
 			// 但使用者自己在狀態選單挑過（含刻意挑「擱置」）就尊重他，不覆蓋。
 			if (!isNew && !statusPickedByUser && transaction.status == TransactionStatus.PN) {
 				transaction.status = TransactionStatus.UR;
-				// 子項有自己的狀態（存檔不再沿用母筆）：同樣是自動記帳寫進來、跟著母筆一起過目的，一起升
+				// 子項有自己的狀態、存檔不會沿用母筆：擱置的子項跟著母筆一起過目，一起升
+				// （同列表上改母筆狀態會連帶改子項）。不升的話會一直卡在「只看擱置」——
+				// 明細總表套了篩選時顯示的是子項
 				if (transaction.splits != null) {
 					for (Transaction split : transaction.splits) {
 						if (split.status == TransactionStatus.PN) split.status = TransactionStatus.UR;
@@ -886,17 +913,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		// 金額去減 currentBalance → 算錯差額，必須切出餘額模式）；(b) 一般↔轉帳型別不符。
 		boolean needSwitch = isBalanceAdjustMode() || (wantTransfer != isTransfer);
 		if (!needSwitch) return false;                     // 型別一致且非餘額模式 → 就地套
-		// 已存在的交易也能改型別：走同一條 draft 路徑讓對方表單存出新型別那筆，回來時把原筆刪掉。
-		// 轉帳與一般交易在 DB 是同一張表、只差 to_account_id，但 UI 是兩個 Activity 沒法就地變；
-		// 「建新的＋刪原筆」的淨結果就是這筆被改成另一種型別（使用者手動做的也是這件事）。
-		// 分割交易不走這條：原筆是分割母筆或子筆時，刪掉會連帶動到別的列。
-		if (transaction != null && transaction.id > 0) {
-			if (transaction.isSplitParent() || transaction.parentId > 0) {
-				Toast.makeText(this, R.string.ai_type_switch_split_unsupported, Toast.LENGTH_LONG).show();
-				return true;
-			}
-			pendingReplacedTransactionId = transaction.id;
-		}
+		// 已存在的交易也能改型別：與介面上的切換鈕走同一條路（FormSwitch），存檔時原地更新那一筆
 		switchTransactionType(t, wantTransfer);
 		return true;
 	}
@@ -963,7 +980,13 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	private boolean switchToBalanceAdjust(ParsedTransaction t) {
 		// 已存在的交易不切模式、不另開新筆：這筆已算在帳戶餘額裡，講餘額＝修這筆的金額
 		// （TransactionActivity 覆寫；轉帳分不清講的是哪一方的餘額，預設跳提示）
-		if (transaction != null && transaction.id > 0) {
+		if (isExistingForSwitch()) {
+			// 既有交易已在調整餘額表單上：講的就是新餘額，就地填進去（目前餘額已扣掉這筆自己）
+			if (isBalanceAdjustMode()) {
+				applyAiSupplementFields(t);
+				Toast.makeText(this, R.string.ai_recognized, Toast.LENGTH_SHORT).show();
+				return true;
+			}
 			return restateExistingBalance(t);
 		}
 		long accountId = t.account.resolved() ? t.account.id : getSelectedAccountId();
@@ -999,82 +1022,211 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		if (!TextUtils.isEmpty(note)) intent.putExtra(TransactionActivity.AI_PREFILL_NOTE_EXTRA, note);
 		long projId = t.project.resolved() ? t.project.id : projectSelector.getSelectedEntityId();
 		if (projId > 0) intent.putExtra(TransactionActivity.AI_PREFILL_PROJECT_ID_EXTRA, projId);
-		startActivityForResult(intent, AI_TYPE_SWITCH_REQUEST);
+		startReplacingThisForm(intent);
 		return true;
 	}
 
 	/**
-	 * 把當前表單切成另一種型別：收集當前 UI 的共用欄位（帳戶/金額/日期/備註/分類/專案）＋併入
-	 * 這句話的 delta，寫一筆 draft template，用 duplicate prefill 拉起對方 Activity，回來刪 draft。
-	 * 共用欄位這樣才帶得過去（兩種型別是不同 Activity/layout，沒法就地變）。
+	 * 補充模式要求改型別（交易↔轉帳）：拿本頁的原件（含本頁顯示不了、由原件保管的欄位），
+	 * 套上這句話講到的內容，切到對方表單。與標題列切換鈕走同一條路（{@link #launchFormSwitch}）。
 	 */
 	private void switchTransactionType(ParsedTransaction t, boolean toTransfer) {
-		long originalFromId = getSelectedAccountId();
-		long fromAccountId = t.account.resolved() ? t.account.id : originalFromId;
-
-		// 目標若是轉帳：一定要有轉入帳戶（這句話講出來的），湊不齊就跳錯誤、不切
-		long toAccountId = t.toAccount.resolved() ? t.toAccount.id : -1;
-		if (toTransfer) {
-			if (toAccountId <= 0) {
-				Toast.makeText(this, R.string.ai_transfer_need_to_account, Toast.LENGTH_LONG).show();
-				return;
-			}
-			if (toAccountId == fromAccountId) {
-				Toast.makeText(this, R.string.select_to_account_differ_from_to_account, Toast.LENGTH_LONG).show();
-				return;
-			}
-		}
-
-		// 主單位金額：這句話有講就用講的；否則用畫面現值——但若是從餘額模式切出，畫面金額其實是「新餘額」
-		// 不是交易金額，不能沿用，留 0 讓使用者填（有講金額才會有值）。
-		double curMajor;
-		if (t.amount != null) {
-			curMajor = t.amount;
-		} else if (isBalanceAdjustMode()) {
-			curMajor = 0;
-		} else {
-			long uiMinor = Math.abs(rateView.getFromAmount());
-			curMajor = uiMinor / Math.pow(10, accountScale(originalFromId));
-		}
-
-		Transaction draft = new Transaction();
-		updateTransactionFromUI(draft);        // dateTime / note / category / project / location（當前 UI）
-		draft.isTemplate = 1;
-		draft.fromAccountId = fromAccountId;
-		// 分類兩個方向都保留（2026-08-14 修）：原本切到轉帳時會清成無分類，理由寫「轉帳無分類」
-		// ——那個前提是錯的，轉帳表單本來就有分類欄（TransferActivity 依偏好
-		// isShowCategoryInTransferScreen 建節點）。切換型別是「換一張表單繼續填」，
-		// 使用者已經選好的分類沒有理由在這一步被丟掉。
-		if (t.category.resolved()) draft.categoryId = t.category.id;
-		if (toTransfer) {
-			draft.toAccountId = toAccountId;
-			// 慣例：轉出為負、轉入為正（各依自己帳戶 scale 換算）
-			draft.fromAmount = -toMinor(curMajor, fromAccountId);
-			draft.toAmount = toMinor(curMajor, toAccountId);
-		} else {
-			draft.toAccountId = 0;
-			long minor = toMinor(curMajor, fromAccountId);
-			draft.fromAmount = t.isIncome() ? minor : -minor;
-		}
-		// 這句話有講的話覆蓋 UI 收集值
-		if (!TextUtils.isEmpty(t.note)) draft.note = t.note;
-		if (t.project.resolved()) draft.projectId = t.project.id;
-		Long spoken = t.resolveDateTimeMillis();
-		if (spoken != null) draft.dateTime = spoken;
-
-		try {
-			pendingTypeSwitchDraftId = db.insertOrUpdate(draft);
-		} catch (Exception e) {
-			Toast.makeText(this, getString(R.string.ai_failed, e.getMessage()), Toast.LENGTH_LONG).show();
+		FormSwitch.Origin o = currentOrigin();
+		// 轉帳一定要有轉入帳戶：這句話講的優先，沒講就用原件裡保管的（從轉帳切過來又切回去時有）
+		FormSwitch.Block block = FormSwitch.applySpokenTypeChange(o, toTransfer,
+				t.account.resolved() ? t.account.id : 0,
+				t.toAccount.resolved() ? t.toAccount.id : 0,
+				t.isIncome());
+		if (block == FormSwitch.Block.NO_TO_ACCOUNT) {
+			Toast.makeText(this, R.string.ai_transfer_need_to_account, Toast.LENGTH_LONG).show();
 			return;
 		}
+		if (block == FormSwitch.Block.SAME_ACCOUNT) {
+			Toast.makeText(this, R.string.select_to_account_differ_from_to_account, Toast.LENGTH_LONG).show();
+			return;
+		}
+		if (t.amount != null) {
+			o.amount = toMinor(t.amount, o.account);
+			o.otherAmount = o.other > 0 ? toMinor(t.amount, o.other) : o.amount;
+		}
+		// 分類兩個方向都保留：轉帳表單本來就有分類欄（依偏好 isShowCategoryInTransferScreen）
+		if (t.category.resolved()) o.categoryId = t.category.id;
+		if (!TextUtils.isEmpty(t.note)) o.note = t.note;
+		if (t.project.resolved()) o.projectId = t.project.id;
+		Long spoken = t.resolveDateTimeMillis();
+		if (spoken != null) o.dateTime = spoken;
+		launchFormSwitch(toTransfer ? FormSwitch.Kind.TRANSFER : FormSwitch.Kind.TRANSACTION, o);
+	}
 
-		Intent intent = new Intent(this, toTransfer ? TransferActivity.class : TransactionActivity.class);
-		intent.putExtra(TRAN_ID_EXTRA, pendingTypeSwitchDraftId);
-		intent.putExtra(DUPLICATE_EXTRA, true);
-		intent.putExtra(TEMPLATE_EXTRA, 0);              // draft 本身是 template，強制存成正式交易
-		intent.putExtra(DATETIME_EXTRA, draft.dateTime); // 帶著收集到的日期時間，別被重設成現在
-		startActivityForResult(intent, AI_TYPE_SWITCH_REQUEST);
+	// ---------------- 表單切換（交易／轉帳／調整餘額） ----------------
+
+	/** 這張表單是哪一種。 */
+	protected FormSwitch.Kind formKind() {
+		return FormSwitch.Kind.TRANSACTION;
+	}
+
+	/** 開啟參數對應的表單種類（onCreate 早期用，那時子類的狀態還沒建好）。 */
+	private FormSwitch.Kind kindForIntent(Intent intent) {
+		if (this instanceof TransferActivity) return FormSwitch.Kind.TRANSFER;
+		return intent.hasExtra(TransactionActivity.CURRENT_BALANCE_EXTRA)
+				? FormSwitch.Kind.BALANCE : FormSwitch.Kind.TRANSACTION;
+	}
+
+	/**
+	 * 表單現況（不驗證、不存檔），形狀同存檔：從 {@link #transaction} 複製一份再讀畫面，
+	 * 畫面上沒有的欄位（依偏好隱藏的專案、付款人等）就保留原值。子類補帳戶與金額。
+	 */
+	protected Transaction readFormForSwitch() {
+		Transaction t = transaction.clone();
+		t.splits = null;
+		updateTransactionFromUI(t);
+		HashMap<Long, String> attrs = new HashMap<>();
+		for (TransactionAttribute a : categorySelector.getAttributes()) {
+			attrs.put(a.attributeId, a.value);
+		}
+		t.categoryAttributes = attrs;
+		return t;
+	}
+
+	/** 有分割子項（切轉帳要擋）。TransactionActivity 覆寫。 */
+	protected boolean hasSplitsForSwitch() {
+		return false;
+	}
+
+	/** 切換過來的表單載入完之後的補強（如金額為 0 時的收支方向）。 */
+	protected void onFormSwitchLoaded(FormSwitch.Origin origin) {
+	}
+
+	private Boolean transferInflowHint() {
+		return switchOrigin != null ? Boolean.valueOf(Boolean.TRUE.equals(switchOrigin.inflow)) : null;
+	}
+
+	private FormSwitch.Origin readCanonical() {
+		return FormSwitch.canonical(formKind(), readFormForSwitch(), rateView.isIncomeSelected(), transferInflowHint());
+	}
+
+	/** 本頁的原件：切換過來的表單＝原件併入本頁改過的欄位；一般表單＝本頁現況。 */
+	private FormSwitch.Origin currentOrigin() {
+		if (switchOrigin == null) return readCanonical();
+		// 基準還沒抓到＝表單還在載入、使用者不可能改過任何東西
+		if (switchBaseline == null) return switchOrigin.copy();
+		return FormSwitch.merge(switchOrigin, switchBaseline, readCanonical());
+	}
+
+	/** 等分類套上（表單會在那一刻調整屬性欄、分割區、收支鈕）再讀基準；最多等約兩秒。 */
+	private void captureSwitchBaselineWhenSettled(int attempt) {
+		getWindow().getDecorView().postDelayed(() -> {
+			if (isFinishing()) return;
+			if (!categorySelector.isSettled() && attempt < 40) {
+				captureSwitchBaselineWhenSettled(attempt + 1);
+				return;
+			}
+			switchBaseline = readCanonical();
+		}, attempt == 0 ? 0 : 50);
+	}
+
+	protected boolean isExistingForSwitch() {
+		return transaction.id > 0 || switchReplacesId > 0;
+	}
+
+	/** 正在編輯的既有交易在資料庫裡的原樣（存檔前）；新交易為 null。 */
+	private Transaction existingInDb;
+
+	/**
+	 * 調整餘額的「目前餘額」：帳戶總額扣掉正在編輯的這筆在該帳戶上的金額（新交易就是總額）。
+	 * 見 {@link FormSwitch#balanceExcluding}。
+	 */
+	protected long balanceExcludingThis(Account a) {
+		long id = transaction.id > 0 ? transaction.id : switchReplacesId;
+		if (id > 0 && existingInDb == null) {
+			existingInDb = db.getTransaction(id);
+		}
+		Transaction e = id > 0 ? existingInDb : null;
+		if (e == null) return a.totalAmount;
+		return FormSwitch.balanceExcluding(a.totalAmount, a.id,
+				e.fromAccountId, e.toAccountId, e.fromAmount, e.toAmount);
+	}
+
+	/** 標題列的三格分段鈕。樣板、排程、分割子項的表單標題另有意義，不放。 */
+	private void installFormKindBar() {
+		if (transaction.isTemplateLike() || transaction.parentId > 0) return;
+		FormKindBar bar = new FormKindBar(this, formKind(), this::onFormKindTapped);
+		if (bar.install()) {
+			kindBar = bar;
+			refreshFormKindBar();
+		}
+	}
+
+	/** 依目前狀態灰掉切不過去的格子。分類變動（選了／取消分割）時重算。 */
+	protected void refreshFormKindBar() {
+		if (kindBar == null) return;
+		boolean splits = hasSplitsForSwitch();
+		boolean locked = isPreventEditing();
+		for (FormSwitch.Kind k : FormSwitch.Kind.values()) {
+			kindBar.setAvailable(k, !locked && FormSwitch.check(k, splits) == null);
+		}
+	}
+
+	private void onFormKindTapped(FormSwitch.Kind target) {
+		// 切不過去的格子已灰掉、不能按；這裡再擋一次只是保險，不跳訊息
+		if (target == formKind() || isPreventEditing()
+				|| FormSwitch.check(target, hasSplitsForSwitch()) != null) {
+			return;
+		}
+		launchFormSwitch(target, currentOrigin());
+	}
+
+	/**
+	 * 開目標表單、帶原件過去，並把本頁換掉（存檔結果直接回給最初開表單的那一頁）。
+	 * 有分割切轉帳的訊息是給 AI 補充那條路的：講話不像按鈕看得到灰掉，要說出來。
+	 */
+	private void launchFormSwitch(FormSwitch.Kind target, FormSwitch.Origin origin) {
+		if (target == FormSwitch.Kind.TRANSFER && origin.hasSplits()) {
+			Toast.makeText(this, R.string.form_switch_split_no_transfer, Toast.LENGTH_SHORT).show();
+			return;
+		}
+		Intent intent = new Intent(this,
+				target == FormSwitch.Kind.TRANSFER ? TransferActivity.class : TransactionActivity.class);
+		intent.putExtra(FORM_SWITCH_ORIGIN_EXTRA, origin);
+		long replaces = transaction.id > 0 ? transaction.id : switchReplacesId;
+		if (replaces > 0) intent.putExtra(FORM_SWITCH_REPLACES_EXTRA, replaces);
+		if (target == FormSwitch.Kind.BALANCE) {
+			// 既有交易：目前餘額要扣掉這筆自己，否則存檔時會被扣兩次
+			Account a = origin.account > 0 ? db.getAccount(origin.account) : null;
+			intent.putExtra(TransactionActivity.CURRENT_BALANCE_EXTRA, a != null ? balanceExcludingThis(a) : 0L);
+			if (a != null) intent.putExtra(ACCOUNT_ID_EXTRA, a.id);
+		}
+		startReplacingThisForm(intent);
+	}
+
+	/**
+	 * 以 intent 開的新表單取代本頁：本頁關掉，新表單存檔的結果直接回給最初開表單的那一頁。
+	 * 來回切幾次都不會疊出一串表單；切換的動畫關掉，看起來像原地換了畫面。
+	 */
+	private void startReplacingThisForm(Intent intent) {
+		intent.addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT);
+		startActivity(intent);
+		overridePendingTransition(0, 0);
+		finish();
+		overridePendingTransition(0, 0);
+	}
+
+	/**
+	 * 「儲存並新增」重開本頁前整理開啟參數：拿掉切換帶來的原件（新的一筆是空白表單），
+	 * 調整餘額模式的目前餘額換成剛存完的最新值（沿用舊值的話差額會整個錯開）。
+	 */
+	private void prepareIntentForNext(Intent intent) {
+		intent.removeExtra(FORM_SWITCH_ORIGIN_EXTRA);
+		intent.removeExtra(FORM_SWITCH_REPLACES_EXTRA);
+		intent.setFlags(intent.getFlags() & ~Intent.FLAG_ACTIVITY_FORWARD_RESULT);
+		if (intent.hasExtra(TransactionActivity.CURRENT_BALANCE_EXTRA)) {
+			Account a = db.getAccount(transaction.fromAccountId);
+			if (a != null) {
+				intent.putExtra(ACCOUNT_ID_EXTRA, a.id);
+				intent.putExtra(TransactionActivity.CURRENT_BALANCE_EXTRA, a.totalAmount);
+			}
+			intent.removeExtra(TransactionActivity.NEW_BALANCE_EXTRA);
+		}
 	}
 
 	/** 主單位金額 → 該帳戶幣別的 minor units（取絕對值，正負由呼叫端定）。 */
@@ -1088,30 +1240,6 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			if (a != null && a.currency != null) return a.currency.getScale();
 		}
 		return 2;
-	}
-
-	private void cleanupTypeSwitchDraft() {
-		if (pendingTypeSwitchDraftId > 0) {
-			try {
-				db.deleteTransaction(pendingTypeSwitchDraftId);
-			} catch (Exception ignored) {}
-			pendingTypeSwitchDraftId = -1;
-		}
-	}
-
-	/**
-	 * 改型別成功後刪掉被取代的原交易。只在對方表單回 RESULT_OK（＝新型別那筆已存進去）時呼叫，
-	 * 取消時不能刪——否則使用者按了返回卻發現原本那筆消失了。
-	 */
-	private void deleteReplacedTransaction() {
-		if (pendingReplacedTransactionId > 0) {
-			try {
-				db.deleteTransaction(pendingReplacedTransactionId);
-			} catch (Exception e) {
-				Log.e(TAG, "failed to delete replaced transaction " + pendingReplacedTransactionId, e);
-			}
-			pendingReplacedTransactionId = -1;
-		}
 	}
 
 	/** 只套用非 null 的槽。子類別可 override 以處理自己特有的欄位（如轉帳的轉入帳戶）。 */
@@ -1193,6 +1321,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			}
 		}
 		projectSelector.setNodeVisible(!category.isSplit());
+		refreshFormKindBar();
 	}
 
 	protected void addOrRemoveSplits() {
@@ -1234,21 +1363,6 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		locationSelector.onActivityResult(requestCode, resultCode, data);
 		if (isShowPayee) {
 			payeeSelector.onActivityResult(requestCode, resultCode, data);
-		}
-		// 補充模式切換型別回來：不論成敗都要刪掉帶過去的 draft template。
-		// 成功＝對方表單已存成正式交易 → 把結果原封轉發給本頁的呼叫端並收掉本頁；
-		// 取消＝留在原頁（原本輸入的內容還在），只提示一下。
-		if (requestCode == AI_TYPE_SWITCH_REQUEST) {
-			cleanupTypeSwitchDraft();
-			if (resultCode == RESULT_OK) {
-				deleteReplacedTransaction();
-				setResult(RESULT_OK, data);
-				finish();
-			} else {
-				pendingReplacedTransactionId = -1;
-				Toast.makeText(this, R.string.ai_type_switch_cancelled, Toast.LENGTH_SHORT).show();
-			}
-			return;
 		}
 		if (resultCode == RESULT_OK) {
 			switch (requestCode) {
@@ -1360,6 +1474,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		}
 
 		updateUIforPreventEditing();
+		refreshFormKindBar();
 	}
 
 	protected void commonEditTransaction(Transaction transaction) {
@@ -1460,7 +1575,6 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 
 	@Override
 	protected void onDestroy() {
-		cleanupTypeSwitchDraft();   // 被系統回收而沒走 onActivityResult 時的保險，避免 draft template 殘留
 		if (payeeSelector != null) payeeSelector.onDestroy();
 		if (projectSelector != null) projectSelector.onDestroy();
 		if (locationSelector != null) locationSelector.onDestroy();

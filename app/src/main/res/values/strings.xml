@@ -1423,8 +1423,7 @@
     <string name="ai_log_export_failed">Export failed: %1$s</string>
     <string name="ai_voice_nothing">Didn\'t catch that — tap the mic to try again</string>
     <string name="ai_transfer_need_to_account">Transfer needs a destination account — say which account to transfer to</string>
-    <string name="ai_type_switch_cancelled">Type switch cancelled</string>
-    <string name="ai_type_switch_split_unsupported">Cannot change the type of a split transaction — delete it and enter it again</string>
+    <string name="form_switch_split_no_transfer">A split transaction cannot become a transfer</string>
     <string name="ai_input_clear_desc">Clear text</string>
     <string name="ai_auto_send">Send to parse right after recognition</string>
     <string name="ai_auto_send_title">After recognition</string>

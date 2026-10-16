@@ -83,7 +83,9 @@ public class SplitTransactionProcessor {
             Transaction c = new Transaction();
             c.fromAccountId = accountId;
             c.fromAmount = sign * toMinor(p.amount);
-            c.status = status;          // 子項有自己的狀態（存檔不再沿用母筆），與母筆同樣標成「擱置」
+            // 子項有自己的狀態、存檔不會沿用母筆：建立時就跟母筆一樣（擱置），
+            // 明細總表一套篩選就改顯示子項，子項不是擱置的話整筆會從「只看擱置」裡消失
+            c.status = status;
             if (p.categoryId > 0) {
                 if (db.getCategory(p.categoryId) != null) c.categoryId = p.categoryId;
                 else unknownCategories++;

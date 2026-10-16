@@ -1259,8 +1259,7 @@
   <string name="ai_log_export_failed">匯出失敗：%1$s</string>
   <string name="ai_voice_nothing">沒聽到內容，點麥克風再試一次</string>
   <string name="ai_transfer_need_to_account">轉帳需要指定轉入帳戶，請說出要轉入哪個帳戶</string>
-  <string name="ai_type_switch_cancelled">已取消切換型別</string>
-  <string name="ai_type_switch_split_unsupported">分割交易不能改型別，請刪掉重記</string>
+  <string name="form_switch_split_no_transfer">有分割的交易不能切成轉帳</string>
   <string name="ai_input_clear_desc">清空文字</string>
   <string name="ai_auto_send">辨識完直接送出解析</string>
   <string name="ai_auto_send_title">辨識完之後</string>

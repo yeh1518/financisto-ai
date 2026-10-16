@@ -286,6 +286,25 @@ public class TransferActivity extends AbstractTransactionActivity {
 		return selectedAccountFromId;
 	}
 
+	@Override
+	protected FormSwitch.Kind formKind() {
+		return FormSwitch.Kind.TRANSFER;
+	}
+
+	/** 表單現況：轉出／轉入帳戶與兩側金額（轉出為負、轉入為正）。轉帳沒有分割與原幣。 */
+	@Override
+	protected Transaction readFormForSwitch() {
+		Transaction t = super.readFormForSwitch();
+		t.fromAccountId = Math.max(selectedAccountFromId, 0);
+		t.toAccountId = Math.max(selectedAccountToId, 0);
+		t.fromAmount = rateView.getFromAmount();
+		t.toAmount = rateView.getToAmount();
+		t.originalCurrencyId = 0;
+		t.originalFromAmount = 0;
+		t.splits = null;
+		return t;
+	}
+
 	protected void selectAccount(Account account, TextView accountText, TextView accountBalanceText, TextView accountLimitText, boolean selectLast) {
 		u.setAccountTitleBalance(account, accountText, accountBalanceText, accountLimitText);
 		if (selectLast) {
