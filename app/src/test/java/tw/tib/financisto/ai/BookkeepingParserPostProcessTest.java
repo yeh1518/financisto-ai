@@ -142,4 +142,90 @@ public class BookkeepingParserPostProcessTest {
         assertNull(t2.note);
         assertTrue(true);
     }
+
+    // ---- 調整餘額＋分割要有「餘額字眼＋數字」佐證（requireBalanceCueForSplits）----
+
+    private static ParsedTransaction balanceWithSplits(double amount, Double... shares) {
+        ParsedTransaction t = tx(ParsedTransaction.TYPE_BALANCE, 8L, null, null);
+        t.amount = amount;
+        for (Double s : shares) {
+            ParsedTransaction.Split sp = new ParsedTransaction.Split();
+            sp.amount = s;
+            t.splits.add(sp);
+        }
+        return t;
+    }
+
+    /** 實地誤判的形狀：「剩下的是食材」是其餘那一份，不是餘額。 */
+    @Test
+    public void remainderShareIsNotABalance() {
+        ParsedTransaction t = balanceWithSplits(500, 200.0, null);
+        BookkeepingParser.requireBalanceCueForSplits(t, "身上現金500塊其中200塊是午餐剩下的是食材", false);
+        assertEquals(ParsedTransaction.TYPE_EXPENSE, t.transactionType);
+        assertEquals(300.0, t.splits.get(1).amount, 0.001);       // 其餘那份補成總額扣掉已知份
+    }
+
+    @Test
+    public void thenTheRestIsNotABalanceEither() {
+        ParsedTransaction t = balanceWithSplits(800, 200.0, 300.0, null);
+        BookkeepingParser.requireBalanceCueForSplits(t, "身上現金800元200元午餐，零食300然後剩下食材", false);
+        assertEquals(ParsedTransaction.TYPE_EXPENSE, t.transactionType);
+        assertEquals(300.0, t.splits.get(2).amount, 0.001);
+    }
+
+    /** 真的在報餘額：餘額字眼後面接著那個數字，維持調整餘額、殘額份留給 app 用差額補。 */
+    @Test
+    public void realBalanceWithSplitsStays() {
+        String[] said = {
+                "現金剩下752其中80是早餐剩下的是食材",
+                "配偶身上剩下602 89是早餐其他的是西藥",
+                "配偶街口50飲料，剩下3613",
+                "現金餘額363午餐拉麵",
+                "剩餘金額666早餐50其他食材",
+                "現在有500其中200午餐",
+        };
+        for (String s : said) {
+            ParsedTransaction t = balanceWithSplits(500, 50.0, null);
+            BookkeepingParser.requireBalanceCueForSplits(t, s, false);
+            assertEquals(s, ParsedTransaction.TYPE_BALANCE, t.transactionType);
+            assertNull(s, t.splits.get(1).amount);
+        }
+    }
+
+    @Test
+    public void onlySplitsAreChecked() {
+        // 沒分割的餘額判斷沒有出過問題，交給模型（「現在現金250」照舊是調整餘額）
+        ParsedTransaction t = balanceWithSplits(250);
+        BookkeepingParser.requireBalanceCueForSplits(t, "現在現金250", false);
+        assertEquals(ParsedTransaction.TYPE_BALANCE, t.transactionType);
+    }
+
+    @Test
+    public void supplementOnABalanceFormIsLeftAlone() {
+        // 在調整餘額表單上補講一份：回 balance 是在描述原本的型別，不是要求切換
+        ParsedTransaction t = balanceWithSplits(3613, 50.0, 120.0);
+        BookkeepingParser.requireBalanceCueForSplits(t, "配偶街口120飲料", true);
+        assertEquals(ParsedTransaction.TYPE_BALANCE, t.transactionType);
+        // 補充模式明確要求改成調整餘額、卻沒有餘額佐證 → 一樣當支出
+        ParsedTransaction t2 = balanceWithSplits(500, 200.0, null);
+        t2.typeChange = true;
+        BookkeepingParser.requireBalanceCueForSplits(t2, "500其中200午餐剩下的是食材", true);
+        assertEquals(ParsedTransaction.TYPE_EXPENSE, t2.transactionType);
+    }
+
+    @Test
+    public void noUtteranceMeansNoEvidenceToCheck() {
+        ParsedTransaction t = balanceWithSplits(500, 200.0, null);
+        BookkeepingParser.requireBalanceCueForSplits(t, "", false);
+        assertEquals(ParsedTransaction.TYPE_BALANCE, t.transactionType);
+    }
+
+    @Test
+    public void remainderLeftOpenWhenItCannotBeWorkedOut() {
+        ParsedTransaction t = balanceWithSplits(500, null, null);   // 兩份都沒講金額
+        BookkeepingParser.requireBalanceCueForSplits(t, "身上現金500早餐跟食材", false);
+        assertEquals(ParsedTransaction.TYPE_EXPENSE, t.transactionType);
+        assertNull(t.splits.get(0).amount);
+        assertNull(t.splits.get(1).amount);
+    }
 }

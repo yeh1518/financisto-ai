@@ -363,7 +363,7 @@ public class BookkeepingParser {
             String transcript = data.isNull("transcript") ? "" : data.optString("transcript", "");
             record(transcript.isEmpty() ? "(語音直解，無轉寫)" : transcript,
                     supplement, formStateContext, content, null);
-            return new AudioParseResult(toParsedTransaction(data, transcript), transcript);
+            return new AudioParseResult(toParsedTransaction(data, transcript, supplement), transcript);
         } catch (JSONException e) {
             throw new ParseException("解析回應失敗：" + e.getMessage(), e);
         }
@@ -533,7 +533,7 @@ public class BookkeepingParser {
             String content = extractContent(responseBody);
             record(userText, supplement, formStateContext, content, null);
             JSONObject data = new JSONObject(content);
-            return toParsedTransaction(data, userText);
+            return toParsedTransaction(data, userText, supplement);
         } catch (JSONException e) {
             throw new ParseException("解析回應失敗：" + e.getMessage(), e);
         }
@@ -557,7 +557,7 @@ public class BookkeepingParser {
         return content;
     }
 
-    private ParsedTransaction toParsedTransaction(JSONObject data, String userText) {
+    private ParsedTransaction toParsedTransaction(JSONObject data, String userText, boolean supplement) {
         ParsedTransaction t = new ParsedTransaction();
         t.transactionType = data.isNull("transaction_type") ? null : data.optString("transaction_type", null);
         t.typeChange = resolveTypeChange(data, t, userText);
@@ -574,7 +574,54 @@ public class BookkeepingParser {
 
         clearToAccountUnlessTransfer(t);
         applyAccountNamedInNote(t, ctx.accountsByName, userText);
+        requireBalanceCueForSplits(t, userText, supplement);
         return t;
+    }
+
+    /**
+     * 調整餘額＋分割，原句裡要真的有「餘額字眼緊接著一個數字」才算數，否則當一般支出。
+     *
+     * 實地反覆出現的誤判：「身上現金500，其中200是午餐，剩下的是食材」被判成調整餘額（新餘額 500）。
+     * 分割的講法裡「剩下的是X」「然後剩下X」指的是**其餘那一份**，不是帳戶還剩多少；沒分割的句子
+     * 不會這樣講，所以只有分割會中。真的在報餘額時，餘額字眼後面一定接著那個數字（剩下752、
+     * 餘額363、剩餘金額666、現在有500）——這是字串比對，程式做比模型穩
+     * （同 {@link #resolveTypeChange}：模型判語意、程式驗證據）。
+     *
+     * 改成支出時，金額不明的那一份（「剩下的是食材」）補成總額扣掉已知各份；算不出來就留給表單。
+     * 補充模式只在「要求改型別」時把關：在調整餘額表單上補講一份分割，回 balance 是在描述原本的型別。
+     * 沒有原句（語音直解沒回轉寫）就無從驗證，不動。
+     */
+    static void requireBalanceCueForSplits(ParsedTransaction t, String userText, boolean supplement) {
+        if (!ParsedTransaction.TYPE_BALANCE.equals(t.transactionType) || !t.hasSplits()) return;
+        if (supplement && !t.typeChange) return;
+        if (userText == null || userText.trim().isEmpty()) return;
+        if (hasBalanceCue(userText)) return;
+        t.transactionType = ParsedTransaction.TYPE_EXPENSE;
+        if (t.amount == null) return;
+        double known = 0;
+        ParsedTransaction.Split unknown = null;
+        int unknownCount = 0;
+        for (ParsedTransaction.Split s : t.splits) {
+            if (s.amount == null) {
+                unknown = s;
+                unknownCount++;
+            } else {
+                known += Math.abs(s.amount);
+            }
+        }
+        double rest = Math.abs(t.amount) - known;
+        if (unknownCount == 1 && rest > 0) {
+            unknown.amount = rest;
+        }
+    }
+
+    /** 餘額字眼（剩下／剩餘／剩／餘額／結餘／現在有／目前有／還有）後面緊接著數字。 */
+    private static final java.util.regex.Pattern BALANCE_CUE = java.util.regex.Pattern.compile(
+            "(剩下|剩餘|剩|餘額|結餘|現在有|目前有|還有)(了|下來)?(金額|的錢|錢)?(還有|是|有|為)?"
+                    + "(大概|大約|約)?[0-9０-９零一二兩三四五六七八九十百千萬]");
+
+    static boolean hasBalanceCue(String userText) {
+        return BALANCE_CUE.matcher(squeeze(userText)).find();
     }
 
     /**
