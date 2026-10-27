@@ -122,6 +122,7 @@ public abstract class FilterAbstractActivity extends AbstractActivity implements
 		categorySelector.setListener(this);
 		categorySelector.initMultiSelect();
 		categoryTxt = categorySelector.createNode(layout, FILTER);
+		categorySelector.addIncludeSubCategoriesRow(layout);
 	}
 
 	protected void clear(String criteria, TextView textView) {

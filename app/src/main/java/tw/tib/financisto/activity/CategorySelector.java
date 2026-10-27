@@ -69,14 +69,13 @@ public class CategorySelector<A extends AbstractActivity> {
     // ===== 篩選專用：包含子分類 =====
     // 分類篩選走 nested set，btw(category_left, left, right) 本來就把整個子樹框進去。
     // 取消勾選時改送 btw(left, left)——只框住這個分類自己那一格，子分類不算。
-    // 這一行只有 FILTER 型別建得出來，而且只在「選到的分類裡有人有子分類」時才顯示：
+    // 這一行由篩選畫面主動加（addIncludeSubCategoriesRow），而且只在「選到的分類裡有人有子分類」時才顯示：
     // 選的全是葉節點時「含不含子分類」沒有意義，多出一個永遠沒作用的勾選框只會讓人猶豫。
     private View includeSubCategoriesRow;
     private CheckBox includeSubCategoriesCheckBox;
     private boolean includeSubCategories = true;
     /** 只是把 UI 同步成目前狀態時用，避免 setChecked 反過來又去重建一次 criterion。 */
     private boolean syncingIncludeSubCategories = false;
-
     private long selectedCategoryId = NO_CATEGORY_ID;
     private Account selectedAccount;
     private CategorySelectorListener listener;
@@ -264,14 +263,15 @@ public class CategorySelector<A extends AbstractActivity> {
         filterAutoCompleteTxt = nodes.second;
         node = (View) categoryText.getTag();
         node.setEnabled(false);
-        if (type == SelectorType.FILTER) {
-            addIncludeSubCategoriesRow(layout);
-        }
         return categoryText;
     }
 
-    /** 接在分類欄位下方的那一行小字，靠右。 */
-    private void addIncludeSubCategoriesRow(LinearLayout layout) {
+    /**
+     * 加上「包含子分類」那一行（接在分類欄位下方的小字，靠右）。由篩選畫面在 {@link #createNode} 之後
+     * 主動呼叫：條件來自 {@link #getCheckedCategoryLeafs()} 的畫面才有意義。預算、通知樣板也用
+     * SelectorType.FILTER，但它們存的是分類 id，這個選項對它們沒作用，所以不在 createNode 裡自動加。
+     */
+    public void addIncludeSubCategoriesRow(LinearLayout layout) {
         includeSubCategoriesRow = LayoutInflater.from(activity)
                 .inflate(R.layout.select_entry_include_sub, layout, false);
         includeSubCategoriesCheckBox = includeSubCategoriesRow.findViewById(R.id.category_include_sub);

@@ -103,6 +103,11 @@ public class TransactionActivity extends AbstractTransactionActivity {
     }
 
     @Override
+    protected boolean isIntentPrefillSupported() {
+        return true;
+    }
+
+    @Override
     protected void internalOnCreate() {
         Intent intent = getIntent();
         if (intent != null) {
@@ -477,7 +482,10 @@ public class TransactionActivity extends AbstractTransactionActivity {
 
     @Override
     protected void editTransaction(Transaction transaction) {
-        selectAccount(transaction.fromAccountId, false);
+        // a transaction pre-filled from an intent may have no account yet
+        if (transaction.fromAccountId > 0) {
+            selectAccount(transaction.fromAccountId, false);
+        }
         commonEditTransaction(transaction);
         selectCurrency(transaction);
         fetchSplits();

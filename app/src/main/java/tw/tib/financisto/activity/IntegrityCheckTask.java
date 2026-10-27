@@ -35,6 +35,10 @@ public class IntegrityCheckTask extends AsyncTask<IntegrityCheck, Void, Integrit
      */
     private final boolean tapToFix;
 
+    public IntegrityCheckTask(Fragment fragment) {
+        this(fragment, false);
+    }
+
     public IntegrityCheckTask(Fragment fragment, boolean tapToFix) {
         this.fragment = fragment;
         this.tapToFix = tapToFix;

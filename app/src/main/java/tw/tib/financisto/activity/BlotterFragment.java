@@ -264,13 +264,15 @@ public class BlotterFragment extends AbstractListFragment<Cursor> implements Blo
         }
 
         // 這個畫面本來沒給橫幅接任何事件（帳戶列表那兩個有，只是關掉它）——所以在交易畫面
-        // 點它完全沒反應。改成點了直接修，修完重跑檢查讓它自己收掉。
+        // 點它完全沒反應。改成點了直接修：修完重新載入列表、再跑一次檢查讓它自己收掉。
+        // 列表要自己重載：單一帳戶明細（BlotterActivity）不在主畫面裡，沒有人會替它重新整理。
         View integrityError = view.findViewById(R.id.integrity_error);
         if (integrityError != null) {
-            integrityError.setOnClickListener(v ->
-                    MenuListItem.fixIntegrity(getContext(), this::integrityCheck));
+            integrityError.setOnClickListener(v -> MenuListItem.fixIntegrity(getContext(), () -> {
+                recreateCursor();
+                integrityCheck();
+            }));
         }
-
         integrityCheck();
 
         backCallback = new OnBackPressedCallback(false) {

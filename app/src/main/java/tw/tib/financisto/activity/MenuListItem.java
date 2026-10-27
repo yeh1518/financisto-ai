@@ -378,12 +378,12 @@ public enum MenuListItem implements SummaryEntityEnum {
      * 跑「修復資料庫」（重建逐筆餘額）。除了選單那條路，畫面上的「逐筆餘額似乎不準確」橫幅
      * 也直接叫這裡——偵測得到卻只能叫使用者自己去翻選單，等於把已知的修法藏起來。
      *
-     * @param onDone 修完在主執行緒跑（通常是重跑一次檢查、讓橫幅自己收掉），不需要就傳 null
+     * @param onDone 修完在主執行緒跑，**取代**主畫面的「重新整理目前分頁」（呼叫端自己決定要
+     *               重載什麼，例如單一帳戶明細不在主畫面裡，要自己重載列表）；傳 null 就照舊重新整理
      */
     public static void fixIntegrity(Context context, Runnable onDone) {
         new IntegrityFixTask(context, onDone).execute();
     }
-
     private static class IntegrityFixTask extends AsyncTask<Void, Void, Void> {
 
         private final Context context;
@@ -403,13 +403,12 @@ public enum MenuListItem implements SummaryEntityEnum {
 
         @Override
         protected void onPostExecute(Void o) {
-            if (context instanceof MainActivity) {
+            if (onDone != null) {
+                onDone.run();
+            } else if (context instanceof MainActivity) {
                 ((MainActivity) context).refreshCurrentTab();
             }
             progressDialog.dismiss();
-            if (onDone != null) {
-                onDone.run();
-            }
         }
 
         @Override
