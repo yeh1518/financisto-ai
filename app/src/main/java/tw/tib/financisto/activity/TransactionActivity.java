@@ -878,7 +878,11 @@ public class TransactionActivity extends AbstractTransactionActivity {
      */
     private void warnCounterSignedShares() {
         if (!isUpdateBalanceMode) return;
-        long delta = rateView.getFromAmount() - currentBalance;
+        warnSharesCounterSignedTo(rateView.getFromAmount() - currentBalance);
+    }
+
+    /** 有份的正負跟 reference（差額或這筆的金額）相反就跳提醒：多半是講錯金額，也可能真有一份是收入。 */
+    private void warnSharesCounterSignedTo(long delta) {
         if (delta == 0) return;
         long accountId = getSelectedAccountId();
         for (Transaction s : splits.values()) {
@@ -927,19 +931,33 @@ public class TransactionActivity extends AbstractTransactionActivity {
             if (balancePlan.isEmpty()) return false;
         } else {
             int valid = 0;
-            for (ParsedTransaction.Split s : t.splits) if (s.amount != null) valid++;
+            boolean hasRemainder = false;
+            for (ParsedTransaction.Split s : t.splits) {
+                if (s.amount != null) valid++;
+                else hasRemainder = true;
+            }
             if (valid == 0) return false;
+            // 已有金額的表單上講「250 是拖鞋、剩下的是零食」：殘額份（amount=null）分的是這筆現有的金額，
+            // 總額不變。同一個 planner——分的對象從「差額」換成「這筆的金額」。
+            // 原本這裡把殘額份略過、父金額改成已知份加總，875 的帳會被改成 250（2026-11-08 實地發生）。
+            long existing = rateView.getFromAmount();
+            if (hasRemainder && existing != 0) {
+                List<BalanceSplitPlanner.Share> plan = BalanceSplitPlanner.plan(t.splits, existing, scale);
+                applySplitCommonFields(t);
+                clearSplitsForRebuild();
+                addPlannedShares(plan, getSelectedAccountId());
+                rateView.setFromAmount(existing);
+                warnSharesCounterSignedTo(existing);
+                aiApplyPath = "splits-remainder";
+                return true;
+            }
         }
 
-        // 共用欄位先套（分類/金額改由分割決定，不走這裡）
-        if (t.account.resolved()) selectAccount(t.account.id, false);
-        if (t.project.resolved()) projectSelector.selectEntity(t.project.id);
-        Long spoken = t.resolveDateTimeMillis();
-        if (spoken != null) setDateTime(spoken);
-
+        applySplitCommonFields(t);
         clearSplitsForRebuild();
 
         long accountId = getSelectedAccountId();
+        aiApplyPath = balancePlan != null ? "balance-splits" : "splits";
         if (balancePlan != null) {
             // 金額欄維持「新餘額」（有講就換成講的那個），子項照 planner 的帶號金額建
             if (newBalance != null) {
@@ -970,6 +988,14 @@ public class TransactionActivity extends AbstractTransactionActivity {
         }
         rateView.setFromAmount(total);   // 父金額＝加總，unsplit 歸零
         return true;
+    }
+
+    /** 分割時的共用欄位（帳戶/專案/日期）；分類與金額由各份決定，不走這裡。 */
+    private void applySplitCommonFields(ParsedTransaction t) {
+        if (t.account.resolved()) selectAccount(t.account.id, false);
+        if (t.project.resolved()) projectSelector.selectEntity(t.project.id);
+        Long spoken = t.resolveDateTimeMillis();
+        if (spoken != null) setDateTime(spoken);
     }
 
     /** 把表單切成分割、清空現有子項，準備照 AI 各份重建。 */
@@ -1008,6 +1034,7 @@ public class TransactionActivity extends AbstractTransactionActivity {
      */
     @Override
     protected boolean restateExistingBalance(ParsedTransaction t) {
+        aiApplyPath = "restate";
         if (t.amount == null) {
             Toast.makeText(this, R.string.ai_balance_need_amount, Toast.LENGTH_LONG).show();
             return true;

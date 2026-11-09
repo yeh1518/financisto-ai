@@ -451,9 +451,12 @@ public class BookkeepingParser {
         return parseResponse(responseBody, userText, supplement, formStateContext);
     }
 
+    /** 最近一次寫進 AiLog 的解析紀錄 id；轉成 ParsedTransaction 時帶上，表單端的 applied／form_end 用它掛回來。 */
+    private String lastLogId;
+
     private void record(String userText, boolean supplement, String formStateContext, String rawContent, String error) {
         if (logContext != null) {
-            AiLog.record(logContext, userText, supplement, formStateContext, rawContent, error,
+            lastLogId = AiLog.record(logContext, userText, supplement, formStateContext, rawContent, error,
                     prefs.getModel(), inputSource, PROMPT_VERSION);
         }
     }
@@ -559,6 +562,7 @@ public class BookkeepingParser {
 
     private ParsedTransaction toParsedTransaction(JSONObject data, String userText, boolean supplement) {
         ParsedTransaction t = new ParsedTransaction();
+        t.logRef = lastLogId;
         t.transactionType = data.isNull("transaction_type") ? null : data.optString("transaction_type", null);
         t.typeChange = resolveTypeChange(data, t, userText);
         t.amount = data.isNull("amount") ? null : data.optDouble("amount");

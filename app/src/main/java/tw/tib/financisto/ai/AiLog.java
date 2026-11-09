@@ -88,12 +88,14 @@ public class AiLog {
      *                   ＝辨識完又手改過。沒有這欄的話，換過辨識引擎之後語料就混成一團、
      *                   無法分層比較（2026-07-29 補；此日之前的紀錄沒有這欄，分析時要排除）。
      */
-    public static void record(Context context, String utterance, boolean supplement,
+    public static String record(Context context, String utterance, boolean supplement,
                               String formState, String rawContent, String error,
                               String model, String stt, String promptVersion) {
+        String id = newId();
         try {
             JSONObject o = new JSONObject();
             o.put("at", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
+            o.put("id", id);
             o.put("said", utterance == null ? "" : utterance);
             stampVersion(o, promptVersion);
             if (model != null) o.put("model", model);
@@ -105,6 +107,61 @@ public class AiLog {
             append(context, o.toString());
         } catch (JSONException e) {
             Log.e(TAG, "組紀錄失敗", e);
+        }
+        return id;
+    }
+
+    /** 一筆解析的編號：同一句話後續的 applied／form_end 用它（ref）掛回來。 */
+    private static String newId() {
+        return Long.toString(System.currentTimeMillis(), 36)
+                + Integer.toString((int) (Math.random() * 1296), 36);
+    }
+
+    /**
+     * 記「模型的回應套進表單之後，表單變成什麼樣子」。
+     *
+     * 為什麼需要：{@link #record} 只留到模型回了什麼（got）。app 怎麼把它套上表單是另一段程式，
+     * 錯在那一段時紀錄完全看不出來——2026-11-08 補充模式講「250 是拖鞋、剩下的是零食」，
+     * 模型回對了，表單卻把整筆改成 250，事後只能讀程式推測。有這筆就能直接比對 got 與結果。
+     *
+     * @param ref   對應的解析紀錄 id
+     * @param path  套用走哪條路：fields／splits／balance-splits／restate／switch:&lt;表單&gt;／arrived（AI 開的表單第一次畫好）
+     * @param after 套完的表單（總額＋型別/帳戶/分類或各份/備註）；切去別張表單時為 null
+     */
+    public static void recordApplied(Context context, String ref, String path, String after) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("at", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
+            o.put("kind", "applied");
+            if (ref != null) o.put("ref", ref);
+            o.put("path", path == null ? "" : path);
+            if (after != null) o.put("after", after);
+            stampVersion(o, null);
+            append(context, o.toString());
+        } catch (JSONException e) {
+            Log.e(TAG, "組套用紀錄失敗", e);
+        }
+    }
+
+    /**
+     * 記「這張經過 AI 的表單最後怎麼收場」：saved（附存下去的內容）／discarded（沒存就離開）／
+     * switched（切去別張表單，收場記在那張）。
+     *
+     * 為什麼需要：跟 applied 的 after 一比，就知道使用者存檔前有沒有手改、改了什麼；
+     * discarded 則代表那次 AI 的結果被放棄——連講兩次同一句話時，分得出第一次是被退掉重來的。
+     */
+    public static void recordFormEnd(Context context, List<String> refs, String end, String saved) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("at", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date()));
+            o.put("kind", "form_end");
+            o.put("ref", new JSONArray(refs));
+            o.put("end", end);
+            if (saved != null) o.put("saved", saved);
+            stampVersion(o, null);
+            append(context, o.toString());
+        } catch (JSONException e) {
+            Log.e(TAG, "組表單收場紀錄失敗", e);
         }
     }
 
@@ -316,6 +373,22 @@ public class AiLog {
                             sb.append("　").append(t.optString("tpl")).append('\n');
                         }
                     }
+                    sb.append('\n');
+                    continue;
+                }
+                if ("applied".equals(o.optString("kind"))) {
+                    sb.append("  [套進表單 ").append(o.optString("path")).append("]\n");
+                    if (o.has("after")) sb.append(o.optString("after")).append('\n');
+                    sb.append('\n');
+                    continue;
+                }
+                if ("form_end".equals(o.optString("kind"))) {
+                    String end = o.optString("end");
+                    sb.append("  [表單收場 ").append(
+                            "saved".equals(end) ? "已存檔"
+                            : "discarded".equals(end) ? "沒存就離開"
+                            : "switched".equals(end) ? "切到別張表單" : end).append("]\n");
+                    if (o.has("saved")) sb.append(o.optString("saved")).append('\n');
                     sb.append('\n');
                     continue;
                 }

@@ -707,7 +707,16 @@ public class AiInputActivity extends ComponentActivity {
         if (t.project.resolved()) {
             intent.putExtra(AbstractTransactionActivity.AI_PREFILL_PROJECT_ID_EXTRA, t.project.id);
         }
+        putLogRef(intent, t);
         startActivityForResult(intent, REQ_CONFIRM);
+    }
+
+    /** 帶上這次解析的 AiLog id：表單第一次畫好的樣子與最後存了什麼，都會掛回這句話。 */
+    private static void putLogRef(Intent intent, ParsedTransaction t) {
+        if (t.logRef == null) return;
+        java.util.ArrayList<String> refs = new java.util.ArrayList<>();
+        refs.add(t.logRef);
+        intent.putStringArrayListExtra(AbstractTransactionActivity.AI_LOG_REFS_EXTRA, refs);
     }
 
     /**
@@ -769,6 +778,7 @@ public class AiInputActivity extends ComponentActivity {
         // 強制非 template（draft 本身是 template，不加這行會讓存出的正式交易也變 template）
         intent.putExtra(AbstractTransactionActivity.TEMPLATE_EXTRA, 0);
         putDateTimeIfSpoken(intent, t);
+        putLogRef(intent, t);
         startActivityForResult(intent, REQ_CONFIRM);
     }
 

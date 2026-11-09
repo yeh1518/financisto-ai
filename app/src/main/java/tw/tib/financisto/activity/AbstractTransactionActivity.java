@@ -33,6 +33,7 @@ import android.app.TimePickerDialog;
 import greendroid.widget.QuickActionWidget;
 import tw.tib.financisto.Application;
 import tw.tib.financisto.R;
+import tw.tib.financisto.ai.AiLog;
 import tw.tib.financisto.ai.AiPreferences;
 import tw.tib.financisto.ai.BalanceSplitPlanner;
 import tw.tib.financisto.ai.BookkeepingParser;
@@ -92,6 +93,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	public static final String TAG = "AbstractTxActivity";
 
 	public static final String TRAN_ID_EXTRA = "tranId";
+	/** 這張表單牽涉到的 AI 解析紀錄 id（AiLog）；AI 開表單、表單互切時帶過來，收場紀錄掛回這些 id。 */
+	public static final String AI_LOG_REFS_EXTRA = "aiLogRefs";
 	public static final String ACCOUNT_ID_EXTRA = "accountId";
 	public static final String DUPLICATE_EXTRA = "isDuplicate";
 	public static final String TEMPLATE_EXTRA = "isTemplate";
@@ -265,6 +268,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		IntentTransactionProcessor.Prefill prefill = null;
 		final Intent intent = getIntent();
 		if (intent != null) {
+			ArrayList<String> refs = intent.getStringArrayListExtra(AI_LOG_REFS_EXTRA);
+			if (refs != null) aiLogRefs.addAll(refs);
 			accountId = intent.getLongExtra(ACCOUNT_ID_EXTRA, -1);
 			transactionId = intent.getLongExtra(TRAN_ID_EXTRA, -1);
 			transaction.dateTime = intent.getLongExtra(DATETIME_EXTRA, System.currentTimeMillis());
@@ -527,8 +532,17 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	protected abstract void fetchCategories();
 
 	private boolean saveAndFinish() {
+		String aiSnapshot = aiLogRefs.isEmpty() ? null : aiLogSnapshot();
 		long id = save();
 		if (id > 0) {
+			if (aiSnapshot != null && !aiFormEndLogged) {
+				aiFormEndLogged = true;
+				try {
+					AiLog.recordFormEnd(this, aiLogRefs, "saved", aiSnapshot);
+				} catch (Exception e) {
+					Log.e("AiLog", "記表單收場失敗", e);
+				}
+			}
 			Intent data = new Intent();
 			data.putExtra(TransactionColumns._id.name(), id);
 			setResult(RESULT_OK, data);
@@ -899,9 +913,75 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	 * 不切才走 {@link #applyAiSupplementFields} 就地套用欄位。
 	 */
 	protected final void applyAiSupplement(ParsedTransaction t) {
-		if (maybeSwitchType(t)) return;
+		if (t.logRef != null) aiLogRefs.add(t.logRef);
+		aiApplyPath = null;
+		if (maybeSwitchType(t)) {
+			// 切去別張表單時這張已在收場，結果記在新表單；沒切成（缺帳戶等）就照實記下表單現況
+			boolean switched = aiApplyPath != null && aiApplyPath.startsWith("switch:");
+			logAiApplied(t, aiApplyPath != null ? aiApplyPath : "blocked", !switched);
+			return;
+		}
+		aiApplyPath = "fields";
 		applyAiSupplementFields(t);
+		logAiApplied(t, aiApplyPath, true);
 		Toast.makeText(this, R.string.ai_recognized, Toast.LENGTH_SHORT).show();
+	}
+
+	// ---------------- AI 紀錄：套用結果與表單收場（見 AiLog.recordApplied / recordFormEnd） ----------------
+
+	/** 這張表單牽涉到的 AI 解析紀錄 id，依發生順序。 */
+	protected final ArrayList<String> aiLogRefs = new ArrayList<>();
+	/** 補充套用走了哪條路；子類在分割、改寫餘額等分支裡覆寫成更精確的值。 */
+	protected String aiApplyPath;
+	private boolean aiFormEndLogged;
+	private boolean aiArrivedLogged;
+	private boolean aiHandedOff;
+
+	private void logAiApplied(ParsedTransaction t, String path, boolean withSnapshot) {
+		try {
+			AiLog.recordApplied(this, t.logRef, path, withSnapshot ? aiLogSnapshot() : null);
+		} catch (Exception e) {
+			Log.e("AiLog", "記套用結果失敗", e);   // 紀錄不能讓記帳失敗
+		}
+	}
+
+	private void logAiFormEnd(String end, boolean withSnapshot) {
+		if (aiLogRefs.isEmpty() || aiFormEndLogged) return;
+		aiFormEndLogged = true;
+		try {
+			AiLog.recordFormEnd(this, aiLogRefs, end, withSnapshot ? aiLogSnapshot() : null);
+		} catch (Exception e) {
+			Log.e("AiLog", "記表單收場失敗", e);
+		}
+	}
+
+	/** 紀錄用的表單快照：總額一行＋與補充模式相同的表單狀態（不含給模型的那段開頭說明）。 */
+	protected String aiLogSnapshot() {
+		try {
+			long amount = rateView.getFromAmount();
+			StringBuilder sb = new StringBuilder("總額：")
+					.append(amount < 0 ? "-" : "")
+					.append(aiFormatMajor(Math.abs(amount), getSelectedAccountId())).append('\n');
+			String state = buildAiFormStateContext();
+			if (state.startsWith(AI_FORM_STATE_HEADER)) state = state.substring(AI_FORM_STATE_HEADER.length());
+			return sb.append(state).toString();
+		} catch (Exception e) {
+			return "（讀表單失敗：" + e + "）";
+		}
+	}
+
+	@Override
+	public void onWindowFocusChanged(boolean hasFocus) {
+		super.onWindowFocusChanged(hasFocus);
+		// AI 開的表單（一句話記帳、切換過來的）第一次畫好：記下使用者一打開看到的樣子
+		if (hasFocus && !aiArrivedLogged && !aiLogRefs.isEmpty()) {
+			aiArrivedLogged = true;
+			try {
+				AiLog.recordApplied(this, aiLogRefs.get(aiLogRefs.size() - 1), "arrived", aiLogSnapshot());
+			} catch (Exception e) {
+				Log.e("AiLog", "記表單初始狀態失敗", e);
+			}
+		}
 	}
 
 	/**
@@ -1039,6 +1119,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 		if (!TextUtils.isEmpty(note)) intent.putExtra(TransactionActivity.AI_PREFILL_NOTE_EXTRA, note);
 		long projId = t.project.resolved() ? t.project.id : projectSelector.getSelectedEntityId();
 		if (projId > 0) intent.putExtra(TransactionActivity.AI_PREFILL_PROJECT_ID_EXTRA, projId);
+		aiApplyPath = "switch:balance";
 		startReplacingThisForm(intent);
 		return true;
 	}
@@ -1213,6 +1294,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 			intent.putExtra(TransactionActivity.CURRENT_BALANCE_EXTRA, a != null ? balanceExcludingThis(a) : 0L);
 			if (a != null) intent.putExtra(ACCOUNT_ID_EXTRA, a.id);
 		}
+		aiApplyPath = "switch:" + target.name().toLowerCase(java.util.Locale.ROOT);
 		startReplacingThisForm(intent);
 	}
 
@@ -1221,6 +1303,12 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	 * 來回切幾次都不會疊出一串表單；切換的動畫關掉，看起來像原地換了畫面。
 	 */
 	private void startReplacingThisForm(Intent intent) {
+		if (!aiLogRefs.isEmpty()) {
+			// AI 紀錄跟著換表單：收場記在新表單（存或不存都在那邊發生）
+			intent.putStringArrayListExtra(AI_LOG_REFS_EXTRA, new ArrayList<>(aiLogRefs));
+			aiHandedOff = true;
+			logAiFormEnd("switched", false);
+		}
 		intent.addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT);
 		startActivity(intent);
 		overridePendingTransition(0, 0);
@@ -1235,6 +1323,7 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 	private void prepareIntentForNext(Intent intent) {
 		intent.removeExtra(FORM_SWITCH_ORIGIN_EXTRA);
 		intent.removeExtra(FORM_SWITCH_REPLACES_EXTRA);
+		intent.removeExtra(AI_LOG_REFS_EXTRA);   // 下一筆是空白表單，跟這次的 AI 解析無關
 		intent.setFlags(intent.getFlags() & ~Intent.FLAG_ACTIVITY_FORWARD_RESULT);
 		if (intent.hasExtra(TransactionActivity.CURRENT_BALANCE_EXTRA)) {
 			Account a = db.getAccount(transaction.fromAccountId);
@@ -1677,6 +1766,8 @@ public abstract class AbstractTransactionActivity extends AbstractActivity imple
 
 	@Override
 	protected void onDestroy() {
+		// 經過 AI 的表單沒存、也沒交棒給別張表單就關掉＝那次的結果被放棄（取消鈕、返回鍵都走這裡）
+		if (isFinishing() && !aiHandedOff) logAiFormEnd("discarded", false);
 		if (payeeSelector != null) payeeSelector.onDestroy();
 		if (projectSelector != null) projectSelector.onDestroy();
 		if (locationSelector != null) locationSelector.onDestroy();

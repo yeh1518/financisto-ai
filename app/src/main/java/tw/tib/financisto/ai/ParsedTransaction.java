@@ -51,7 +51,8 @@ public class ParsedTransaction {
 
     /**
      * 分割明細：一筆付款拆成多個分類時每份一項；沒拆＝空。
-     * 有 splits 時父交易走 SPLIT。expense/income：金額以各份加總為準（頂層 amount 僅參考）。
+     * 有 splits 時父交易走 SPLIT。expense/income：金額以各份加總為準（頂層 amount 僅參考）；
+     * 但在**已有金額的表單上**補講分割時，amount=null 的份＝殘額份，拿表單現有金額扣掉已知份補上，總額不變。
      * balance：頂層 amount 仍是新餘額，各份分的是**差額**；amount=null 的份＝殘額份
      * （「剩下的是食材」），由 {@link BalanceSplitPlanner} 用差額扣掉已知份補上。transfer 不拆。
      */
@@ -60,6 +61,9 @@ public class ParsedTransaction {
     public boolean hasSplits() {
         return splits != null && !splits.isEmpty();
     }
+
+    /** 這次解析在 AiLog 的紀錄 id（沒寫紀錄時為 null）；表單端記 applied／form_end 時掛回去。 */
+    public String logRef;
 
     /** 明確講到的日期，格式 YYYY-MM-DD；沒講為 null。 */
     public String date;
