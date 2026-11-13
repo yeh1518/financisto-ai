@@ -5,17 +5,12 @@ import android.content.Context;
 import java.math.BigDecimal;
 import java.util.concurrent.TimeUnit;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import tw.tib.financisto.service.SmsTransactionProcessor;
 
-import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
 
 /**
  * 從一則通知樣本產生原生「通知/簡訊樣板」（定稿 2026-07-23）。
@@ -33,7 +28,6 @@ import okhttp3.Response;
  */
 public class TemplateGenerator {
 
-    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     /** 變異測試用的替換金額：位數、千分位、小數都跟常見樣本不同。 */
     private static final String MUTATED_AMOUNT = "1,234.00";
@@ -397,62 +391,29 @@ public class TemplateGenerator {
     private GeneratedTemplate callModel(String title, String body, String retryHint)
             throws GenerateException {
         String key = prefs.getApiKey();
-        if (key == null || key.isEmpty()) {
+        if (!prefs.isConfigured()) {
             throw new GenerateException("尚未設定 API key");
         }
 
-        String requestJson;
+        String user = "【通知標題】" + title + "\n【通知內文】" + body;
+        if (retryHint != null) {
+            user += "\n\n【上次產出的樣板驗證失敗】" + retryHint + "\n請修正後重新產出。";
+        }
+        LlmCall call = new LlmCall(prefs.getLlmProvider(), key, prefs.getModel());
+        call.baseUrl = prefs.getLlmBaseUrl();
+        call.systemFull = SYSTEM_PROMPT + "\n" + ctx.promptContext;
+        call.systemStable = call.systemFull;
+        call.user = user;
+        call.schemaWrapper = RESPONSE_SCHEMA;
+        String content;
         try {
-            String system = SYSTEM_PROMPT + "\n" + ctx.promptContext;
-            String user = "【通知標題】" + title + "\n【通知內文】" + body;
-            if (retryHint != null) {
-                user += "\n\n【上次產出的樣板驗證失敗】" + retryHint + "\n請修正後重新產出。";
-            }
-            JSONArray messages = new JSONArray()
-                    .put(new JSONObject().put("role", "system").put("content", system))
-                    .put(new JSONObject().put("role", "user").put("content", user));
-            requestJson = new JSONObject()
-                    .put("model", prefs.getModel())
-                    .put("temperature", 0)
-                    .put("messages", messages)
-                    .put("response_format", new JSONObject()
-                            .put("type", "json_schema")
-                            .put("json_schema", new JSONObject(RESPONSE_SCHEMA)))
-                    .toString();
-        } catch (JSONException e) {
-            throw new GenerateException("組請求失敗", e);
-        }
-
-        Request request = new Request.Builder()
-                .url(prefs.getChatCompletionsUrl())
-                .addHeader("Authorization", "Bearer " + key)
-                .addHeader("Content-Type", "application/json")
-                .post(RequestBody.create(JSON, requestJson))
-                .build();
-
-        String responseBody;
-        int code;
-        try (Response response = client.newCall(request).execute()) {
-            code = response.code();
-            responseBody = response.body() != null ? response.body().string() : "";
-        } catch (java.io.IOException e) {
-            throw new GenerateException("網路錯誤：" + e.getMessage(), e);
-        }
-        if (code < 200 || code >= 300) {
-            throw new GenerateException(BookkeepingParser.httpErrorMessage(code, responseBody));
+            content = call.run(client);
+        } catch (LlmCall.Failure e) {
+            throw new GenerateException(e.getMessage(), e);
         }
 
         try {
-            JSONObject root = new JSONObject(responseBody);
-            JSONArray choices = root.optJSONArray("choices");
-            if (choices == null || choices.length() == 0) {
-                throw new GenerateException("回應無 choices：" + shorten(responseBody));
-            }
-            JSONObject message = choices.getJSONObject(0).getJSONObject("message");
-            if (!message.isNull("refusal")) {
-                throw new GenerateException("模型拒絕：" + message.optString("refusal"));
-            }
-            JSONObject data = new JSONObject(message.optString("content", ""));
+            JSONObject data = new JSONObject(content);
 
             GeneratedTemplate t = new GeneratedTemplate();
             // 查找鍵一律用通知的真實標題，不問模型：執行期就是拿這個值去 `? LIKE title` 查樣板，
@@ -470,12 +431,8 @@ public class TemplateGenerator {
             if (t.accountId != null && !ctx.validAccountIds.contains(t.accountId)) t.accountId = null;
             return t;
         } catch (JSONException e) {
-            throw new GenerateException("解析回應失敗：" + e.getMessage(), e);
+            throw new GenerateException(LlmCall.unreadable(e.getMessage()), e);
         }
     }
 
-    private static String shorten(String s) {
-        if (s == null) return "";
-        return s.length() > 300 ? s.substring(0, 300) + "…" : s;
-    }
 }

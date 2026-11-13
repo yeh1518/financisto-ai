@@ -148,6 +148,8 @@ configurations.all {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+    // Android 的 org.json 在 JVM 單元測試裡是空殼（returnDefaultValues 只回預設值），解析錯誤 JSON 的測試要真實作
+    testImplementation 'org.json:json:20240303'
     androidTestImplementation 'androidx.test.ext:junit:1.3.0'
     annotationProcessor "org.androidannotations:androidannotations:$AAVersion"
     implementation "org.androidannotations:androidannotations-api:$AAVersion"

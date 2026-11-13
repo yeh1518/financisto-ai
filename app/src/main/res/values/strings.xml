@@ -1396,6 +1396,14 @@
     <string name="ai_provider_gemini">Google AI (Gemini)</string>
     <string name="ai_provider_groq">Groq</string>
     <string name="ai_provider_openai">OpenAI</string>
+    <string name="ai_provider_anthropic">Anthropic (Claude, parsing only)</string>
+    <string name="ai_provider_custom">Self-hosted API (OpenAI-compatible, parsing only)</string>
+    <string name="ai_custom_title">Self-hosted API</string>
+    <string name="ai_custom_note">Any OpenAI-compatible endpoint (llama.cpp, Ollama, vLLM, a proxy…). Enter the base URL ending in /v1. Leave the key empty if the server doesn\'t need one. Plain http is unencrypted — use it only on your home network or Tailscale.</string>
+    <string name="ai_custom_url_hint">e.g. http://100.64.0.1:8080/v1</string>
+    <string name="ai_custom_key_hint">API key (optional; leave empty to keep the saved one)</string>
+    <string name="ai_custom_url_empty">Enter the URL</string>
+    <string name="ai_custom_clear">Clear</string>
     <string name="ai_save_hint">Save applies to the Speech recognition and AI parsing choices above. API keys and the settings below take effect immediately.</string>
     <string name="ai_other_section">Other</string>
     <string name="ai_stt_model_title">Recognition model</string>
@@ -1414,7 +1422,7 @@
     <string name="ai_intro_help">Help</string>
     <string name="ai_intro_got_it">Get started</string>
     <string name="ai_intro_open_settings">Open AI settings</string>
-    <string name="ai_intro_message">Say one sentence, get one entry: tap the mic and say "coffee at the corner store 60", and AI fills in the form for you to confirm.\n\n• Long-press the mic or the floating button to open AI settings\n• You can also type and hit parse\n• To auto-record bank/payment notifications: AI settings → "AI notification template"\n\n[What you need]\nOne cloud AI API key (Gemini, OpenAI or Groq), entered in AI settings.\n\n[To run it for free]\nA free Gemini key + speech recognition set to "Built-in" costs nothing. Gemini\'s free tier allows roughly 250 requests per day — plenty for personal bookkeeping (quotas are set by Google and may change).\n\n[Privacy]\nYour audio and text go straight to the cloud provider you choose. They never pass through any server of this app\'s developer (there is no such server). Accepting that provider\'s terms and risks is your call; if you\'d rather not use the cloud, just enter transactions manually — your ledger stays on your device either way.</string>
+    <string name="ai_intro_message">Say one sentence, get one entry: tap the mic and say "coffee at the corner store 60", and AI fills in the form for you to confirm.\n\n• Long-press the mic or the floating button to open AI settings\n• You can also type and hit parse\n• To auto-record bank/payment notifications: AI settings → "AI notification template"\n\n[What you need]\nOne cloud AI API key (Gemini, OpenAI, Groq or Anthropic), entered in AI settings. Anthropic (Claude) parses only; for voice use built-in recognition or another provider.\n\n[To run it for free]\nA free Gemini key + speech recognition set to "Built-in" costs nothing. Gemini\'s free tier allows roughly 250 requests per day — plenty for personal bookkeeping (quotas are set by Google and may change).\n\n[Privacy]\nYour audio and text go straight to the cloud provider you choose. They never pass through any server of this app\'s developer (there is no such server). Accepting that provider\'s terms and risks is your call; if you\'d rather not use the cloud, just enter transactions manually — your ledger stays on your device either way.</string>
     <string name="ai_not_configured_detail">No API key is set, so AI bookkeeping can\'t run.\n\nAdd a key in AI settings to get started. For a free setup, use a free Gemini key with speech recognition set to "Built-in". See Help for details.</string>
     <string name="notification_access_title">Notification access</string>
     <string name="notification_access_missing">Notification access is not granted, so no notifications can be captured. Open system settings to grant it?\n\nTip: if access looks granted but the list stays empty (e.g. right after an app update), toggle it off and on once.</string>

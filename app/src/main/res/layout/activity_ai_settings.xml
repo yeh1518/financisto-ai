@@ -113,6 +113,63 @@
                 android:text="@string/ai_key_edit" />
         </LinearLayout>
 
+        <LinearLayout
+            style="@style/AiSettingRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ai_provider_anthropic" />
+
+            <TextView
+                android:id="@+id/ai_key_status_anthropic"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textStyle="italic" />
+
+            <Button
+                android:id="@+id/ai_key_edit_anthropic"
+                style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/ai_key_edit" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/AiSettingRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ai_provider_custom" />
+
+            <TextView
+                android:id="@+id/ai_key_status_custom"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxWidth="160dp"
+                android:ellipsize="middle"
+                android:singleLine="true"
+                android:textSize="12sp"
+                android:textStyle="italic" />
+
+            <Button
+                android:id="@+id/ai_key_edit_custom"
+                style="?android:attr/buttonStyleSmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/ai_key_edit" />
+        </LinearLayout>
+
         <View
             style="@style/AiDivider"
             android:layout_width="match_parent"

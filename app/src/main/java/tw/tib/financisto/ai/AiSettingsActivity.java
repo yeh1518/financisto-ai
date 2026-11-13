@@ -88,6 +88,9 @@ public class AiSettingsActivity extends ComponentActivity {
         bindKeyRow(AiPreferences.PROVIDER_GEMINI, R.id.ai_key_status_gemini, R.id.ai_key_edit_gemini);
         bindKeyRow(AiPreferences.PROVIDER_GROQ, R.id.ai_key_status_groq, R.id.ai_key_edit_groq);
         bindKeyRow(AiPreferences.PROVIDER_OPENAI, R.id.ai_key_status_openai, R.id.ai_key_edit_openai);
+        bindKeyRow(AiPreferences.PROVIDER_ANTHROPIC, R.id.ai_key_status_anthropic, R.id.ai_key_edit_anthropic);
+        refreshCustomStatus();
+        findViewById(R.id.ai_key_edit_custom).setOnClickListener(v -> showCustomDialog());
 
         sttProviderValue = findViewById(R.id.ai_stt_provider_value);
         llmProviderValue = findViewById(R.id.ai_llm_provider_value);
@@ -141,7 +144,7 @@ public class AiSettingsActivity extends ComponentActivity {
 
     /** 服務列的值：「服務 \ 模型」；沒設 key 提示去設。 */
     private String llmCombinedValue() {
-        if (!AiPreferences.hasKey(this, llmProvider)) {
+        if (!AiPreferences.isProviderReady(this, llmProvider)) {
             return getString(R.string.ai_no_provider_key);
         }
         return displayName(llmProvider) + " \\ " + modelOrUnset(llmModel);
@@ -157,12 +160,7 @@ public class AiSettingsActivity extends ComponentActivity {
     }
 
     private static String displayName(String provider) {
-        switch (provider) {
-            case AiPreferences.PROVIDER_GEMINI: return "Google AI";
-            case AiPreferences.PROVIDER_GROQ: return "Groq";
-            case AiPreferences.PROVIDER_OPENAI: return "OpenAI";
-            default: return provider;
-        }
+        return AiErrors.providerName(provider);
     }
 
     private String sttProviderLabel(String provider) {
@@ -214,8 +212,8 @@ public class AiSettingsActivity extends ComponentActivity {
     private void pickLlm() {
         List<String> ids = new ArrayList<>();
         List<String> names = new ArrayList<>();
-        for (String p : AiPreferences.CLOUD_PROVIDERS) {
-            if (!AiPreferences.hasKey(this, p)) continue;
+        for (String p : AiPreferences.LLM_PROVIDERS) {
+            if (!AiPreferences.isProviderReady(this, p)) continue;
             ids.add(p);
             names.add(displayName(p));
         }
@@ -308,16 +306,15 @@ public class AiSettingsActivity extends ComponentActivity {
         // 一次到位的 Gemini 收斂回 gemini 這家（端點、key、模型過濾都以底層家為準）
         final String realProvider = AiPreferences.underlyingProvider(provider);
         final String key = AiPreferences.getKey(this, provider);
-        if (TextUtils.isEmpty(key)) {
+        if (!AiPreferences.isProviderReady(this, realProvider)) {
             Toast.makeText(this, R.string.ai_no_provider_key, Toast.LENGTH_LONG).show();
             return;
         }
-        final String url = AiPreferences.llmBaseUrl(realProvider) + "/models";
-
+        final String base = AiPreferences.baseUrl(this, realProvider);
         Toast.makeText(this, R.string.ai_models_loading, Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             try {
-                List<String> all = requestModels(url, key);
+                List<String> all = requestModels(realProvider, base, key);
                 List<String> models = new ArrayList<>();
                 for (String id : all) {
                     String clean = stripModelsPrefix(id);
@@ -363,21 +360,35 @@ public class AiSettingsActivity extends ComponentActivity {
         return id.startsWith("models/") ? id.substring("models/".length()) : id;
     }
 
-    /** 取 /models 原始 id 清單（不過濾）。也是 key 測試的探針（HTTP 200 ＝ key 有效）。 */
-    private List<String> requestModels(String url, String key) throws IOException {
+    /**
+     * 取 /models 原始 id 清單（不過濾）。也是 key 測試的探針（HTTP 200 ＝ key 有效）。
+     * 失敗時丟出的訊息已是人話（{@link AiErrors}），直接顯示。
+     * Anthropic 的認證標頭不同（x-api-key＋anthropic-version），清單預設一頁只給 20 筆，要帶 limit。
+     */
+    private List<String> requestModels(String provider, String base, String key) throws IOException {
         OkHttpClient client = new OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .build();
-        Request request = new Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer " + key)
-                .get()
-                .build();
-        try (Response response = client.newCall(request).execute()) {
+        Request.Builder rb = new Request.Builder().get();
+        if (AiPreferences.PROVIDER_ANTHROPIC.equals(provider)) {
+            rb.url(base + "/models?limit=1000")
+                    .addHeader("x-api-key", key)
+                    .addHeader("anthropic-version", LlmCall.ANTHROPIC_VERSION);
+        } else {
+            rb.url(base + "/models");
+            if (!TextUtils.isEmpty(key)) rb.addHeader("Authorization", "Bearer " + key);
+        }
+        Response r;
+        try {
+            r = client.newCall(rb.build()).execute();
+        } catch (IOException e) {
+            throw new IOException(AiErrors.network(provider, e), e);
+        }
+        try (Response response = r) {
             String body = response.body() != null ? response.body().string() : "";
             if (!response.isSuccessful()) {
-                throw new IOException("HTTP " + response.code());
+                throw new IOException(AiErrors.http(provider, null, response.code(), body));
             }
             List<String> out = new ArrayList<>();
             JSONObject root = new JSONObject(body);
@@ -467,7 +478,7 @@ public class AiSettingsActivity extends ComponentActivity {
             setDialogBusy(dialog, keyInput, true);
             new Thread(() -> {
                 try {
-                    requestModels(AiPreferences.llmBaseUrl(provider) + "/models", key);
+                    requestModels(provider, AiPreferences.llmBaseUrl(provider), key);
                     runOnUiThread(() -> {
                         if (isFinishing()) return;
                         AiPreferences.saveKey(this, provider, key);
@@ -488,6 +499,105 @@ public class AiSettingsActivity extends ComponentActivity {
                         if (isFinishing() || !dialog.isShowing()) return;
                         status.setText(getString(R.string.ai_key_test_failed, e.getMessage()));
                         setDialogBusy(dialog, keyInput, false);
+                    });
+                }
+            }).start();
+        });
+    }
+
+    // ================= 自建 API（自填網址的 OpenAI 相容服務） =================
+
+    private void refreshCustomStatus() {
+        String url = AiPreferences.getCustomBaseUrl(this);
+        ((TextView) findViewById(R.id.ai_key_status_custom)).setText(url.isEmpty()
+                ? getString(R.string.ai_key_unset) : url.replaceFirst("^https?://", ""));
+    }
+
+    /**
+     * 自建 API 的彈窗：網址（必填）＋ key（選填）。儲存前打一次 {網址}/models 驗證連得到，
+     * 通過才落地；失敗把錯誤（已是人話）顯示在彈窗裡、不關窗。「清除」＝拿掉這組設定。
+     */
+    private void showCustomDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        box.setPadding(pad, pad, pad, 0);
+
+        final TextView note = new TextView(this);
+        note.setTextSize(12);
+        note.setText(R.string.ai_custom_note);
+        box.addView(note);
+
+        final EditText urlInput = new EditText(this);
+        urlInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        urlInput.setHint(R.string.ai_custom_url_hint);
+        urlInput.setText(AiPreferences.getCustomBaseUrl(this));
+        box.addView(urlInput);
+
+        final EditText keyInput = new EditText(this);
+        keyInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        keyInput.setHint(R.string.ai_custom_key_hint);
+        box.addView(keyInput);
+
+        final TextView status = new TextView(this);
+        status.setTextSize(12);
+        box.addView(status);
+
+        final String P = AiPreferences.PROVIDER_CUSTOM;
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.ai_custom_title)
+                .setView(box)
+                .setPositiveButton(R.string.ai_save, null)   // null＝不自動 dismiss，下面接管
+                .setNeutralButton(R.string.ai_custom_clear, (d, w) -> {
+                    AiPreferences.saveCustomBaseUrl(this, "");
+                    AiPreferences.saveKey(this, P, "");
+                    refreshCustomStatus();
+                    refreshAllValues();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            final String url = AiPreferences.normalizeBaseUrl(urlInput.getText().toString());
+            // 沒重新輸入 key＝沿用已存的（密碼欄不回填既有 key）
+            String typed = keyInput.getText().toString().trim();
+            final String key = typed.isEmpty() ? AiPreferences.getKey(this, P) : typed;
+            if (url.isEmpty()) {
+                status.setText(R.string.ai_custom_url_empty);
+                return;
+            }
+            status.setText(R.string.ai_key_testing);
+            setDialogBusy(dialog, keyInput, true);
+            urlInput.setEnabled(false);
+            new Thread(() -> {
+                try {
+                    requestModels(P, url, key);
+                    runOnUiThread(() -> {
+                        if (isFinishing()) return;
+                        AiPreferences.saveCustomBaseUrl(this, url);
+                        AiPreferences.saveKey(this, P, key);
+                        refreshCustomStatus();
+                        // 解析還停在沒設定的家＝直接改用自建服務，接著選模型
+                        if (!AiPreferences.isProviderReady(this, llmProvider)
+                                || P.equals(llmProvider)) {
+                            boolean switched = !P.equals(llmProvider);
+                            llmProvider = P;
+                            if (switched) llmModel = AiPreferences.defaultLlmModel(P);
+                            persistSelections();
+                            dialog.dismiss();
+                            pickModel(false);
+                        } else {
+                            refreshAllValues();
+                            dialog.dismiss();
+                        }
+                        Toast.makeText(this, R.string.ai_key_saved, Toast.LENGTH_SHORT).show();
+                    });
+                } catch (final Exception e) {
+                    runOnUiThread(() -> {
+                        if (isFinishing() || !dialog.isShowing()) return;
+                        status.setText(getString(R.string.ai_key_test_failed, e.getMessage()));
+                        setDialogBusy(dialog, keyInput, false);
+                        urlInput.setEnabled(true);
                     });
                 }
             }).start();

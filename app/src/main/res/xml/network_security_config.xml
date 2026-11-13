@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  允許 http 明文連線：AI 設定的「自建 API」多半是家裡區網或 Tailscale 上的 http://主機:埠/v1
+  （自架 llama.cpp／Ollama 沒有憑證），而網址是使用者執行期才填的，無法逐一列進白名單。
+  app 其他連線都是寫死的 https 網址，不受影響。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

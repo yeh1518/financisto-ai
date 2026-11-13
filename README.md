@@ -14,9 +14,12 @@
   **原生機制**全自動記帳——AI 只做一次性的「產樣板」，執行期零 API 費、離線、隱私
 * 語音辨識：標準 Google 語音輸入，或雲端 STT 自錄音（Groq / OpenAI / Gemini）；
   Gemini / OpenAI 另有「語音直達」一次到位模式（音檔直接解析成表單，跳過兩段串接）
-* LLM 解析：OpenAI-相容 structured output（OpenAI / Gemini / Groq），注入帳戶與
-  分類樹 context、嚴格 id 驗證防幻覺；模型只能從 /models 清單選、不手打；
-  API key 加密存本機（Android Keystore），不進備份
+* LLM 解析：OpenAI-相容 structured output（OpenAI / Gemini / Groq），或 Anthropic
+  Messages API（Claude；只做解析、不收音訊），或自建 API（自填網址的 OpenAI 相容服務，
+  如自架 llama.cpp／Ollama；key 選填、可用 http 連家裡區網或 Tailscale），注入帳戶與分類樹 context、嚴格 id 驗證防幻覺；
+  模型只能從 /models 清單選、不手打；API key 加密存本機（Android Keystore），不進備份
+* 服務端錯誤翻成人話：額度用完、key 無效、模型下架、地區不支援、太頻繁、對方故障、
+  網路不通，各自告訴你下一步（儲值／換 key／重選模型／等一下／換家）
 * **可完全免費**：Gemini 免費 key ＋ 語音辨識選「內建」＝ 零成本（個人記帳用量下
   免費額度充足）
 * 帳戶「計入統計報表」開關：虛擬額度/信封袋帳戶的額度操作不再汙染收支統計

@@ -11,7 +11,7 @@ import androidx.security.crypto.MasterKey;
 /**
  * AI 記帳的 provider 設定與 key 存放（2026-07-20 重構為 per-provider 模型）。
  *
- * 三家 provider（Groq / OpenAI / Google AI）各自一把 key，加密存放
+ * 各家 provider（Groq / OpenAI / Google AI / Anthropic）各自一把 key，加密存放
  * （EncryptedSharedPreferences，master key 落 Android Keystore）。
  * 語音（STT）與解析（LLM）各自選 provider：STT 多一個「內建」（Google 語音彈窗）；
  * LLM 的 Gemini 走其 OpenAI 相容層，解析鏈（BookkeepingParser）程式碼不變。
@@ -29,6 +29,13 @@ public class AiPreferences {
     public static final String PROVIDER_GROQ = "groq";
     public static final String PROVIDER_OPENAI = "openai";
     public static final String PROVIDER_GEMINI = "gemini";
+    /** 只做解析（LLM）：Anthropic 不收音訊，不出現在語音辨識選單。走 Messages API（見 LlmCall）。 */
+    public static final String PROVIDER_ANTHROPIC = "anthropic";
+    /**
+     * 只做解析：使用者自填網址的 OpenAI 相容服務（自架 llama.cpp／Ollama／vLLM、代理、其他家）。
+     * key 選填（自架服務常不需要）；網址存一般設定（不是秘密），key 照樣加密。
+     */
+    public static final String PROVIDER_CUSTOM = "custom";
     /**
      * 僅 STT 選單：「辨識＋解析一次到位」——音檔直接進解析 prompt（通用模型聽得懂音訊），
      * 一趟來回出表單、transcript 由模型一併回報。Gemini 走其 OpenAI 相容層、OpenAI 走
@@ -38,6 +45,11 @@ public class AiPreferences {
     public static final String PROVIDER_OPENAI_DIRECT = "openai_direct";
     /** OpenAI 一次到位的預設音訊輸入模型（一般 gpt-4o-mini 不吃音訊）。 */
     public static final String DIRECT_MODEL_OPENAI = "gpt-4o-mini-audio-preview";
+    /**
+     * Anthropic 的預設解析模型。Sonnet 5.5（關思考）在真實記帳句上比 Haiku 5.5 準一點又快
+     * （2.3 秒 vs 3.7 秒），代價是每句約 US$0.02、Haiku 約 US$0.001；想省錢在設定裡改選 Haiku。
+     */
+    public static final String DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5-5";
 
     /**
      * OpenAI 一次到位可選的音訊輸入模型白名單。/models 清單不標示哪顆吃音訊，直接開放整包
@@ -49,13 +61,18 @@ public class AiPreferences {
             "gpt-4o-audio-preview",
     };
 
-    /** 三家雲端 provider（STT 選單另外加「內建」在最前）。 */
+    /** 能做語音辨識的雲端 provider（STT 選單另外加「內建」在最前）。 */
     public static final String[] CLOUD_PROVIDERS = {PROVIDER_GEMINI, PROVIDER_GROQ, PROVIDER_OPENAI};
+
+    /** 能做解析的 provider（解析服務選單）。 */
+    public static final String[] LLM_PROVIDERS =
+            {PROVIDER_GEMINI, PROVIDER_GROQ, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_CUSTOM};
 
     public static final String KEY_LLM_PROVIDER = "ai_llm_provider";
     public static final String KEY_MODEL = "ai_model";
     public static final String KEY_STT_PROVIDER = "ai_stt_provider";
     public static final String KEY_STT_MODEL = "ai_stt_model";
+    public static final String KEY_CUSTOM_BASE_URL = "ai_custom_base_url";
     public static final String KEY_AUTO_SEND = "ai_auto_send";
     public static final String KEY_INTRO_SHOWN = "ai_intro_shown";
     public static final String KEY_SHORTCUT_ENTERS_APP = "ai_shortcut_enters_app";
@@ -78,14 +95,16 @@ public class AiPreferences {
     private final String llmModel;
     private final String sttProvider;
     private final String sttModel;
+    private final String customBaseUrl;
 
     private AiPreferences(Context appContext, String llmProvider, String llmModel,
-                          String sttProvider, String sttModel) {
+                          String sttProvider, String sttModel, String customBaseUrl) {
         this.appContext = appContext;
         this.llmProvider = llmProvider;
         this.llmModel = llmModel;
         this.sttProvider = sttProvider;
         this.sttModel = sttModel;
+        this.customBaseUrl = customBaseUrl;
     }
 
     public static AiPreferences load(Context context) {
@@ -95,7 +114,7 @@ public class AiPreferences {
         String sttProvider = trimOr(prefs.getString(KEY_STT_PROVIDER, PROVIDER_SYSTEM), PROVIDER_SYSTEM);
         String sttModel = trimOr(prefs.getString(KEY_STT_MODEL, ""), defaultSttModel(sttProvider));
         return new AiPreferences(context.getApplicationContext(),
-                llmProvider, llmModel, sttProvider, sttModel);
+                llmProvider, llmModel, sttProvider, sttModel, getCustomBaseUrl(context));
     }
 
     private static String trimOr(String s, String def) {
@@ -104,9 +123,13 @@ public class AiPreferences {
 
     // ---------------- provider 定義（設死的端點與預設模型） ----------------
 
-    /** OpenAI 相容 base（LLM 與 /models 清單用；Gemini 走它的 OpenAI 相容層）。 */
+    /**
+     * API base（/models 清單與 key 測試用；解析的 chat/completions 也接在它後面）。
+     * Gemini 走它的 OpenAI 相容層；Anthropic 的解析走 /messages（見 LlmCall），/models 形狀相同。
+     */
     public static String llmBaseUrl(String provider) {
         switch (provider) {
+            case PROVIDER_ANTHROPIC: return "https://api.anthropic.com/v1";
             case PROVIDER_GROQ: return "https://api.groq.com/openai/v1";
             case PROVIDER_GEMINI: return "https://generativelanguage.googleapis.com/v1beta/openai";
             case PROVIDER_OPENAI:
@@ -129,6 +152,9 @@ public class AiPreferences {
             case PROVIDER_GROQ: return "openai/gpt-oss-120b";      // Groq 上支援 structured outputs
             // 2026-07 端側/雲端平價評測：flash-lite 24/24 全對、最快又平價（見 on-device-llm-eval）
             case PROVIDER_GEMINI: return "gemini-3.1-flash-lite";
+            // 選型理由見 DEFAULT_ANTHROPIC_MODEL 與 LlmCall.applyReasoning
+            case PROVIDER_ANTHROPIC: return DEFAULT_ANTHROPIC_MODEL;
+            case PROVIDER_CUSTOM: return "";                      // 沒有預設，從該服務的 /models 選
             case PROVIDER_OPENAI:
             default: return "gpt-4.1-mini";                       // OpenAI 平價中準度最佳（4o-mini 較弱）
         }
@@ -161,14 +187,51 @@ public class AiPreferences {
 
     public String getApiKey() { return getKey(appContext, llmProvider); }
 
-    public boolean isConfigured() {
-        String k = getApiKey();
-        return k != null && !k.isEmpty();
+    /** 解析用的 API base：自建服務是使用者填的網址，其他家是設死的。 */
+    public String getLlmBaseUrl() {
+        return PROVIDER_CUSTOM.equals(llmProvider) ? customBaseUrl : llmBaseUrl(llmProvider);
     }
 
-    /** chat/completions 完整 endpoint。 */
-    public String getChatCompletionsUrl() {
-        return llmBaseUrl(llmProvider) + "/chat/completions";
+    public boolean isConfigured() {
+        return isProviderReady(appContext, llmProvider);
+    }
+
+    /** 這家能不能拿來解析：自建服務看有沒有填網址（key 選填），其他家看有沒有 key。 */
+    public static boolean isProviderReady(Context context, String provider) {
+        if (PROVIDER_CUSTOM.equals(provider)) return !getCustomBaseUrl(context).isEmpty();
+        return hasKey(context, provider);
+    }
+
+    /** 某家的 API base（設定頁取 /models 用）。 */
+    public static String baseUrl(Context context, String provider) {
+        return PROVIDER_CUSTOM.equals(provider) ? getCustomBaseUrl(context) : llmBaseUrl(provider);
+    }
+
+    public static String getCustomBaseUrl(Context context) {
+        String s = PreferenceManager.getDefaultSharedPreferences(context)
+                .getString(KEY_CUSTOM_BASE_URL, "");
+        return s == null ? "" : s;
+    }
+
+    public static void saveCustomBaseUrl(Context context, String url) {
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putString(KEY_CUSTOM_BASE_URL, normalizeBaseUrl(url)).apply();
+    }
+
+    /**
+     * 使用者貼的網址收斂成 base：去頭尾空白與結尾斜線；貼成完整端點（…/chat/completions、
+     * …/models）也收回 base；沒寫協定補 http://（自架服務多半在內網、沒有憑證）。
+     */
+    static String normalizeBaseUrl(String url) {
+        if (url == null) return "";
+        String s = url.trim();
+        if (s.isEmpty()) return "";
+        while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
+        for (String tail : new String[]{"/chat/completions", "/models"}) {
+            if (s.endsWith(tail)) s = s.substring(0, s.length() - tail.length());
+        }
+        if (!s.contains("://")) s = "http://" + s;
+        return s;
     }
 
     // ---------------- STT ----------------

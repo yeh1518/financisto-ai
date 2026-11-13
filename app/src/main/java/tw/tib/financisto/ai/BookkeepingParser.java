@@ -178,7 +178,8 @@ public class BookkeepingParser {
         this.logContext = logContext;
         this.client = new OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(45, TimeUnit.SECONDS)
+                // 自架的本機模型（大 prompt 的 prefill、別人同時在用）一句可到二三十秒，雲端用不到這麼久
+                .readTimeout(90, TimeUnit.SECONDS)
                 .build();
     }
 
@@ -350,11 +351,12 @@ public class BookkeepingParser {
             code = response.code();
             responseBody = response.body() != null ? response.body().string() : "";
         } catch (IOException e) {
-            throw new ParseException("網路錯誤：" + e.getMessage(), e);
+            throw new ParseException(AiErrors.network(prefs.getDirectProvider(), e), e);
         }
 
         if (code < 200 || code >= 300) {
-            throw new ParseException(httpErrorMessage(code, responseBody));
+            throw new ParseException(AiErrors.http(prefs.getDirectProvider(),
+                    prefs.getDirectParseModel(), code, responseBody));
         }
 
         try {
@@ -365,7 +367,7 @@ public class BookkeepingParser {
                     supplement, formStateContext, content, null);
             return new AudioParseResult(toParsedTransaction(data, transcript, supplement), transcript);
         } catch (JSONException e) {
-            throw new ParseException("解析回應失敗：" + e.getMessage(), e);
+            throw new ParseException(LlmCall.unreadable(e.getMessage()), e);
         }
     }
 
@@ -421,34 +423,13 @@ public class BookkeepingParser {
         if (!prefs.isConfigured()) {
             throw new ParseException("尚未設定 API key");
         }
-        String requestJson;
+        String content;
         try {
-            requestJson = buildRequestBody(userText, supplement, formStateContext);
-        } catch (JSONException e) {
-            throw new ParseException("組請求失敗", e);
+            content = buildCall(userText, supplement, formStateContext).run(client);
+        } catch (LlmCall.Failure e) {
+            throw new ParseException(e.getMessage(), e);
         }
-
-        Request request = new Request.Builder()
-                .url(prefs.getChatCompletionsUrl())
-                .addHeader("Authorization", "Bearer " + prefs.getApiKey())
-                .addHeader("Content-Type", "application/json")
-                .post(RequestBody.create(JSON, requestJson))
-                .build();
-
-        String responseBody;
-        int code;
-        try (Response response = client.newCall(request).execute()) {
-            code = response.code();
-            responseBody = response.body() != null ? response.body().string() : "";
-        } catch (IOException e) {
-            throw new ParseException("網路錯誤：" + e.getMessage(), e);
-        }
-
-        if (code < 200 || code >= 300) {
-            throw new ParseException(httpErrorMessage(code, responseBody));
-        }
-
-        return parseResponse(responseBody, userText, supplement, formStateContext);
+        return parseResponse(content, userText, supplement, formStateContext);
     }
 
     /** 最近一次寫進 AiLog 的解析紀錄 id；轉成 ParsedTransaction 時帶上，表單端的 applied／form_end 用它掛回來。 */
@@ -507,57 +488,43 @@ public class BookkeepingParser {
                 c, week[c.get(Calendar.DAY_OF_WEEK) - 1]);
     }
 
-    private String buildRequestBody(String userText, boolean supplement, String formStateContext) throws JSONException {
-        String prompt = SYSTEM_PROMPT + (supplement ? SUPPLEMENT_RULE : "")
-                + "\n" + nowContext() + "\n" + ctx.promptContext;
-        if (supplement && formStateContext != null && !formStateContext.isEmpty()) {
-            prompt += "\n" + formStateContext;
-        }
-        JSONObject system = new JSONObject().put("role", "system")
-                .put("content", prompt);
-        JSONObject user = new JSONObject().put("role", "user").put("content", userText);
-        JSONArray messages = new JSONArray().put(system).put(user);
-
-        JSONObject responseFormat = new JSONObject()
-                .put("type", "json_schema")
-                .put("json_schema", new JSONObject(RESPONSE_SCHEMA));
-
-        return new JSONObject()
-                .put("model", prefs.getModel())
-                .put("temperature", 0)
-                .put("messages", messages)
-                .put("response_format", responseFormat)
-                .toString();
+    /**
+     * 組這次的呼叫。OpenAI 相容路徑的系統提示維持原組法（規則→現在時間→清單→表單狀態）；
+     * Anthropic 路徑把「規則＋清單」與「現在時間＋表單狀態」分兩塊，前一塊才吃得到快取。
+     * 兩者文字內容相同，只差順序。
+     */
+    private LlmCall buildCall(String userText, boolean supplement, String formStateContext) {
+        String rules = SYSTEM_PROMPT + (supplement ? SUPPLEMENT_RULE : "");
+        String form = (supplement && formStateContext != null && !formStateContext.isEmpty())
+                ? "\n" + formStateContext : "";
+        LlmCall call = new LlmCall(prefs.getLlmProvider(), prefs.getApiKey(), prefs.getModel());
+        call.baseUrl = prefs.getLlmBaseUrl();
+        call.systemFull = rules + "\n" + nowContext() + "\n" + ctx.promptContext + form;
+        call.systemStable = rules + "\n" + ctx.promptContext;
+        call.systemVolatile = nowContext() + form;
+        call.user = userText;
+        call.schemaWrapper = RESPONSE_SCHEMA;
+        return call;
     }
 
-    private ParsedTransaction parseResponse(String responseBody, String userText, boolean supplement,
+    private ParsedTransaction parseResponse(String content, String userText, boolean supplement,
                                             String formStateContext) throws ParseException {
         try {
-            String content = extractContent(responseBody);
             record(userText, supplement, formStateContext, content, null);
             JSONObject data = new JSONObject(content);
             return toParsedTransaction(data, userText, supplement);
         } catch (JSONException e) {
-            throw new ParseException("解析回應失敗：" + e.getMessage(), e);
+            throw new ParseException(LlmCall.unreadable(e.getMessage()), e);
         }
     }
 
-    /** chat/completions 回應 → message.content（choices/refusal/空內容檢查共用）。 */
+    /** chat/completions 回應 → message.content（音檔直解用；只走 OpenAI 相容路徑）。 */
     private static String extractContent(String responseBody) throws ParseException, JSONException {
-        JSONObject root = new JSONObject(responseBody);
-        JSONArray choices = root.optJSONArray("choices");
-        if (choices == null || choices.length() == 0) {
-            throw new ParseException("回應無 choices：" + shorten(responseBody));
+        try {
+            return LlmCall.openAiContent(responseBody);
+        } catch (LlmCall.Failure e) {
+            throw new ParseException(e.getMessage(), e);
         }
-        JSONObject message = choices.getJSONObject(0).getJSONObject("message");
-        if (!message.isNull("refusal")) {
-            throw new ParseException("模型拒絕：" + message.optString("refusal"));
-        }
-        String content = message.optString("content", "");
-        if (content.isEmpty()) {
-            throw new ParseException("回應內容為空");
-        }
-        return content;
     }
 
     private ParsedTransaction toParsedTransaction(JSONObject data, String userText, boolean supplement) {
@@ -751,24 +718,4 @@ public class BookkeepingParser {
         return (s == null || s.trim().isEmpty()) ? null : s;
     }
 
-    /**
-     * 把 HTTP 錯誤翻成看得懂的話。429 特別處理：免費層（尤其 Groq，TPM 8000 而本 app
-     * 每次請求約 5~6k tokens）很容易一分鐘只能跑一筆，直接顯示原始 JSON 只會讓人困惑。
-     */
-    static String httpErrorMessage(int code, String responseBody) {
-        if (code == 429) {
-            return "已達服務商的用量限制（每分鐘 token 上限），請稍候再試。"
-                    + "免費方案較容易碰到，可到 AI 設定換 provider 或看說明。";
-        }
-        if (code == 401 || code == 403) {
-            return "API key 無效或被拒（" + code + "）。請到 AI 設定確認 key。";
-        }
-        return "API 回傳 " + code + "：" + shorten(responseBody);
-    }
-
-    private static String shorten(String s) {
-        if (s == null) return "";
-        s = s.replaceAll("\\s+", " ").trim();
-        return s.length() > 300 ? s.substring(0, 300) + "…" : s;
-    }
 }

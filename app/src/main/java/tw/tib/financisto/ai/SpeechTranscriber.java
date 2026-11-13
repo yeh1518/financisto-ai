@@ -170,10 +170,11 @@ public class SpeechTranscriber {
             code = response.code();
             responseBody = response.body() != null ? response.body().string() : "";
         } catch (IOException e) {
-            throw new TranscribeException("網路錯誤：" + e.getMessage(), e);
+            throw new TranscribeException(AiErrors.network(prefs.getSttProvider(), e), e);
         }
         if (code < 200 || code >= 300) {
-            throw new TranscribeException(BookkeepingParser.httpErrorMessage(code, responseBody));
+            throw new TranscribeException(AiErrors.http(prefs.getSttProvider(),
+                    prefs.getSttModel(), code, responseBody));
         }
         return responseBody;
     }
