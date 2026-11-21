@@ -88,9 +88,13 @@ public class AiLog {
      *                   ＝辨識完又手改過。沒有這欄的話，換過辨識引擎之後語料就混成一團、
      *                   無法分層比較（2026-07-29 補；此日之前的紀錄沒有這欄，分析時要排除）。
      */
+    /**
+     * @param ms 從開始解析到拿到回應（或失敗）的毫秒數；&lt;0＝不記。
+     *           換服務或模型之後「感覺變慢」要有數字可比，沒記就只能事後重測。
+     */
     public static String record(Context context, String utterance, boolean supplement,
                               String formState, String rawContent, String error,
-                              String model, String stt, String promptVersion) {
+                              String model, String stt, String promptVersion, long ms) {
         String id = newId();
         try {
             JSONObject o = new JSONObject();
@@ -100,6 +104,7 @@ public class AiLog {
             stampVersion(o, promptVersion);
             if (model != null) o.put("model", model);
             if (stt != null) o.put("stt", stt);
+            if (ms >= 0) o.put("ms", ms);
             if (supplement) o.put("mode", "supplement");
             if (formState != null && !formState.isEmpty()) o.put("form", formState);
             if (rawContent != null) o.put("got", rawContent);

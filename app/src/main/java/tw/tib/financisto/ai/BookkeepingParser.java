@@ -213,6 +213,7 @@ public class BookkeepingParser {
      *                         「再補一份分割」還是「改某個欄位」。null＝不帶（退回無 context 的補充）。
      */
     public ParsedTransaction parse(String userText, boolean supplement, String formStateContext) throws ParseException {
+        startedAt = android.os.SystemClock.elapsedRealtime();
         try {
             return parseInternal(userText, supplement, formStateContext);
         } catch (ParseException e) {
@@ -249,6 +250,7 @@ public class BookkeepingParser {
             throws ParseException {
         // 一次到位＝音檔直送，來源不必問呼叫端：就是 direct 那顆模型自己聽的
         if (inputSource == null) inputSource = prefs.getSttLabel();
+        startedAt = android.os.SystemClock.elapsedRealtime();
         AudioParseResult r;
         try {
             r = parseAudioInternal(wavFile, supplement, formStateContext);
@@ -435,10 +437,14 @@ public class BookkeepingParser {
     /** 最近一次寫進 AiLog 的解析紀錄 id；轉成 ParsedTransaction 時帶上，表單端的 applied／form_end 用它掛回來。 */
     private String lastLogId;
 
+    /** 這次解析從哪一刻開始算（elapsedRealtime）；寫進 AiLog 的 ms 欄。0＝沒設，不記。 */
+    private long startedAt;
+
     private void record(String userText, boolean supplement, String formStateContext, String rawContent, String error) {
         if (logContext != null) {
+            long ms = startedAt > 0 ? android.os.SystemClock.elapsedRealtime() - startedAt : -1;
             lastLogId = AiLog.record(logContext, userText, supplement, formStateContext, rawContent, error,
-                    prefs.getModel(), inputSource, PROMPT_VERSION);
+                    prefs.getModel(), inputSource, PROMPT_VERSION, ms);
         }
     }
 
